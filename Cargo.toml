@@ -1,0 +1,57 @@
+[package]
+name = "gdclone"
+version = "0.1.0"
+authors = ["Opstic"]
+edition = "2021"
+repository = "https://github.com/opstic/gdclone"
+homepage = "https://github.com/opstic/gdclone"
+readme = "README.md"
+license = "AGPL-3.0-or-later"
+
+[dependencies]
+aho-corasick = "0.7.18"
+base64 = "0.13.0"
+benimator = "4.0.0-beta.2"
+bevy = { version = "0.8.0", default-features = false, features = [
+    "animation",
+    "bevy_asset",
+    "bevy_audio",
+    "bevy_gilrs",
+    "bevy_scene",
+    "bevy_winit",
+    "render",
+    "png",
+    "hdr",
+    "x11",
+    "filesystem_watcher"
+] }
+bevy-ui-navigation = "0.19.0"
+bevy_asset_loader = { version = "0.12.0", features = ["2d", "progress_tracking", "progress_tracking_stageless", "stageless"] }
+bevy_hanabi = "0.3.0"
+bevy_kira_audio = "0.11.0"
+bevy_tweening = "0.5.0"
+flate2 = "1.0.24"
+iyes_loopless = "0.7.0"
+iyes_progress = "0.4.0"
+leafwing-input-manager = "0.5.1"
+plist = { git = "https://github.com/pr2502/rust-plist", rev = "1e05b72" }
+quick-xml = { version = "0.23.0", features = ["serialize"] }
+serde = "1.0.143"
+
+# Enable only a small amount of optimization in debug mode
+[profile.dev]
+opt-level = 1
+
+# Enable high optimizations for dependencies (incl. Bevy), but not for our code:
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+codegen-units = 1
+debug = true
+split-debuginfo = "packed"
+lto = "fat"
+
+[profile.web-release]
+inherits = "release"
+opt-level = "z"
