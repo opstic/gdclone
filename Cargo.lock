@@ -1578,6 +1578,7 @@ dependencies = [
  "iyes_loopless",
  "iyes_progress",
  "leafwing-input-manager",
+ "nom",
  "plist",
  "quick-xml",
  "serde",

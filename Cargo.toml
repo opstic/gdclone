@@ -34,6 +34,7 @@ flate2 = "1.0.24"
 iyes_loopless = "0.7.0"
 iyes_progress = "0.4.0"
 leafwing-input-manager = "0.5.1"
+nom = "7.1.1"
 plist = { git = "https://github.com/pr2502/rust-plist", rev = "1e05b72" }
 quick-xml = { version = "0.23.0", features = ["serialize"] }
 serde = "1.0.143"

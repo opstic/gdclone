@@ -92,7 +92,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         })
         .insert(FpsText);
-    let _: Handle<GDLevel> = asset_server.load("Resources/CCGameManager.dat");
+    let _: Handle<GDLevel> = asset_server.load("CCLocalLevels.dat");
 }
 
 fn update_fps(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<FpsText>>) {
