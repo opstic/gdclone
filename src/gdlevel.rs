@@ -3,6 +3,9 @@ use bevy::asset::{AssetLoader, LoadContext, LoadedAsset};
 use bevy::prelude::*;
 use bevy::reflect::TypeUuid;
 use bevy::utils::BoxedFuture;
+use nom::bytes::complete::tag;
+use nom::number::complete::recognize_float;
+use nom::IResult;
 use plist::Dictionary;
 use serde::Deserialize;
 use std::io::Read;
@@ -47,7 +50,8 @@ impl AssetLoader for GDLevelLoader {
                 .as_string()
                 .unwrap();
             let inner_level_string = decrypt(inner_level_encoded.as_bytes(), None)?;
-            info!("{:#?}", String::from_utf8_lossy(&inner_level_string[..500]));
+            let inner_level_data = inner_level_parser(inner_level_string.to_owned().as_slice())?;
+            info!("{:#?}", inner_level_data);
             load_context.set_default_asset(LoadedAsset::new(GDLevel { a: plist }));
             info!("Finished");
             Ok(())
@@ -75,6 +79,17 @@ fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, bevy::asset::Error>
     let mut decompressed = Vec::with_capacity(decoded.len() + decoded.len() / 2);
     flate2::read::GzDecoder::new(&*decoded).read_to_end(&mut decompressed)?;
     Ok(decompressed)
+}
+
+fn inner_level_parser(input: &[u8]) -> IResult<&[u8], Vec<(&[u8], &[u8])>> {
+    let parser = nom::sequence::terminated(
+        nom::multi::separated_list0(
+            tag(","),
+            nom::sequence::separated_pair(recognize_float, tag(","), recognize_float),
+        ),
+        tag(";"),
+    );
+    nom::combinator::map(parser, |v| v)(input)
 }
 
 const FIX_PATTERN: &[&str; 8] = &["<d />", "d>", "k>", "r>", "i>", "s>", "<t", "<f"];
