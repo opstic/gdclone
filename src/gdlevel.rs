@@ -8,6 +8,7 @@ use nom::number::complete::recognize_float;
 use nom::IResult;
 use plist::Dictionary;
 use serde::Deserialize;
+use std::borrow::Cow;
 use std::io::Read;
 
 #[derive(Debug, Deserialize, TypeUuid)]
@@ -50,8 +51,16 @@ impl AssetLoader for GDLevelLoader {
                 .as_string()
                 .unwrap();
             let inner_level_string = decrypt(inner_level_encoded.as_bytes(), None)?;
-            let inner_level_data = inner_level_parser(inner_level_string.to_owned().as_slice())?;
-            info!("{:#?}", inner_level_data);
+            let inner_level_data =
+                inner_level_parser(inner_level_string.as_slice()).map_err(|err| {
+                    err.map(|err| {
+                        nom::error::Error::new(
+                            String::from_utf8_lossy(err.input).to_string(),
+                            err.code,
+                        )
+                    })
+                })?;
+            info!("{:?}", inner_level_data.1);
             load_context.set_default_asset(LoadedAsset::new(GDLevel { a: plist }));
             info!("Finished");
             Ok(())
@@ -71,7 +80,7 @@ fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, bevy::asset::Error>
     let xor: Vec<u8> = match key {
         Some(key) => bytes[..nul_byte_start + 1]
             .iter()
-            .map(|byte| *byte ^ 11)
+            .map(|byte| *byte ^ key)
             .collect::<Vec<u8>>(),
         None => bytes[..nul_byte_start + 1].to_vec(),
     };
