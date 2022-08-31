@@ -29,6 +29,7 @@ bevy-ui-navigation = "0.20.0"
 bevy_asset_loader = { version = "0.12.0", features = ["2d", "progress_tracking", "progress_tracking_stageless", "stageless"] }
 bevy_hanabi = "0.3.0"
 bevy_kira_audio = "0.12.0"
+bevy_pkv = "0.5.0"
 bevy_tweening = "0.5.0"
 flate2 = "1.0.24"
 iyes_loopless = "0.7.0"
