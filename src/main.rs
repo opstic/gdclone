@@ -4,6 +4,7 @@ use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy::window::{PresentMode, WindowResizeConstraints, WindowResized};
 use bevy::winit::WinitSettings;
+use bevy_editor_pls::EditorPlugin;
 use bevy_kira_audio::AudioPlugin;
 use bevy_tweening::*;
 use bevy_ui_navigation::DefaultNavigationPlugins;
@@ -38,6 +39,7 @@ fn main() {
         .insert_resource(Msaa::default())
         .add_plugins(DefaultPlugins)
         .add_plugin(AudioPlugin)
+        .add_plugin(EditorPlugin)
         .add_plugins(DefaultNavigationPlugins)
         .add_plugin(FrameTimeDiagnosticsPlugin)
         .add_plugin(TweeningPlugin)
@@ -92,7 +94,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         })
         .insert(FpsText);
-    let _: Handle<GDLevel> = asset_server.load("CCLocalLevels.dat");
 }
 
 fn update_fps(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<FpsText>>) {
@@ -117,7 +118,7 @@ fn handle_resize(mut windows: ResMut<Windows>, mut resize_events: EventReader<Wi
                     window.update_scale_factor_from_backend(scale_factor);
                 }
             }
-            None => warn!("Window {:?} does not exist", event.id),
+            None => unreachable!("Bevy should have handled ghost window events for us"),
         }
     }
 }
