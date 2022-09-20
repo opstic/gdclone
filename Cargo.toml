@@ -25,7 +25,7 @@ bevy = { version = "0.8.1", default-features = false, features = [
     "x11",
     "filesystem_watcher"
 ] }
-bevy-ui-navigation = "0.20.0"
+bevy-ui-navigation = "0.21.0"
 bevy_asset_loader = { version = "0.12.0", features = ["2d", "progress_tracking", "progress_tracking_stageless", "stageless"] }
 bevy_editor_pls = "0.1.1"
 bevy_hanabi = "0.3.0"
@@ -34,10 +34,10 @@ bevy_pkv = "0.5.0"
 bevy_tweening = "0.5.0"
 flate2 = "1.0.24"
 iyes_loopless = "0.7.0"
-iyes_progress = "0.4.0"
+iyes_progress = "0.5.0"
 leafwing-input-manager = "0.5.1"
 plist = { git = "https://github.com/pr2502/rust-plist", rev = "1e05b72" }
-quick-xml = { version = "0.23.0", features = ["serialize"] }
+quick-xml = { version = "0.25.0", features = ["serialize"] }
 serde = "1.0.143"
 
 # Enable only a small amount of optimization in debug mode
