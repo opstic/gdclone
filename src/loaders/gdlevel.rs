@@ -15,7 +15,7 @@ pub struct GDLevel {
 
 #[derive(Debug, Deserialize)]
 pub struct GDLevelObject {
-    id: u16,
+    pub(crate) id: u16,
     pub(crate) x: f32,
     pub(crate) y: f32,
     pub(crate) flip_x: bool,
@@ -104,8 +104,8 @@ fn decode_inner_level(bytes: &[u8]) -> Result<Vec<GDLevelObject>, bevy::asset::E
             };
             match property_id {
                 b"1" => object.id = String::from_utf8_lossy(property_value).parse().unwrap(),
-                b"2" => object.x = String::from_utf8_lossy(property_value).parse().unwrap(),
-                b"3" => object.y = String::from_utf8_lossy(property_value).parse().unwrap(),
+                b"2" => object.x = String::from_utf8_lossy(property_value).parse::<f32>().unwrap(),
+                b"3" => object.y = String::from_utf8_lossy(property_value).parse::<f32>().unwrap(),
                 b"4" => object.flip_x = u8_to_bool(property_value),
                 b"5" => object.flip_x = u8_to_bool(property_value),
                 b"6" => object.rot = String::from_utf8_lossy(property_value).parse().unwrap(),

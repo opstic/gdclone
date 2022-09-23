@@ -1,7 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-extern crate core;
-
 use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy::window::{PresentMode, WindowResizeConstraints, WindowResized};
@@ -13,13 +11,14 @@ use bevy_tweening::*;
 use bevy_ui_navigation::DefaultNavigationPlugins;
 use iyes_loopless::prelude::AppLooplessStateExt;
 use iyes_progress::ProgressPlugin;
+use std::string::String;
 use std::time::Duration;
 
-mod gdlevel;
+mod loaders;
 mod states;
 
-use gdlevel::{GDLevel, GDLevelLoader};
-use states::GameStates;
+use loaders::{gdlevel::GDLevel, AssetLoaderPlugin};
+use states::{GameStates, StatePlugins};
 
 fn main() {
     App::new()
@@ -41,28 +40,24 @@ fn main() {
             },
             ..default()
         })
-        .insert_resource(Msaa::default())
         .add_loopless_state(GameStates::LoadingState)
+        .add_plugin(ProgressPlugin::new(GameStates::LoadingState))
         .add_loading_state(
             LoadingState::new(GameStates::LoadingState)
                 .continue_to_state(GameStates::PlayState)
                 .with_collection::<LevelAssets>(),
         )
-        .add_plugin(ProgressPlugin::new(GameStates::LoadingState))
         .add_plugins(DefaultPlugins)
         .add_plugin(AudioPlugin)
         // .add_plugin(EditorPlugin)
         .add_plugins(DefaultNavigationPlugins)
         .add_plugin(FrameTimeDiagnosticsPlugin)
         .add_plugin(TweeningPlugin)
+        .add_plugin(AssetLoaderPlugin)
+        .add_plugins(StatePlugins)
         .add_startup_system(setup)
         .add_system(update_fps)
         .add_system(handle_resize)
-        .add_asset::<GDLevel>()
-        .init_asset_loader::<GDLevelLoader>()
-        .add_enter_system(GameStates::LoadingState, loading_setup)
-        .add_exit_system(GameStates::LoadingState, loading_cleanup)
-        .add_enter_system(GameStates::PlayState, play_setup)
         .run();
 }
 
@@ -74,61 +69,6 @@ struct LevelAssets {
 
 #[derive(Component)]
 struct FpsText;
-
-#[derive(Component)]
-struct LoadingText;
-
-fn loading_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands
-        .spawn_bundle(TextBundle {
-            style: Style {
-                align_self: AlignSelf::Center,
-                ..default()
-            },
-            text: Text {
-                sections: vec![TextSection {
-                    value: "Loading...".to_string(),
-                    style: TextStyle {
-                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                        font_size: 50.,
-                        color: Color::WHITE,
-                    },
-                }],
-                ..default()
-            },
-            ..default()
-        })
-        .insert(LoadingText);
-}
-
-fn loading_cleanup(mut commands: Commands, query: Query<Entity, With<LoadingText>>) {
-    for entity in query.iter() {
-        commands.entity(entity).despawn_recursive();
-    }
-}
-
-fn play_setup(
-    mut commands: Commands,
-    level_assets: Res<LevelAssets>,
-    mut levels: ResMut<Assets<GDLevel>>,
-) {
-    if let Some(level) = levels.remove(level_assets.level.id) {
-        for object in level.inner_level {
-            commands.spawn_bundle(SpriteBundle {
-                transform: Transform {
-                    translation: Vec3::from((object.x, object.y, 0.)),
-                    rotation: Quat::from_rotation_z(-object.rot.to_radians()),
-                    scale: Vec3::new(object.scale, object.scale, 0.),
-                },
-                sprite: Sprite {
-                    custom_size: Some(Vec2::new(10., 10.)),
-                    ..default()
-                },
-                ..default()
-            });
-        }
-    }
-}
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn_bundle(Camera2dBundle::default());
