@@ -5,19 +5,23 @@ use bevy::reflect::TypeUuid;
 use bevy::utils::BoxedFuture;
 use plist::Dictionary;
 use serde::Deserialize;
-use std::borrow::Cow;
 use std::io::Read;
 
 #[derive(Debug, Deserialize, TypeUuid)]
 #[uuid = "39cadc56-aa9c-4543-8640-a018b74b5052"]
 pub struct GDLevel {
-    a: Dictionary,
+    pub(crate) inner_level: Vec<GDLevelObject>,
 }
 
+#[derive(Debug, Deserialize)]
 pub struct GDLevelObject {
     id: u16,
-    x: f32,
-    y: f32,
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) flip_x: bool,
+    pub(crate) flip_y: bool,
+    pub(crate) rot: f32,
+    pub(crate) scale: f32,
 }
 
 #[derive(Default)]
@@ -48,8 +52,11 @@ impl AssetLoader for GDLevelLoader {
                 .as_string()
                 .unwrap();
             let inner_level_string = decrypt(inner_level_encoded.as_bytes(), None)?;
-            load_context.set_default_asset(LoadedAsset::new(GDLevel { a: plist }));
-            info!("Finished");
+            info!("{}", String::from_utf8_lossy(&inner_level_string));
+            let inner_level = decode_inner_level(&inner_level_string)?;
+            info!("{:#?}", inner_level);
+            load_context.set_default_asset(LoadedAsset::new(GDLevel { inner_level }));
+            info!("Done");
             Ok(())
         })
     }
@@ -75,6 +82,54 @@ fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, bevy::asset::Error>
     let mut decompressed = Vec::with_capacity(decoded.len() + decoded.len() / 2);
     flate2::read::GzDecoder::new(&*decoded).read_to_end(&mut decompressed)?;
     Ok(decompressed)
+}
+
+fn decode_inner_level(bytes: &[u8]) -> Result<Vec<GDLevelObject>, bevy::asset::Error> {
+    let mut objects = Vec::new();
+    for object_string in bytes.split(|byte| *byte == b';') {
+        let mut object = GDLevelObject {
+            id: 0,
+            x: 0.0,
+            y: 0.0,
+            flip_x: false,
+            flip_y: false,
+            rot: 0.0,
+            scale: 0.0,
+        };
+        let mut iterator = object_string.split(|byte| *byte == b',');
+        while let Some(property_id) = iterator.next() {
+            let property_value = match iterator.next() {
+                Some(value) => value,
+                None => break,
+            };
+            match property_id {
+                b"1" => object.id = String::from_utf8_lossy(property_value).parse().unwrap(),
+                b"2" => object.x = String::from_utf8_lossy(property_value).parse().unwrap(),
+                b"3" => object.y = String::from_utf8_lossy(property_value).parse().unwrap(),
+                b"4" => object.flip_x = u8_to_bool(property_value),
+                b"5" => object.flip_x = u8_to_bool(property_value),
+                b"6" => object.rot = String::from_utf8_lossy(property_value).parse().unwrap(),
+                b"32" => object.scale = String::from_utf8_lossy(property_value).parse().unwrap(),
+                _ => {}
+            }
+        }
+        if object.scale == 0. {
+            object.scale = 1.
+        }
+        if object.id == 0 {
+            continue;
+        } else {
+            objects.push(object)
+        }
+    }
+    Ok(objects)
+}
+
+fn u8_to_bool(byte: &[u8]) -> bool {
+    match byte {
+        b"1" => true,
+        _ => false,
+    }
 }
 
 const FIX_PATTERN: &[&str; 8] = &["<d />", "d>", "k>", "r>", "i>", "s>", "<t", "<f"];

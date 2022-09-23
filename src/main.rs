@@ -1,19 +1,24 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+extern crate core;
+
 use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy::window::{PresentMode, WindowResizeConstraints, WindowResized};
 use bevy::winit::WinitSettings;
+use bevy_asset_loader::prelude::*;
 use bevy_editor_pls::EditorPlugin;
 use bevy_kira_audio::AudioPlugin;
 use bevy_tweening::*;
 use bevy_ui_navigation::DefaultNavigationPlugins;
+use iyes_loopless::prelude::AppLooplessStateExt;
+use iyes_progress::ProgressPlugin;
 use std::time::Duration;
 
 mod gdlevel;
-
 mod states;
-use crate::gdlevel::{GDLevel, GDLevelLoader};
+
+use gdlevel::{GDLevel, GDLevelLoader};
 use states::GameStates;
 
 fn main() {
@@ -37,9 +42,16 @@ fn main() {
             ..default()
         })
         .insert_resource(Msaa::default())
+        .add_loopless_state(GameStates::LoadingState)
+        .add_loading_state(
+            LoadingState::new(GameStates::LoadingState)
+                .continue_to_state(GameStates::PlayState)
+                .with_collection::<LevelAssets>(),
+        )
+        .add_plugin(ProgressPlugin::new(GameStates::LoadingState))
         .add_plugins(DefaultPlugins)
         .add_plugin(AudioPlugin)
-        .add_plugin(EditorPlugin)
+        // .add_plugin(EditorPlugin)
         .add_plugins(DefaultNavigationPlugins)
         .add_plugin(FrameTimeDiagnosticsPlugin)
         .add_plugin(TweeningPlugin)
@@ -48,22 +60,78 @@ fn main() {
         .add_system(handle_resize)
         .add_asset::<GDLevel>()
         .init_asset_loader::<GDLevelLoader>()
+        .add_enter_system(GameStates::LoadingState, loading_setup)
+        .add_exit_system(GameStates::LoadingState, loading_cleanup)
+        .add_enter_system(GameStates::PlayState, play_setup)
         .run();
+}
+
+#[derive(AssetCollection)]
+struct LevelAssets {
+    #[asset(path = "CCLocalLevels.dat")]
+    level: Handle<GDLevel>,
 }
 
 #[derive(Component)]
 struct FpsText;
 
+#[derive(Component)]
+struct LoadingText;
+
+fn loading_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    commands
+        .spawn_bundle(TextBundle {
+            style: Style {
+                align_self: AlignSelf::Center,
+                ..default()
+            },
+            text: Text {
+                sections: vec![TextSection {
+                    value: "Loading...".to_string(),
+                    style: TextStyle {
+                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font_size: 50.,
+                        color: Color::WHITE,
+                    },
+                }],
+                ..default()
+            },
+            ..default()
+        })
+        .insert(LoadingText);
+}
+
+fn loading_cleanup(mut commands: Commands, query: Query<Entity, With<LoadingText>>) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn_recursive();
+    }
+}
+
+fn play_setup(
+    mut commands: Commands,
+    level_assets: Res<LevelAssets>,
+    mut levels: ResMut<Assets<GDLevel>>,
+) {
+    if let Some(level) = levels.remove(level_assets.level.id) {
+        for object in level.inner_level {
+            commands.spawn_bundle(SpriteBundle {
+                transform: Transform {
+                    translation: Vec3::from((object.x, object.y, 0.)),
+                    rotation: Quat::from_rotation_z(-object.rot.to_radians()),
+                    scale: Vec3::new(object.scale, object.scale, 0.),
+                },
+                sprite: Sprite {
+                    custom_size: Some(Vec2::new(10., 10.)),
+                    ..default()
+                },
+                ..default()
+            });
+        }
+    }
+}
+
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn_bundle(Camera2dBundle::default());
-    commands.spawn_bundle(SpriteBundle {
-        sprite: Sprite {
-            color: Color::rgb(1.0, 0.25, 0.75),
-            custom_size: Some(Vec2::new(1280.0, 720.0)),
-            ..default()
-        },
-        ..default()
-    });
     commands
         .spawn_bundle(TextBundle {
             style: Style {
