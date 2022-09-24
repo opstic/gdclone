@@ -12,3 +12,6 @@ Uses Rust language, Bevy Engine, and Clion.
 ```
 
 
+Licensed under AGPL 3
+Not affiliated with RobtopGames AB.
+For personal use only.
