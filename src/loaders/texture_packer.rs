@@ -2,12 +2,12 @@ use bevy::asset::{AssetLoader, BoxedFuture, Handle, LoadContext, LoadedAsset};
 use bevy::log::info;
 use bevy::prelude::{FromWorld, Image, TextureAtlas, Vec2, World};
 use bevy::reflect::TypeUuid;
+use bevy::render::renderer::RenderDevice;
 use bevy::render::texture::{CompressedImageFormats, ImageType};
+use bevy::sprite::Rect;
 use bevy::utils::HashMap;
 use plist::Dictionary;
 use std::path::Path;
-use bevy::render::renderer::RenderDevice;
-use bevy::sprite::Rect;
 
 #[derive(Debug, TypeUuid)]
 #[uuid = "f2c8ed94-b8c8-4d9e-99e9-7ba9b7e8603b"]
@@ -43,24 +43,42 @@ impl AssetLoader for TexturePackerAtlasLoader {
             info!("Loading");
             let manifest: Dictionary = plist::from_bytes(bytes).expect("Invalid manifest");
             let metadata = manifest.get("metadata").unwrap().as_dictionary().unwrap();
-            let texture_filename = metadata.get("realTextureFileName").unwrap().as_string().unwrap();
-            let texture_dimensions = texture_packer_size_to_vec2(metadata.get("size").unwrap().as_string().unwrap());
-            let texture = load_texture(load_context, texture_filename, self.supported_compressed_formats).await?;
-            let texture_handle = load_context.set_labeled_asset("texture", LoadedAsset::new(texture));
+            let texture_filename = metadata
+                .get("realTextureFileName")
+                .unwrap()
+                .as_string()
+                .unwrap();
+            let texture_dimensions =
+                texture_packer_size_to_vec2(metadata.get("size").unwrap().as_string().unwrap());
+            let texture = load_texture(
+                load_context,
+                texture_filename,
+                self.supported_compressed_formats,
+            )
+            .await?;
+            let texture_handle =
+                load_context.set_labeled_asset("texture", LoadedAsset::new(texture));
             let mut texture_atlas = TextureAtlas::new_empty(texture_handle, texture_dimensions);
             let mut index = HashMap::new();
             for (frame_name, frame) in manifest.get("frames").unwrap().as_dictionary().unwrap() {
                 info!("Processing {}", frame_name);
-                let texture_index = texture_atlas.add_texture(texture_packer_rect_to_rect(frame.as_dictionary().unwrap().get("textureRect").unwrap().as_string().unwrap()));
+                let texture_index = texture_atlas.add_texture(texture_packer_rect_to_rect(
+                    frame
+                        .as_dictionary()
+                        .unwrap()
+                        .get("textureRect")
+                        .unwrap()
+                        .as_string()
+                        .unwrap(),
+                ));
                 index.insert(frame_name.clone(), texture_index);
             }
-            let texture_atlas_handle = load_context.set_labeled_asset("texture_atlas", LoadedAsset::new(texture_atlas));
-            load_context.set_default_asset(LoadedAsset::new(
-                TexturePackerAtlas {
-                    index,
-                    texture_atlas: texture_atlas_handle,
-                }
-            ));
+            let texture_atlas_handle =
+                load_context.set_labeled_asset("texture_atlas", LoadedAsset::new(texture_atlas));
+            load_context.set_default_asset(LoadedAsset::new(TexturePackerAtlas {
+                index,
+                texture_atlas: texture_atlas_handle,
+            }));
             info!("Texture atlas loaded");
             Ok(())
         })
@@ -72,20 +90,26 @@ impl AssetLoader for TexturePackerAtlasLoader {
 }
 
 fn texture_packer_size_to_vec2(size_string: &str) -> Vec2 {
-    let stripped_str= strip_texture_packer(size_string);
-    let split_str: Vec<f32> = stripped_str.split(',').map(|str| str.parse().unwrap()).collect();
+    let stripped_str = strip_texture_packer(size_string);
+    let split_str: Vec<f32> = stripped_str
+        .split(',')
+        .map(|str| str.parse().unwrap())
+        .collect();
     Vec2 {
         x: split_str[0],
-        y: split_str[1]
+        y: split_str[1],
     }
 }
 
 fn texture_packer_rect_to_rect(rect_string: &str) -> Rect {
     let stripped_str = strip_texture_packer(rect_string);
-    let dimensions: Vec<f32> = stripped_str.split(",").map(|s| strip_texture_packer(s).parse().unwrap()).collect();
+    let dimensions: Vec<f32> = stripped_str
+        .split(",")
+        .map(|s| strip_texture_packer(s).parse().unwrap())
+        .collect();
     Rect {
         min: Vec2::new(dimensions[0], dimensions[1]),
-        max: Vec2::new(dimensions[0] + dimensions[2], dimensions[1] + dimensions[3])
+        max: Vec2::new(dimensions[0] - dimensions[2], dimensions[1] - dimensions[3]),
     }
 }
 
@@ -93,7 +117,11 @@ fn strip_texture_packer(string: &str) -> &str {
     string.trim_matches(|c| c == '{' || c == '}')
 }
 
-async fn load_texture<'a>(load_context: &LoadContext<'a>, filename: &str, supported_compressed_formats: CompressedImageFormats) -> Result<Image, bevy::asset::Error> {
+async fn load_texture<'a>(
+    load_context: &LoadContext<'a>,
+    filename: &str,
+    supported_compressed_formats: CompressedImageFormats,
+) -> Result<Image, bevy::asset::Error> {
     let parent_dir = load_context.path().parent().unwrap();
     let image_path = parent_dir.join(filename);
     let bytes = load_context.read_asset_bytes(image_path.clone()).await?;
