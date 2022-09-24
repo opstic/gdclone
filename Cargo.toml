@@ -41,6 +41,7 @@ leafwing-input-manager = "0.5.2"
 plist = { git = "https://github.com/pr2502/rust-plist", rev = "1e05b72" }
 quick-xml = { version = "0.25.0", features = ["serialize"] }
 serde = "1.0.143"
+serde_json = "1.0.85"
 
 # Enable only a small amount of optimization in debug mode
 [profile.dev]
