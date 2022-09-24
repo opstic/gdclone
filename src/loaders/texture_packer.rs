@@ -62,7 +62,7 @@ impl AssetLoader for TexturePackerAtlasLoader {
             let mut index = HashMap::new();
             for (frame_name, frame) in manifest.get("frames").unwrap().as_dictionary().unwrap() {
                 info!("Processing {}", frame_name);
-                let texture_index = texture_atlas.add_texture(texture_packer_rect_to_rect(
+                let texture_index = texture_atlas.add_texture(texture_packer_rect_to_bevy_rect(
                     frame
                         .as_dictionary()
                         .unwrap()
@@ -101,7 +101,7 @@ fn texture_packer_size_to_vec2(size_string: &str) -> Vec2 {
     }
 }
 
-fn texture_packer_rect_to_rect(rect_string: &str) -> Rect {
+fn texture_packer_rect_to_bevy_rect(rect_string: &str) -> Rect {
     let stripped_str = strip_texture_packer(rect_string);
     let dimensions: Vec<f32> = stripped_str
         .split(",")
@@ -109,7 +109,7 @@ fn texture_packer_rect_to_rect(rect_string: &str) -> Rect {
         .collect();
     Rect {
         min: Vec2::new(dimensions[0], dimensions[1]),
-        max: Vec2::new(dimensions[0] - dimensions[2], dimensions[1] - dimensions[3]),
+        max: Vec2::new(dimensions[0] + dimensions[2], dimensions[1] + dimensions[3]),
     }
 }
 

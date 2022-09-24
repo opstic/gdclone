@@ -7,10 +7,13 @@ pub(crate) struct PlayStatePlugin;
 
 impl Plugin for PlayStatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_enter_system(GameStates::PlayState, play_setup).add_system_set(
-            ConditionSet::new().run_in_state(
-                GameStates::PlayState).with_system(
-                move_camera).into());
+        app.add_enter_system(GameStates::PlayState, play_setup)
+            .add_system_set(
+                ConditionSet::new()
+                    .run_in_state(GameStates::PlayState)
+                    .with_system(move_camera)
+                    .into(),
+            );
     }
 }
 
@@ -29,6 +32,7 @@ fn play_setup(
                 .unwrap()
                 .mapping
                 .get(&object.id);
+            info!("texture_name: {:?}", texture_name);
             let mut atlas_handle: Option<Handle<TextureAtlas>> = None;
             let mut atlas_mapping: usize = 0;
             if let Some(name) = texture_name {
@@ -55,14 +59,18 @@ fn play_setup(
                 break;
             }
             if let Some(handle) = atlas_handle {
-                info!("{:?}", atlas_mapping);
+                info!("{:?}", object.id);
                 commands.spawn_bundle(SpriteSheetBundle {
                     transform: Transform {
                         translation: Vec3::from((object.x, object.y, 0.)),
                         rotation: Quat::from_rotation_z(-object.rot.to_radians()),
                         scale: Vec3::new(object.scale, object.scale, 0.),
                     },
-                    sprite: TextureAtlasSprite::new(atlas_mapping),
+                    sprite: TextureAtlasSprite {
+                        index: atlas_mapping,
+                        custom_size: Some(Vec2::new(150., 150.)),
+                        ..Default::default()
+                    },
                     texture_atlas: handle,
                     ..default()
                 });
@@ -89,9 +97,12 @@ fn play_setup(
     // });
 }
 
-fn move_camera(mut camera_transforms: Query<&mut Transform, With<Camera>>, keys: Res<Input<KeyCode>>, mut projections: Query<&mut OrthographicProjection, With<Camera>>) {
+fn move_camera(
+    mut camera_transforms: Query<&mut Transform, With<Camera>>,
+    keys: Res<Input<KeyCode>>,
+    mut projections: Query<&mut OrthographicProjection, With<Camera>>,
+) {
     for mut transform in camera_transforms.iter_mut() {
-
         if keys.pressed(KeyCode::Right) {
             transform.translation.x += 10.0;
         }
@@ -104,9 +115,8 @@ fn move_camera(mut camera_transforms: Query<&mut Transform, With<Camera>>, keys:
         if keys.pressed(KeyCode::Down) {
             transform.translation.y -= 10.0;
         }
-
     }
-    for mut projection in projections.iter_mut(){
+    for mut projection in projections.iter_mut() {
         if keys.pressed(KeyCode::Q) {
             projection.scale *= 1.01;
         }
@@ -115,4 +125,3 @@ fn move_camera(mut camera_transforms: Query<&mut Transform, With<Camera>>, keys:
         }
     }
 }
-
