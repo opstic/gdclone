@@ -1,3 +1,4 @@
+use std::thread::spawn;
 use crate::{GDLevel, GameStates, LevelAssets, ObjectMapping, TexturePackerAtlas};
 use bevy::prelude::*;
 use bevy::render::camera;
@@ -25,6 +26,27 @@ fn play_setup(
     packer_atlases: Res<Assets<TexturePackerAtlas>>,
     texture_atlases: Res<Assets<TextureAtlas>>,
 ) {
+
+    // let pack_atlases = packer_atlases.get(&level_assets.atlas1).unwrap();
+    // let mut I = 0;
+    //
+    // for texture in pack_atlases.index.clone() {
+    //     commands.spawn_bundle(SpriteSheetBundle {
+    //         transform: Transform {
+    //             translation: Vec3::from(((150*I) as f32, 0.0, 0.0)),
+    //             ..default()
+    //         },
+    //         sprite: TextureAtlasSprite {
+    //             index: I,
+    //             ..default()
+    //         },
+    //         texture_atlas: pack_atlases.texture_atlas.clone(),
+    //         ..default()
+    //     });
+    //     I += 1;
+    //     }
+    //
+    //
     if let Some(level) = levels.get(&level_assets.level) {
         for object in &level.inner_level {
             let texture_name = mapping
@@ -32,6 +54,10 @@ fn play_setup(
                 .unwrap()
                 .mapping
                 .get(&object.id);
+            // let texture_name = Some("block001_slope_02_001.png");
+            // for  in  {
+            //
+            // }
             info!("texture_name: {:?}", texture_name);
             let mut atlas_handle: Option<Handle<TextureAtlas>> = None;
             let mut atlas_mapping: usize = 0;
@@ -68,7 +94,8 @@ fn play_setup(
                     },
                     sprite: TextureAtlasSprite {
                         index: atlas_mapping,
-                        custom_size: Some(Vec2::new(150., 150.)),
+                        // custom_size: Some(Vec2::new(150., 150.)),
+                        flip_x: object.flip_x, flip_y: object.flip_y,
                         ..Default::default()
                     },
                     texture_atlas: handle,
@@ -114,6 +141,12 @@ fn move_camera(
         }
         if keys.pressed(KeyCode::Down) {
             transform.translation.y -= 10.0;
+        }
+        if keys.pressed(KeyCode::A) {
+            transform.translation.x -= 30.0;
+        }
+        if keys.pressed(KeyCode::D) {
+            transform.translation.x += 30.0;
         }
     }
     for mut projection in projections.iter_mut() {

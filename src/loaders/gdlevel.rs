@@ -107,13 +107,13 @@ fn decode_inner_level(bytes: &[u8]) -> Result<Vec<GDLevelObject>, bevy::asset::E
                     object.x = String::from_utf8_lossy(property_value)
                         .parse::<f32>()
                         .unwrap()
-                        * 5.
+                        * 4.0
                 }
                 b"3" => {
                     object.y = String::from_utf8_lossy(property_value)
                         .parse::<f32>()
                         .unwrap()
-                        * 5.
+                        * 4.0
                 }
                 b"4" => object.flip_x = u8_to_bool(property_value),
                 b"5" => object.flip_y = u8_to_bool(property_value),

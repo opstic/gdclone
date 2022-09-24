@@ -6,7 +6,6 @@ edition = "2021"
 repository = "https://github.com/opstic/gdclone"
 homepage = "https://github.com/opstic/gdclone"
 readme = "README.md"
-license = "AGPL-3.0-or-later"
 
 [dependencies]
 aho-corasick = "0.7.18"
