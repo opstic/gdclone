@@ -8,7 +8,7 @@ use serde::Deserialize;
 use std::io::Read;
 
 #[derive(Debug, Deserialize, TypeUuid)]
-#[uuid = "39cadc56-aa9c-4543-8640-a018b74b5052"]
+#[uuid = "1303d57b-af74-4318-ac9b-5d9e5519bcf1"]
 pub struct GDLevel {
     pub(crate) inner_level: Vec<GDLevelObject>,
 }
@@ -107,7 +107,7 @@ fn decode_inner_level(bytes: &[u8]) -> Result<Vec<GDLevelObject>, bevy::asset::E
                 b"2" => object.x = String::from_utf8_lossy(property_value).parse::<f32>().unwrap(),
                 b"3" => object.y = String::from_utf8_lossy(property_value).parse::<f32>().unwrap(),
                 b"4" => object.flip_x = u8_to_bool(property_value),
-                b"5" => object.flip_x = u8_to_bool(property_value),
+                b"5" => object.flip_y = u8_to_bool(property_value),
                 b"6" => object.rot = String::from_utf8_lossy(property_value).parse().unwrap(),
                 b"32" => object.scale = String::from_utf8_lossy(property_value).parse().unwrap(),
                 _ => {}
