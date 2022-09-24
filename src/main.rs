@@ -11,13 +11,12 @@ use bevy_tweening::*;
 use bevy_ui_navigation::DefaultNavigationPlugins;
 use iyes_loopless::prelude::AppLooplessStateExt;
 use iyes_progress::ProgressPlugin;
-use std::string::String;
 use std::time::Duration;
 
 mod loaders;
 mod states;
 
-use loaders::{gdlevel::GDLevel, AssetLoaderPlugin};
+use loaders::{gdlevel::GDLevel, mapping::ObjectMapping, texture_packer::TexturePackerAtlas, AssetLoaderPlugin};
 use states::{GameStates, StatePlugins};
 
 fn main() {
@@ -65,6 +64,18 @@ fn main() {
 struct LevelAssets {
     #[asset(path = "CCLocalLevels.dat")]
     level: Handle<GDLevel>,
+    #[asset(path = "data/objectTextureMap.json.mapping")]
+    texture_mapping: Handle<ObjectMapping>,
+    #[asset(path = "Resources/GJ_GameSheet-uhd.plist")]
+    atlas1: Handle<TexturePackerAtlas>,
+    #[asset(path = "Resources/GJ_GameSheet02-uhd.plist")]
+    atlas2: Handle<TexturePackerAtlas>,
+    #[asset(path = "Resources/GJ_GameSheet03-uhd.plist")]
+    atlas3: Handle<TexturePackerAtlas>,
+    #[asset(path = "Resources/GJ_GameSheet04-uhd.plist")]
+    atlas4: Handle<TexturePackerAtlas>,
+    #[asset(path = "Resources/GJ_GameSheetGlow-uhd.plist")]
+    atlas5: Handle<TexturePackerAtlas>,
 }
 
 #[derive(Component)]

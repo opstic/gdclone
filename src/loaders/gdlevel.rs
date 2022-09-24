@@ -52,9 +52,8 @@ impl AssetLoader for GDLevelLoader {
                 .as_string()
                 .unwrap();
             let inner_level_string = decrypt(inner_level_encoded.as_bytes(), None)?;
-            info!("{}", String::from_utf8_lossy(&inner_level_string));
             let inner_level = decode_inner_level(&inner_level_string)?;
-            info!("{:#?}", inner_level);
+            info!("{:?}", inner_level);
             load_context.set_default_asset(LoadedAsset::new(GDLevel { inner_level }));
             info!("Done");
             Ok(())

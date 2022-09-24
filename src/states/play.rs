@@ -1,4 +1,4 @@
-use crate::{GDLevel, GameStates, LevelAssets};
+use crate::{GDLevel, GameStates, LevelAssets, ObjectMapping, TexturePackerAtlas};
 use bevy::prelude::*;
 use iyes_loopless::prelude::AppLooplessStateExt;
 
@@ -13,22 +13,73 @@ impl Plugin for PlayStatePlugin {
 fn play_setup(
     mut commands: Commands,
     level_assets: Res<LevelAssets>,
-    mut levels: ResMut<Assets<GDLevel>>,
+    levels: Res<Assets<GDLevel>>,
+    mapping: Res<Assets<ObjectMapping>>,
+    packer_atlases: Res<Assets<TexturePackerAtlas>>,
+    texture_atlases: Res<Assets<TextureAtlas>>,
 ) {
-    if let Some(level) = levels.remove(level_assets.level.id) {
-        for object in level.inner_level {
-            commands.spawn_bundle(SpriteBundle {
-                transform: Transform {
-                    translation: Vec3::from((object.x, object.y, 0.)),
-                    rotation: Quat::from_rotation_z(-object.rot.to_radians()),
-                    scale: Vec3::new(object.scale, object.scale, 0.),
-                },
-                sprite: Sprite {
-                    custom_size: Some(Vec2::new(30., 30.)),
+    if let Some(level) = levels.get(&level_assets.level) {
+        for object in &level.inner_level {
+            let texture_name = mapping
+                .get(&level_assets.texture_mapping)
+                .unwrap()
+                .mapping
+                .get(&object.id);
+            let mut atlas_handle: Option<Handle<TextureAtlas>> = None;
+            let mut atlas_mapping: usize = 0;
+            if let Some(name) = texture_name {
+                let atlases = vec![
+                    &level_assets.atlas1,
+                    &level_assets.atlas2,
+                    &level_assets.atlas3,
+                    &level_assets.atlas4,
+                    &level_assets.atlas5,
+                ];
+                for atlas in atlases {
+                    let packer_atlas = packer_atlases.get(atlas).unwrap();
+                    match packer_atlas.index.get(name) {
+                        Some(mapping) => {
+                            atlas_handle = Some(packer_atlas.texture_atlas.clone());
+                            atlas_mapping = mapping.clone();
+                            break;
+                        }
+                        None => continue,
+                    }
+                }
+            } else {
+                info!("Unknown object: {:?}", object);
+                break;
+            }
+            if let Some(handle) = atlas_handle {
+                info!("{:?}", atlas_mapping);
+                commands.spawn_bundle(SpriteSheetBundle {
+                    transform: Transform {
+                        translation: Vec3::from((object.x, object.y, 0.)),
+                        rotation: Quat::from_rotation_z(-object.rot.to_radians()),
+                        scale: Vec3::new(object.scale, object.scale, 0.),
+                    },
+                    sprite: TextureAtlasSprite::new(atlas_mapping),
+                    texture_atlas: handle,
                     ..default()
-                },
-                ..default()
-            });
+                });
+            } else {
+                info!("Unknown object: {:?}", object);
+                break;
+            }
         }
     }
+    commands.spawn_bundle(SpriteBundle {
+        texture: texture_atlases
+            .get(
+                &packer_atlases
+                    .get(&level_assets.atlas1)
+                    .unwrap()
+                    .texture_atlas,
+            )
+            .unwrap()
+            .texture
+            .clone(),
+        transform: Transform::from_xyz(-300.0, 0.0, 0.0),
+        ..default()
+    });
 }

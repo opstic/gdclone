@@ -1886,6 +1886,7 @@ dependencies = [
  "plist",
  "quick-xml",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
