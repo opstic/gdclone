@@ -2,7 +2,7 @@
 
 An attempt at a GD client that uses a better engine and better optimized systems!
 
-Uses Rust language, Bevy Engine, and Clion.
+Built using Rust and Bevy engine.
 
 
 ```
