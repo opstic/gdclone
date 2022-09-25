@@ -6,10 +6,19 @@ use bevy::utils::BoxedFuture;
 use plist::Dictionary;
 use serde::Deserialize;
 use std::io::Read;
+use bevy_prototype_lyon::prelude::tess::path::AttributeStore;
 
 #[derive(Debug, Deserialize, TypeUuid)]
 #[uuid = "1303d57b-af74-4318-ac9b-5d9e5519bcf1"]
+pub struct GDSaveFile {
+    pub(crate) levels: Vec<GDLevel>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct GDLevel {
+    pub(crate) id: Option<u64>,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
     pub(crate) inner_level: Vec<GDLevelObject>,
 }
 
@@ -25,36 +34,49 @@ pub struct GDLevelObject {
 }
 
 #[derive(Default)]
-pub struct GDLevelLoader;
+pub struct GDSaveLoader;
 
-impl AssetLoader for GDLevelLoader {
+impl AssetLoader for GDSaveLoader {
     fn load<'a>(
         &'a self,
         bytes: &'a [u8],
         load_context: &'a mut LoadContext,
     ) -> BoxedFuture<'a, Result<(), bevy::asset::Error>> {
         Box::pin(async move {
-            info!("Loading a level");
+            info!("Loading save");
             let decrypted = decrypt(bytes, Some(11_u8))?;
             let fixed = AhoCorasick::new(FIX_PATTERN).replace_all_bytes(&decrypted, FIX_REPLACE);
             let plist: Dictionary = plist::from_bytes(&fixed)?;
-            let inner_level_encoded = plist
-                .get("LLM_01")
-                .unwrap()
-                .as_dictionary()
-                .unwrap()
-                .get("k_0")
-                .unwrap()
-                .as_dictionary()
-                .unwrap()
-                .get("k4")
-                .unwrap()
-                .as_string()
-                .unwrap();
-            let inner_level_string = decrypt(inner_level_encoded.as_bytes(), None)?;
-            let inner_level = decode_inner_level(&inner_level_string)?;
-            // info!("{:?}", inner_level);
-            load_context.set_default_asset(LoadedAsset::new(GDLevel { inner_level }));
+            let mut levels: Vec<GDLevel> = Vec::new();
+            for (key_name, key) in plist.get("LLM_01").unwrap().as_dictionary().unwrap() {
+                if key_name == "_isArr" {
+                    continue;
+                }
+                let level = key.as_dictionary().unwrap();
+                info!("Loading {}", level.get("k2").unwrap().as_string().unwrap().to_string());
+                let level_id = if let Some(id) = level.get("k1") {
+                    Some(id.as_unsigned_integer().unwrap())
+                } else {
+                    None
+                };
+                let level_description = if let Some(description) = level.get("k3") {
+                    Some(description.as_string().unwrap().to_string())
+                } else {
+                    None
+                };
+                let level_inner = if let Some(inner) = level.get("k4") {
+                    decode_inner_level(&decrypt(inner.as_string().unwrap().as_bytes(), None)?)?
+                } else {
+                    Vec::new()
+                };
+                levels.push(GDLevel {
+                    id: level_id,
+                    name: level.get("k2").unwrap().as_string().unwrap().to_string(),
+                    description: level_description,
+                    inner_level: level_inner,
+                });
+            }
+            load_context.set_default_asset(LoadedAsset::new(GDSaveFile { levels }));
             info!("Done");
             Ok(())
         })

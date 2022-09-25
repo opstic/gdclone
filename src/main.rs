@@ -17,7 +17,8 @@ mod loaders;
 mod states;
 
 use loaders::{
-    gdlevel::GDLevel, mapping::ObjectMapping, texture_packer::TexturePackerAtlas, AssetLoaderPlugin,
+    gdlevel::GDSaveFile, mapping::ObjectMapping, texture_packer::TexturePackerAtlas,
+    AssetLoaderPlugin,
 };
 use states::{GameStates, StatePlugins};
 
@@ -45,10 +46,10 @@ fn main() {
         .add_plugin(ProgressPlugin::new(GameStates::LoadingState))
         .add_loading_state(
             LoadingState::new(GameStates::LoadingState)
-                .continue_to_state(GameStates::PlayState)
+                .continue_to_state(GameStates::LevelSelectState)
                 //TODO: ADD IN A TRANSITION BETWEEN STATES
                 // .continue_to_state(GameStates::PlayState)
-                .with_collection::<LevelAssets>(),
+                .with_collection::<GlobalAssets>(),
         )
         .add_plugins(DefaultPlugins)
         .add_plugin(AudioPlugin)
@@ -65,9 +66,9 @@ fn main() {
 }
 
 #[derive(AssetCollection)]
-struct LevelAssets {
+struct GlobalAssets {
     #[asset(path = "CCLocalLevels.dat")]
-    level: Handle<GDLevel>,
+    save_file: Handle<GDSaveFile>,
     #[asset(path = "data/objectTextureMap.json.mapping")]
     texture_mapping: Handle<ObjectMapping>,
     #[asset(path = "Resources/GJ_GameSheet-uhd.plist")]
@@ -81,6 +82,9 @@ struct LevelAssets {
     #[asset(path = "Resources/GJ_GameSheetGlow-uhd.plist")]
     atlas5: Handle<TexturePackerAtlas>,
 }
+
+#[derive(AssetCollection)]
+struct LevelAssets {}
 
 #[derive(Component)]
 struct FpsText;

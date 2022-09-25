@@ -40,7 +40,6 @@ impl AssetLoader for TexturePackerAtlasLoader {
         load_context: &'a mut LoadContext,
     ) -> BoxedFuture<'a, Result<(), bevy::asset::Error>> {
         Box::pin(async move {
-            info!("Loading");
             let manifest: Dictionary = plist::from_bytes(bytes).expect("Invalid manifest");
             let metadata = manifest.get("metadata").unwrap().as_dictionary().unwrap();
             let texture_filename = metadata
@@ -61,7 +60,6 @@ impl AssetLoader for TexturePackerAtlasLoader {
             let mut texture_atlas = TextureAtlas::new_empty(texture_handle, texture_dimensions);
             let mut index = HashMap::new();
             for (frame_name, frame) in manifest.get("frames").unwrap().as_dictionary().unwrap() {
-                info!("Processing {}", frame_name);
                 let texture_index = texture_atlas.add_texture(texture_packer_rect_to_bevy_rect(
                     frame
                         .as_dictionary()
@@ -86,7 +84,6 @@ impl AssetLoader for TexturePackerAtlasLoader {
                 index,
                 texture_atlas: texture_atlas_handle,
             }));
-            info!("Texture atlas loaded");
             Ok(())
         })
     }
