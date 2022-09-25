@@ -1,8 +1,8 @@
-use std::thread::spawn;
 use crate::{GDLevel, GameStates, LevelAssets, ObjectMapping, TexturePackerAtlas};
 use bevy::prelude::*;
 use bevy::render::camera;
 use iyes_loopless::prelude::{AppLooplessStateExt, ConditionSet};
+use std::thread::spawn;
 
 pub(crate) struct PlayStatePlugin;
 
@@ -26,7 +26,6 @@ fn play_setup(
     packer_atlases: Res<Assets<TexturePackerAtlas>>,
     texture_atlases: Res<Assets<TextureAtlas>>,
 ) {
-
     // let pack_atlases = packer_atlases.get(&level_assets.atlas1).unwrap();
     // let mut I = 0;
     //
@@ -48,6 +47,7 @@ fn play_setup(
     //
     //
     if let Some(level) = levels.get(&level_assets.level) {
+        let mut i = 0;
         for object in &level.inner_level {
             let texture_name = mapping
                 .get(&level_assets.texture_mapping)
@@ -61,6 +61,7 @@ fn play_setup(
             info!("texture_name: {:?}", texture_name);
             let mut atlas_handle: Option<Handle<TextureAtlas>> = None;
             let mut atlas_mapping: usize = 0;
+            let mut texture_rotated: bool = false;
             if let Some(name) = texture_name {
                 let atlases = vec![
                     &level_assets.atlas1,
@@ -72,9 +73,10 @@ fn play_setup(
                 for atlas in atlases {
                     let packer_atlas = packer_atlases.get(atlas).unwrap();
                     match packer_atlas.index.get(name) {
-                        Some(mapping) => {
+                        Some((mapping, rotated)) => {
                             atlas_handle = Some(packer_atlas.texture_atlas.clone());
                             atlas_mapping = mapping.clone();
+                            texture_rotated = rotated.clone();
                             break;
                         }
                         None => continue,
@@ -89,13 +91,15 @@ fn play_setup(
                 commands.spawn_bundle(SpriteSheetBundle {
                     transform: Transform {
                         translation: Vec3::from((object.x, object.y, 0.)),
-                        rotation: Quat::from_rotation_z(-object.rot.to_radians()),
+                        rotation: Quat::from_rotation_z(
+                            -(object.rot + if texture_rotated { -90. } else { 0. }).to_radians(),
+                        ),
                         scale: Vec3::new(object.scale, object.scale, 0.),
                     },
                     sprite: TextureAtlasSprite {
                         index: atlas_mapping,
-                        // custom_size: Some(Vec2::new(150., 150.)),
-                        flip_x: object.flip_x, flip_y: object.flip_y,
+                        flip_x: object.flip_x,
+                        flip_y: object.flip_y,
                         ..Default::default()
                     },
                     texture_atlas: handle,
@@ -105,6 +109,7 @@ fn play_setup(
                 info!("Unknown object: {:?}", object);
                 break;
             }
+            i += 1;
         }
     }
 

@@ -16,9 +16,10 @@ use std::time::Duration;
 mod loaders;
 mod states;
 
-use loaders::{gdlevel::GDLevel, mapping::ObjectMapping, texture_packer::TexturePackerAtlas, AssetLoaderPlugin};
+use loaders::{
+    gdlevel::GDLevel, mapping::ObjectMapping, texture_packer::TexturePackerAtlas, AssetLoaderPlugin,
+};
 use states::{GameStates, StatePlugins};
-use crate::GameStates::LevelSelectState;
 
 fn main() {
     App::new()
@@ -44,7 +45,7 @@ fn main() {
         .add_plugin(ProgressPlugin::new(GameStates::LoadingState))
         .add_loading_state(
             LoadingState::new(GameStates::LoadingState)
-                .continue_to_state(LevelSelectState)
+                .continue_to_state(GameStates::PlayState)
                 //TODO: ADD IN A TRANSITION BETWEEN STATES
                 // .continue_to_state(GameStates::PlayState)
                 .with_collection::<LevelAssets>(),

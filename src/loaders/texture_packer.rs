@@ -12,7 +12,7 @@ use std::path::Path;
 #[derive(Debug, TypeUuid)]
 #[uuid = "f2c8ed94-b8c8-4d9e-99e9-7ba9b7e8603b"]
 pub struct TexturePackerAtlas {
-    pub(crate) index: HashMap<String, usize>,
+    pub(crate) index: HashMap<String, (usize, bool)>,
     pub(crate) texture_atlas: Handle<TextureAtlas>,
 }
 
@@ -71,7 +71,14 @@ impl AssetLoader for TexturePackerAtlasLoader {
                         .as_string()
                         .unwrap(),
                 ));
-                index.insert(frame_name.clone(), texture_index);
+                let rotated = frame
+                    .as_dictionary()
+                    .unwrap()
+                    .get("textureRotated")
+                    .unwrap()
+                    .as_boolean()
+                    .unwrap();
+                index.insert(frame_name.clone(), (texture_index, rotated));
             }
             let texture_atlas_handle =
                 load_context.set_labeled_asset("texture_atlas", LoadedAsset::new(texture_atlas));
