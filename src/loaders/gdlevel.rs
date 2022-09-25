@@ -6,7 +6,6 @@ use bevy::utils::BoxedFuture;
 use plist::Dictionary;
 use serde::Deserialize;
 use std::io::Read;
-use bevy_prototype_lyon::prelude::tess::path::AttributeStore;
 
 #[derive(Debug, Deserialize, TypeUuid)]
 #[uuid = "1303d57b-af74-4318-ac9b-5d9e5519bcf1"]

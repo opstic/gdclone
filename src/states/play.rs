@@ -1,19 +1,19 @@
 use crate::loaders::gdlevel::GDLevel;
-use crate::{GameState, GlobalAssets, LevelAssets, ObjectMapping, TexturePackerAtlas};
+use crate::{GameState, GlobalAssets, ObjectMapping, TexturePackerAtlas};
 use bevy::prelude::*;
-use bevy::render::camera;
-use iyes_loopless::prelude::{AppLooplessStateExt, ConditionSet};
-use std::thread::spawn;
+use iyes_loopless::prelude::{AppLooplessStateExt, ConditionSet, NextState};
 
 pub(crate) struct PlayStatePlugin;
 
 impl Plugin for PlayStatePlugin {
     fn build(&self, app: &mut App) {
         app.add_enter_system(GameState::PlayState, play_setup)
+            .add_exit_system(GameState::PlayState, play_cleanup)
             .add_system_set(
                 ConditionSet::new()
                     .run_in_state(GameState::PlayState)
                     .with_system(move_camera)
+                    .with_system(exit_play)
                     .into(),
             );
     }
@@ -32,7 +32,6 @@ fn play_setup(
             .unwrap()
             .mapping
             .get(&object.id);
-        info!("texture_name: {:?}", texture_name);
         let mut atlas_handle: Option<Handle<TextureAtlas>> = None;
         let mut atlas_mapping: usize = 0;
         let mut texture_rotated: bool = false;
@@ -57,30 +56,32 @@ fn play_setup(
                 }
             }
         } else {
-            info!("Unknown object: {:?}", object);
+            info!("Object not found in mapping: {:?}", object);
             break;
         }
         if let Some(handle) = atlas_handle {
             info!("{:?}", object.id);
-            commands.spawn_bundle(SpriteSheetBundle {
-                transform: Transform {
-                    translation: Vec3::from((object.x, object.y, 0.)),
-                    rotation: Quat::from_rotation_z(
-                        -(object.rot + if texture_rotated { -90. } else { 0. }).to_radians(),
-                    ),
-                    scale: Vec3::new(object.scale, object.scale, 0.),
-                },
-                sprite: TextureAtlasSprite {
-                    index: atlas_mapping,
-                    flip_x: object.flip_x,
-                    flip_y: object.flip_y,
-                    ..Default::default()
-                },
-                texture_atlas: handle,
-                ..default()
-            });
+            commands
+                .spawn_bundle(SpriteSheetBundle {
+                    transform: Transform {
+                        translation: Vec3::from((object.x, object.y, 0.)),
+                        rotation: Quat::from_rotation_z(
+                            -(object.rot + if texture_rotated { -90. } else { 0. }).to_radians(),
+                        ),
+                        scale: Vec3::new(object.scale, object.scale, 0.),
+                    },
+                    sprite: TextureAtlasSprite {
+                        index: atlas_mapping,
+                        flip_x: object.flip_x,
+                        flip_y: object.flip_y,
+                        ..Default::default()
+                    },
+                    texture_atlas: handle,
+                    ..default()
+                })
+                .insert(LevelObject);
         } else {
-            info!("Unknown object: {:?}", object);
+            info!("Object texture not found: {:?}", object);
             break;
         }
     }
@@ -110,6 +111,12 @@ fn move_camera(
         if keys.pressed(KeyCode::D) {
             transform.translation.x += 30.0;
         }
+        if keys.pressed(KeyCode::W) {
+            transform.translation.y += 30.0;
+        }
+        if keys.pressed(KeyCode::S) {
+            transform.translation.y -= 30.0;
+        }
     }
     for mut projection in projections.iter_mut() {
         if keys.pressed(KeyCode::Q) {
@@ -119,4 +126,17 @@ fn move_camera(
             projection.scale *= 0.99;
         }
     }
+}
+
+fn exit_play(mut commands: Commands, keys: Res<Input<KeyCode>>) {
+    if keys.pressed(KeyCode::Escape) {
+        commands.insert_resource(NextState(GameState::LevelSelectState));
+    }
+}
+
+#[derive(Component)]
+struct LevelObject;
+
+fn play_cleanup(mut commands: Commands, query: Query<Entity, With<LevelObject>>) {
+    query.for_each(|entity| commands.entity(entity).despawn_recursive());
 }

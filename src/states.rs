@@ -5,7 +5,6 @@ mod level_select;
 mod loading;
 mod play;
 
-use crate::loaders::gdlevel::GDLevel;
 use level_select::LevelSelectStatePlugin;
 use loading::LoadingStatePlugin;
 use play::PlayStatePlugin;

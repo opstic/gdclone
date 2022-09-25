@@ -5,15 +5,13 @@ use bevy::asset::{AssetServer, Assets};
 use bevy::ecs::component::Component;
 use bevy::hierarchy::{BuildChildren, Children, DespawnRecursiveExt};
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
-use bevy::log::info;
 use bevy::prelude::{
     default, Button, ButtonBundle, Changed, Color, Commands, Entity, EventReader, Interaction,
     NodeBundle, Query, Res, TextBundle, With,
 };
-use bevy::text::{Text, TextStyle};
+use bevy::text::TextStyle;
 use bevy::ui::{
-    AlignSelf, FlexDirection, JustifyContent, Node, Overflow, PositionType, Size, Style, UiColor,
-    UiRect, Val,
+    AlignSelf, FlexDirection, JustifyContent, Node, Overflow, Size, Style, UiColor, UiRect, Val,
 };
 
 use crate::loaders::gdlevel::GDLevel;
@@ -280,10 +278,6 @@ fn button_system(
     }
 }
 
-fn select_cleanup(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    query: Query<Entity, With<SelectMenu>>,
-) {
+fn select_cleanup(mut commands: Commands, query: Query<Entity, With<SelectMenu>>) {
     query.for_each(|entity| commands.entity(entity).despawn_recursive());
 }
