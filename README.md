@@ -13,6 +13,6 @@ Built using Rust and Bevy engine.
 
 ALL RIGHTS RESERVED.
 
-Not affiliated with RobtopGames AB.
+Not affiliated with RobTop Games.
 
 For personal use only.
