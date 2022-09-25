@@ -20,7 +20,7 @@ use loaders::{
     gdlevel::GDSaveFile, mapping::ObjectMapping, texture_packer::TexturePackerAtlas,
     AssetLoaderPlugin,
 };
-use states::{GameStates, StatePlugins};
+use states::{GameState, StatePlugins};
 
 fn main() {
     App::new()
@@ -42,11 +42,11 @@ fn main() {
             },
             ..default()
         })
-        .add_loopless_state(GameStates::LoadingState)
-        .add_plugin(ProgressPlugin::new(GameStates::LoadingState))
+        .add_loopless_state(GameState::LoadingState)
+        .add_plugin(ProgressPlugin::new(GameState::LoadingState))
         .add_loading_state(
-            LoadingState::new(GameStates::LoadingState)
-                .continue_to_state(GameStates::LevelSelectState)
+            LoadingState::new(GameState::LoadingState)
+                .continue_to_state(GameState::LevelSelectState)
                 //TODO: ADD IN A TRANSITION BETWEEN STATES
                 // .continue_to_state(GameStates::PlayState)
                 .with_collection::<GlobalAssets>(),

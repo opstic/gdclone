@@ -1,9 +1,9 @@
 use crate::AlignSelf::Center;
-use crate::{GDSaveFile, GameStates, GlobalAssets};
+use crate::{GDSaveFile, GameState, GlobalAssets};
 use bevy::app::{App, Plugin};
 use bevy::asset::{AssetServer, Assets};
 use bevy::ecs::component::Component;
-use bevy::hierarchy::{BuildChildren, Children};
+use bevy::hierarchy::{BuildChildren, Children, DespawnRecursiveExt};
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::log::info;
 use bevy::prelude::{
@@ -19,16 +19,17 @@ use bevy::ui::{
 use crate::loaders::gdlevel::GDLevel;
 use iyes_loopless::condition::ConditionSet;
 use iyes_loopless::prelude::AppLooplessStateExt;
+use iyes_loopless::state::NextState;
 
 pub(crate) struct LevelSelectStatePlugin;
 
 impl Plugin for LevelSelectStatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_enter_system(GameStates::LevelSelectState, select_setup)
-            .add_exit_system(GameStates::LevelSelectState, select_cleanup)
+        app.add_enter_system(GameState::LevelSelectState, select_setup)
+            .add_exit_system(GameState::LevelSelectState, select_cleanup)
             .add_system_set(
                 ConditionSet::new()
-                    .run_in_state(GameStates::LevelSelectState)
+                    .run_in_state(GameState::LevelSelectState)
                     .with_system(mouse_scroll)
                     .with_system(button_system)
                     .into(),
@@ -256,16 +257,18 @@ const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
 const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
 fn button_system(
+    mut commands: Commands,
     mut interaction_query: Query<
         (&Interaction, &mut UiColor, &OpenButton),
         (Changed<Interaction>, With<Button>),
     >,
-    mut text_query: Query<&mut Text>,
 ) {
     for (interaction, mut color, open) in &mut interaction_query {
         match *interaction {
             Interaction::Clicked => {
                 *color = PRESSED_BUTTON.into();
+                commands.insert_resource(open.level.clone());
+                commands.insert_resource(NextState(GameState::PlayState));
             }
             Interaction::Hovered => {
                 *color = HOVERED_BUTTON.into();
@@ -282,7 +285,5 @@ fn select_cleanup(
     asset_server: Res<AssetServer>,
     query: Query<Entity, With<SelectMenu>>,
 ) {
-    query.for_each(|entity| {
-        commands.entity(entity).despawn();
-    });
+    query.for_each(|entity| commands.entity(entity).despawn_recursive());
 }

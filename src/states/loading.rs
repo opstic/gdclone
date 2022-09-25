@@ -1,4 +1,4 @@
-use crate::GameStates;
+use crate::GameState;
 use bevy::prelude::*;
 use iyes_loopless::prelude::AppLooplessStateExt;
 
@@ -6,8 +6,8 @@ pub(crate) struct LoadingStatePlugin;
 
 impl Plugin for LoadingStatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_enter_system(GameStates::LoadingState, loading_setup)
-            .add_exit_system(GameStates::LoadingState, loading_cleanup);
+        app.add_enter_system(GameState::LoadingState, loading_setup)
+            .add_exit_system(GameState::LoadingState, loading_cleanup);
     }
 }
 

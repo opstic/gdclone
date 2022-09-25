@@ -4,6 +4,7 @@ pub(crate) mod gdlevel;
 pub(crate) mod mapping;
 pub(crate) mod texture_packer;
 
+use crate::loaders::gdlevel::GDLevel;
 use gdlevel::{GDSaveFile, GDSaveLoader};
 use mapping::{ObjectMapping, ObjectMappingLoader};
 use texture_packer::{TexturePackerAtlas, TexturePackerAtlasLoader};
