@@ -5,13 +5,18 @@ use bevy::asset::{AssetServer, Assets};
 use bevy::ecs::component::Component;
 use bevy::hierarchy::{BuildChildren, Children};
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
-use bevy::prelude::{default, Color, Commands, EventReader, NodeBundle, Query, Res, TextBundle};
-use bevy::text::TextStyle;
+use bevy::log::info;
+use bevy::prelude::{
+    default, Button, ButtonBundle, Changed, Color, Commands, Entity, EventReader, Interaction,
+    NodeBundle, Query, Res, TextBundle, With,
+};
+use bevy::text::{Text, TextStyle};
 use bevy::ui::{
-    AlignSelf, FlexDirection, JustifyContent, Node, Overflow, PositionType, Size, Style, UiRect,
-    Val,
+    AlignSelf, FlexDirection, JustifyContent, Node, Overflow, PositionType, Size, Style, UiColor,
+    UiRect, Val,
 };
 
+use crate::loaders::gdlevel::GDLevel;
 use iyes_loopless::condition::ConditionSet;
 use iyes_loopless::prelude::AppLooplessStateExt;
 
@@ -25,6 +30,7 @@ impl Plugin for LevelSelectStatePlugin {
                 ConditionSet::new()
                     .run_in_state(GameStates::LevelSelectState)
                     .with_system(mouse_scroll)
+                    .with_system(button_system)
                     .into(),
             );
     }
@@ -46,6 +52,7 @@ fn select_setup(
             color: Color::NONE.into(),
             ..default()
         })
+        .insert(SelectMenu)
         .with_children(|parent| {
             parent
                 .spawn_bundle(NodeBundle {
@@ -114,28 +121,92 @@ fn select_setup(
                                     for level in
                                         saves.get(&global_assets.save_file).unwrap().levels.iter()
                                     {
-                                        parent.spawn_bundle(
-                                            TextBundle::from_section(
-                                                level.name.clone(),
-                                                TextStyle {
-                                                    font: asset_server
-                                                        .load("fonts/FiraSans-Bold.ttf"),
-                                                    font_size: 20.,
-                                                    color: Color::WHITE,
-                                                },
-                                            )
-                                            .with_style(Style {
-                                                flex_shrink: 0.,
-                                                size: Size::new(Val::Undefined, Val::Px(20.)),
-                                                align_self: Center,
-                                                margin: UiRect {
-                                                    left: Val::Auto,
-                                                    right: Val::Auto,
+                                        parent
+                                            .spawn_bundle(NodeBundle {
+                                                style: Style {
+                                                    flex_shrink: 0.,
+                                                    size: Size::new(
+                                                        Val::Undefined,
+                                                        Val::Percent(25.0),
+                                                    ),
+                                                    margin: UiRect {
+                                                        left: Val::Auto,
+                                                        right: Val::Auto,
+                                                        ..default()
+                                                    },
                                                     ..default()
                                                 },
+                                                color: Color::NONE.into(),
                                                 ..default()
-                                            }),
-                                        );
+                                            })
+                                            .with_children(|parent| {
+                                                parent.spawn_bundle(
+                                                    // Create a TextBundle that has a Text with a list of sections.
+                                                    TextBundle::from_section(
+                                                        &level.name,
+                                                        TextStyle {
+                                                            font: asset_server
+                                                                .load("fonts/FiraSans-Bold.ttf"),
+                                                            font_size: 50.,
+                                                            color: Color::WHITE,
+                                                        },
+                                                    )
+                                                    .with_style(Style {
+                                                        flex_shrink: 0.,
+                                                        size: Size::new(
+                                                            Val::Percent(50.),
+                                                            Val::Px(50.),
+                                                        ),
+                                                        margin: UiRect {
+                                                            top: Val::Auto,
+                                                            bottom: Val::Auto,
+                                                            ..default()
+                                                        },
+                                                        align_self: AlignSelf::FlexStart,
+                                                        max_size: Size::new(
+                                                            Val::Percent(50.),
+                                                            Val::Px(50.),
+                                                        ),
+                                                        ..default()
+                                                    }),
+                                                );
+                                                parent
+                                                    .spawn_bundle(ButtonBundle {
+                                                        style: Style {
+                                                            flex_shrink: 0.,
+                                                            size: Size::new(
+                                                                Val::Undefined,
+                                                                Val::Px(25.),
+                                                            ),
+                                                            margin: UiRect {
+                                                                top: Val::Auto,
+                                                                bottom: Val::Auto,
+                                                                ..default()
+                                                            },
+                                                            ..default()
+                                                        },
+                                                        ..default()
+                                                    })
+                                                    .insert(OpenButton {
+                                                        level: level.clone(),
+                                                    })
+                                                    .with_children(|parent| {
+                                                        parent.spawn_bundle(
+                                                            TextBundle::from_section(
+                                                                "Open",
+                                                                TextStyle {
+                                                                    font: asset_server.load(
+                                                                        "fonts/FiraSans-Bold.ttf",
+                                                                    ),
+                                                                    font_size: 25.0,
+                                                                    color: Color::rgb(
+                                                                        0.9, 0.9, 0.9,
+                                                                    ),
+                                                                },
+                                                            ),
+                                                        );
+                                                    });
+                                            });
                                     }
                                 });
                         });
@@ -147,6 +218,14 @@ fn select_setup(
 struct ScrollingList {
     position: f32,
 }
+
+#[derive(Component)]
+struct OpenButton {
+    level: GDLevel,
+}
+
+#[derive(Component)]
+struct SelectMenu;
 
 fn mouse_scroll(
     mut mouse_wheel_events: EventReader<MouseWheel>,
@@ -172,4 +251,38 @@ fn mouse_scroll(
     }
 }
 
-fn select_cleanup(mut commands: Commands, asset_server: Res<AssetServer>) {}
+const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
+const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
+const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
+
+fn button_system(
+    mut interaction_query: Query<
+        (&Interaction, &mut UiColor, &OpenButton),
+        (Changed<Interaction>, With<Button>),
+    >,
+    mut text_query: Query<&mut Text>,
+) {
+    for (interaction, mut color, open) in &mut interaction_query {
+        match *interaction {
+            Interaction::Clicked => {
+                *color = PRESSED_BUTTON.into();
+            }
+            Interaction::Hovered => {
+                *color = HOVERED_BUTTON.into();
+            }
+            Interaction::None => {
+                *color = NORMAL_BUTTON.into();
+            }
+        }
+    }
+}
+
+fn select_cleanup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    query: Query<Entity, With<SelectMenu>>,
+) {
+    query.for_each(|entity| {
+        commands.entity(entity).despawn();
+    });
+}

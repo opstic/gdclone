@@ -14,7 +14,7 @@ pub struct GDSaveFile {
     pub(crate) levels: Vec<GDLevel>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct GDLevel {
     pub(crate) id: Option<u64>,
     pub(crate) name: String,
@@ -22,7 +22,7 @@ pub struct GDLevel {
     pub(crate) inner_level: Vec<GDLevelObject>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct GDLevelObject {
     pub(crate) id: u16,
     pub(crate) x: f32,
