@@ -1,18 +1,19 @@
+use crate::AlignSelf::Center;
+use crate::{GDSaveFile, GameStates, GlobalAssets};
 use bevy::app::{App, Plugin};
-use bevy::asset::AssetServer;
-use bevy::ecs::system::Command;
+use bevy::asset::{AssetServer, Assets};
+use bevy::ecs::component::Component;
 use bevy::hierarchy::{BuildChildren, Children};
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
-use bevy::prelude::{Color, Commands, default, EventReader, ImageBundle, NodeBundle, Query, Res, TextBundle};
+use bevy::prelude::{default, Color, Commands, EventReader, NodeBundle, Query, Res, TextBundle};
 use bevy::text::TextStyle;
-use bevy::ui::{AlignItems, AlignSelf, FlexDirection, JustifyContent, Node, Overflow, PositionType, Size, Style, UiRect, Val};
-use bevy_editor_pls::egui::Ui;
-use iyes_loopless::prelude::AppLooplessStateExt;
-use bevy::ecs::component::Component;
+use bevy::ui::{
+    AlignSelf, FlexDirection, JustifyContent, Node, Overflow, PositionType, Size, Style, UiRect,
+    Val,
+};
+
 use iyes_loopless::condition::ConditionSet;
-use crate::AlignSelf::Center;
-use crate::GameStates;
-use crate::KeyCode::C;
+use iyes_loopless::prelude::AppLooplessStateExt;
 
 pub(crate) struct LevelSelectStatePlugin;
 
@@ -20,17 +21,21 @@ impl Plugin for LevelSelectStatePlugin {
     fn build(&self, app: &mut App) {
         app.add_enter_system(GameStates::LevelSelectState, select_setup)
             .add_exit_system(GameStates::LevelSelectState, select_cleanup)
-        .add_system_set(
-            ConditionSet::new()
-                .run_in_state(GameStates::LevelSelectState)
-                .with_system(mouse_scroll)
-                .into(),
-        );
+            .add_system_set(
+                ConditionSet::new()
+                    .run_in_state(GameStates::LevelSelectState)
+                    .with_system(mouse_scroll)
+                    .into(),
+            );
     }
 }
 
-
-fn select_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn select_setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    global_assets: Res<GlobalAssets>,
+    saves: Res<Assets<GDSaveFile>>,
+) {
     commands
         .spawn_bundle(NodeBundle {
             style: Style {
@@ -42,17 +47,16 @@ fn select_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         })
         .with_children(|parent| {
-            // right vertical fill
             parent
                 .spawn_bundle(NodeBundle {
                     style: Style {
                         flex_direction: FlexDirection::ColumnReverse,
                         justify_content: JustifyContent::Center,
-                        align_self:Center,
-                        size: Size::new(Val::Px(200.0), Val::Percent(100.0)),
+                        align_self: Center,
+                        size: Size::new(Val::Percent(50.0), Val::Percent(75.0)),
                         ..default()
                     },
-                     color: Color::rgb(0.15, 0.15, 0.15).into(),
+                    color: Color::rgb(0.15, 0.15, 0.15).into(),
                     ..default()
                 })
                 .with_children(|parent| {
@@ -66,20 +70,20 @@ fn select_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                                 color: Color::WHITE,
                             },
                         )
-                            .with_style(Style {
-                                size: Size::new(Val::Undefined, Val::Px(30.0)),
-                                align_self:Center,
-                                margin: UiRect {
-                                    left: Val::Auto,
-                                    right: Val::Auto,
-                                    ..default()
-                                },
+                        .with_style(Style {
+                            size: Size::new(Val::Undefined, Val::Px(30.0)),
+                            align_self: Center,
+                            margin: UiRect {
+                                left: Val::Auto,
+                                right: Val::Auto,
                                 ..default()
-                            }),
+                            },
+                            ..default()
+                        }),
                     );
                     // List with hidden overflow
-                    parent.spawn_bundle(
-                        NodeBundle {
+                    parent
+                        .spawn_bundle(NodeBundle {
                             style: Style {
                                 flex_direction: FlexDirection::ColumnReverse,
                                 align_self: Center,
@@ -97,7 +101,7 @@ fn select_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                                     style: Style {
                                         flex_direction: FlexDirection::ColumnReverse,
                                         flex_grow: 1.0,
-                                        align_self:Center,
+                                        align_self: Center,
                                         max_size: Size::new(Val::Undefined, Val::Undefined),
                                         ..default()
                                     },
@@ -107,10 +111,12 @@ fn select_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                                 .insert(ScrollingList::default())
                                 .with_children(|parent| {
                                     // List items
-                                    for i in 0..30 {
+                                    for level in
+                                        saves.get(&global_assets.save_file).unwrap().levels.iter()
+                                    {
                                         parent.spawn_bundle(
                                             TextBundle::from_section(
-                                                format!("Item {i}"),
+                                                level.name.clone(),
                                                 TextStyle {
                                                     font: asset_server
                                                         .load("fonts/FiraSans-Bold.ttf"),
@@ -118,17 +124,17 @@ fn select_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                                                     color: Color::WHITE,
                                                 },
                                             )
-                                                .with_style(Style {
-                                                    flex_shrink: 0.,
-                                                    size: Size::new(Val::Undefined, Val::Px(20.)),
-                                                    align_self:Center,
-                                                    margin: UiRect {
-                                                        left: Val::Auto,
-                                                        right: Val::Auto,
-                                                        ..default()
-                                                    },
+                                            .with_style(Style {
+                                                flex_shrink: 0.,
+                                                size: Size::new(Val::Undefined, Val::Px(20.)),
+                                                align_self: Center,
+                                                margin: UiRect {
+                                                    left: Val::Auto,
+                                                    right: Val::Auto,
                                                     ..default()
-                                                }),
+                                                },
+                                                ..default()
+                                            }),
                                         );
                                     }
                                 });
@@ -166,4 +172,4 @@ fn mouse_scroll(
     }
 }
 
-fn select_cleanup(mut commands: Commands, asset_server: Res<AssetServer>){}
+fn select_cleanup(mut commands: Commands, asset_server: Res<AssetServer>) {}
