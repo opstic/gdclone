@@ -20,12 +20,22 @@ impl Plugin for PlayStatePlugin {
 }
 
 fn play_setup(
+    mut camera_transforms: Query<&mut Transform, With<Camera>>,
+    mut projections: Query<&mut OrthographicProjection, With<Camera>>,
     mut commands: Commands,
     global_assets: Res<GlobalAssets>,
     level: Res<GDLevel>,
     mapping: Res<Assets<ObjectMapping>>,
     packer_atlases: Res<Assets<TexturePackerAtlas>>,
 ) {
+    for mut transform in camera_transforms.iter_mut() {
+        transform.translation.x = 0.0;
+        transform.translation.y = 0.0;
+    }
+    for mut projection in projections.iter_mut() {
+        projection.scale = 1.0;
+    }
+
     for object in &level.inner_level {
         let texture_name = mapping
             .get(&global_assets.texture_mapping)
