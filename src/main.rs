@@ -47,8 +47,6 @@ fn main() {
         .add_loading_state(
             LoadingState::new(GameState::LoadingState)
                 .continue_to_state(GameState::LevelSelectState)
-                //TODO: ADD IN A TRANSITION BETWEEN STATES
-                // .continue_to_state(GameStates::PlayState)
                 .with_collection::<GlobalAssets>(),
         )
         .add_plugins(DefaultPlugins)

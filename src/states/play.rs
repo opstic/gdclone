@@ -57,16 +57,22 @@ fn play_setup(
             }
         } else {
             info!("Object not found in mapping: {:?}", object);
-            break;
+            continue;
         }
         if let Some(handle) = atlas_handle {
-            info!("{:?}", object.id);
             commands
                 .spawn_bundle(SpriteSheetBundle {
                     transform: Transform {
                         translation: Vec3::from((object.x, object.y, 0.)),
                         rotation: Quat::from_rotation_z(
-                            -(object.rot + if texture_rotated { -90. } else { 0. }).to_radians(),
+                            -(object.rot
+                                + if texture_rotated { -90. } else { 0. }
+                                + if texture_rotated && object.flip_y {
+                                    -180.
+                                } else {
+                                    0.
+                                })
+                            .to_radians(),
                         ),
                         scale: Vec3::new(object.scale, object.scale, 0.),
                     },
@@ -82,7 +88,7 @@ fn play_setup(
                 .insert(LevelObject);
         } else {
             info!("Object texture not found: {:?}", object);
-            break;
+            continue;
         }
     }
 }
