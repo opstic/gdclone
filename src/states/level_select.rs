@@ -15,6 +15,7 @@ use bevy::ui::{
 };
 
 use crate::loaders::gdlevel::GDLevel;
+use crate::states::play::LevelIndex;
 use iyes_loopless::condition::ConditionSet;
 use iyes_loopless::prelude::AppLooplessStateExt;
 use iyes_loopless::state::NextState;
@@ -117,8 +118,12 @@ fn select_setup(
                                 .insert(ScrollingList::default())
                                 .with_children(|parent| {
                                     // List items
-                                    for level in
-                                        saves.get(&global_assets.save_file).unwrap().levels.iter()
+                                    for (index, level) in saves
+                                        .get(&global_assets.save_file)
+                                        .unwrap()
+                                        .levels
+                                        .iter()
+                                        .enumerate()
                                     {
                                         parent
                                             .spawn_bundle(NodeBundle {
@@ -186,9 +191,7 @@ fn select_setup(
                                                         },
                                                         ..default()
                                                     })
-                                                    .insert(OpenButton {
-                                                        level: level.clone(),
-                                                    })
+                                                    .insert(OpenButton { level_index: index })
                                                     .with_children(|parent| {
                                                         parent.spawn_bundle(
                                                             TextBundle::from_section(
@@ -220,7 +223,7 @@ struct ScrollingList {
 
 #[derive(Component)]
 struct OpenButton {
-    level: GDLevel,
+    level_index: usize,
 }
 
 #[derive(Component)]
@@ -261,11 +264,13 @@ fn button_system(
         (Changed<Interaction>, With<Button>),
     >,
 ) {
-    for (interaction, mut color, open) in &mut interaction_query {
+    for (interaction, mut color, button) in &mut interaction_query {
         match *interaction {
             Interaction::Clicked => {
                 *color = PRESSED_BUTTON.into();
-                commands.insert_resource(open.level.clone());
+                commands.insert_resource(LevelIndex {
+                    index: button.level_index,
+                });
                 commands.insert_resource(NextState(GameState::PlayState));
             }
             Interaction::Hovered => {

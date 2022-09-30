@@ -1,5 +1,5 @@
 use crate::loaders::gdlevel::GDLevel;
-use crate::{GameState, GlobalAssets, ObjectMapping, TexturePackerAtlas};
+use crate::{GDSaveFile, GameState, GlobalAssets, ObjectMapping, TexturePackerAtlas};
 use bevy::prelude::*;
 use iyes_loopless::prelude::{AppLooplessStateExt, ConditionSet, NextState};
 
@@ -19,12 +19,17 @@ impl Plugin for PlayStatePlugin {
     }
 }
 
+pub(crate) struct LevelIndex {
+    pub(crate) index: usize,
+}
+
 fn play_setup(
     mut camera_transforms: Query<&mut Transform, With<Camera>>,
     mut projections: Query<&mut OrthographicProjection, With<Camera>>,
     mut commands: Commands,
     global_assets: Res<GlobalAssets>,
-    level: Res<GDLevel>,
+    save_file: Res<Assets<GDSaveFile>>,
+    level_index: Res<LevelIndex>,
     mapping: Res<Assets<ObjectMapping>>,
     packer_atlases: Res<Assets<TexturePackerAtlas>>,
 ) {
@@ -36,7 +41,14 @@ fn play_setup(
         projection.scale = 1.0;
     }
 
-    for object in &level.inner_level {
+    for object in &save_file
+        .get(&global_assets.save_file)
+        .unwrap()
+        .levels
+        .get(level_index.index)
+        .unwrap()
+        .inner_level
+    {
         let texture_name = mapping
             .get(&global_assets.texture_mapping)
             .unwrap()
