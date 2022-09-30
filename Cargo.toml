@@ -27,7 +27,6 @@ bevy = { version = "0.8.1", default-features = false, features = [
 bevy-ui-navigation = "0.21.0"
 bevy_asset_loader = { version = "0.12.1", features = ["2d", "progress_tracking", "progress_tracking_stageless", "stageless"] }
 bevy_editor_pls = "0.1.1"
-bevy_framepace = "0.7.0"
 bevy_hanabi = "0.3.0"
 bevy_kira_audio = "0.12.0"
 bevy_pkv = "0.5.0"
@@ -41,6 +40,9 @@ plist = { git = "https://github.com/pr2502/rust-plist", rev = "1e05b72" }
 quick-xml = { version = "0.25.0", features = ["serialize"] }
 serde = "1.0.143"
 serde_json = "1.0.85"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+bevy_framepace = "0.7.0"
 
 # Enable only a small amount of optimization in debug mode
 [profile.dev]

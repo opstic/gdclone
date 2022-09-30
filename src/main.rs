@@ -6,6 +6,7 @@ use bevy::window::{PresentMode, WindowResizeConstraints, WindowResized};
 use bevy::winit::WinitSettings;
 use bevy_asset_loader::prelude::*;
 use bevy_editor_pls::EditorPlugin;
+use bevy_framepace::FramepacePlugin;
 use bevy_kira_audio::AudioPlugin;
 use bevy_tweening::*;
 use bevy_ui_navigation::DefaultNavigationPlugins;
@@ -23,7 +24,7 @@ use loaders::{
 use states::{GameState, StatePlugins};
 
 fn main() {
-    App::new()
+    let mut app = App::new()
         .insert_resource(WindowDescriptor {
             resize_constraints: WindowResizeConstraints {
                 // well if you are willing to play at such horrendous resolution here you go
@@ -32,7 +33,7 @@ fn main() {
                 ..default()
             },
             title: "GDClone".to_string(),
-            present_mode: PresentMode::Immediate,
+            present_mode: PresentMode::AutoNoVsync,
             ..default()
         })
         .insert_resource(WinitSettings {
@@ -59,8 +60,13 @@ fn main() {
         .add_plugins(StatePlugins)
         .add_startup_system(setup)
         .add_system(update_fps)
-        .add_system(handle_resize)
-        .run();
+        .add_system(handle_resize);
+
+    // Framepace doesn't work on wasm right now
+    #[cfg(not(target_arch = "wasm32"))]
+    app.add_plugin(FramepacePlugin);
+
+    app.run();
 }
 
 #[derive(AssetCollection)]
