@@ -114,7 +114,7 @@ fn decode_inner_level(bytes: &[u8]) -> Result<Vec<GDLevelObject>, bevy::asset::E
             flip_x: false,
             flip_y: false,
             rot: 0.0,
-            scale: 0.0,
+            scale: 1.0,
         };
         let mut iterator = object_string.split(|byte| *byte == b',');
         while let Some(property_id) = iterator.next() {
@@ -142,9 +142,6 @@ fn decode_inner_level(bytes: &[u8]) -> Result<Vec<GDLevelObject>, bevy::asset::E
                 b"32" => object.scale = String::from_utf8_lossy(property_value).parse().unwrap(),
                 _ => {}
             }
-        }
-        if object.scale == 0. {
-            object.scale = 1.
         }
         if object.id == 0 {
             continue;
