@@ -24,43 +24,43 @@ use loaders::{
 use states::{GameState, StatePlugins};
 
 fn main() {
-    let mut app = App::new()
-        .insert_resource(WindowDescriptor {
-            resize_constraints: WindowResizeConstraints {
-                // well if you are willing to play at such horrendous resolution here you go
-                min_width: 128.,
-                min_height: 72.,
-                ..default()
-            },
-            title: "GDClone".to_string(),
-            present_mode: PresentMode::AutoNoVsync,
+    let mut app = App::new();
+    app.insert_resource(WindowDescriptor {
+        resize_constraints: WindowResizeConstraints {
+            // well if you are willing to play at such horrendous resolution here you go
+            min_width: 128.,
+            min_height: 72.,
             ..default()
-        })
-        .insert_resource(WinitSettings {
-            focused_mode: bevy::winit::UpdateMode::Continuous,
-            unfocused_mode: bevy::winit::UpdateMode::ReactiveLowPower {
-                max_wait: Duration::from_millis(100),
-            },
-            ..default()
-        })
-        .add_loopless_state(GameState::LoadingState)
-        .add_plugin(ProgressPlugin::new(GameState::LoadingState))
-        .add_loading_state(
-            LoadingState::new(GameState::LoadingState)
-                .continue_to_state(GameState::LevelSelectState)
-                .with_collection::<GlobalAssets>(),
-        )
-        .add_plugins(DefaultPlugins)
-        .add_plugin(AudioPlugin)
-        // .add_plugin(EditorPlugin)
-        .add_plugins(DefaultNavigationPlugins)
-        .add_plugin(FrameTimeDiagnosticsPlugin)
-        .add_plugin(TweeningPlugin)
-        .add_plugin(AssetLoaderPlugin)
-        .add_plugins(StatePlugins)
-        .add_startup_system(setup)
-        .add_system(update_fps)
-        .add_system(handle_resize);
+        },
+        title: "GDClone".to_string(),
+        present_mode: PresentMode::AutoNoVsync,
+        ..default()
+    })
+    .insert_resource(WinitSettings {
+        focused_mode: bevy::winit::UpdateMode::Continuous,
+        unfocused_mode: bevy::winit::UpdateMode::ReactiveLowPower {
+            max_wait: Duration::from_millis(100),
+        },
+        ..default()
+    })
+    .add_loopless_state(GameState::LoadingState)
+    .add_plugin(ProgressPlugin::new(GameState::LoadingState))
+    .add_loading_state(
+        LoadingState::new(GameState::LoadingState)
+            .continue_to_state(GameState::LevelSelectState)
+            .with_collection::<GlobalAssets>(),
+    )
+    .add_plugins(DefaultPlugins)
+    .add_plugin(AudioPlugin)
+    // .add_plugin(EditorPlugin)
+    .add_plugins(DefaultNavigationPlugins)
+    .add_plugin(FrameTimeDiagnosticsPlugin)
+    .add_plugin(TweeningPlugin)
+    .add_plugin(AssetLoaderPlugin)
+    .add_plugins(StatePlugins)
+    .add_startup_system(setup)
+    .add_system(update_fps)
+    .add_system(handle_resize);
 
     // Framepace doesn't work on wasm right now
     #[cfg(not(target_arch = "wasm32"))]

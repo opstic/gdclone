@@ -2,6 +2,8 @@ use aho_corasick::AhoCorasick;
 use bevy::asset::{AssetLoader, LoadContext, LoadedAsset};
 use bevy::prelude::*;
 use bevy::reflect::TypeUuid;
+#[cfg(not(target_arch = "wasm32"))]
+use bevy::tasks::AsyncComputeTaskPool;
 use bevy::utils::BoxedFuture;
 use plist::Dictionary;
 use serde::Deserialize;
@@ -46,34 +48,39 @@ impl AssetLoader for GDSaveLoader {
             let decrypted = decrypt(bytes, Some(11_u8))?;
             let fixed = AhoCorasick::new(FIX_PATTERN).replace_all_bytes(&decrypted, FIX_REPLACE);
             let plist: Dictionary = plist::from_bytes(&fixed)?;
+            let mut plist_levels = plist.get("LLM_01").unwrap().as_dictionary().unwrap();
             let mut levels: Vec<GDLevel> = Vec::new();
-            for (key_name, key) in plist.get("LLM_01").unwrap().as_dictionary().unwrap() {
-                if key_name == "_isArr" {
-                    continue;
+
+            // TODO: Also use multithreading on wasm once taskpools work on there
+            if plist_levels.len() <= 2 || cfg!(target_arch = "wasm32") {
+                for (key_name, key) in plist_levels {
+                    if key_name != "_isArr" {
+                        levels.push(load_level(key.as_dictionary().unwrap()).await?);
+                    }
                 }
-                let level = key.as_dictionary().unwrap();
-                info!("Loading {}", level.get("k2").unwrap().as_string().unwrap().to_string());
-                let level_id = if let Some(id) = level.get("k1") {
-                    Some(id.as_unsigned_integer().unwrap())
-                } else {
-                    None
-                };
-                let level_description = if let Some(description) = level.get("k3") {
-                    Some(description.as_string().unwrap().to_string())
-                } else {
-                    None
-                };
-                let level_inner = if let Some(inner) = level.get("k4") {
-                    decode_inner_level(&decrypt(inner.as_string().unwrap().as_bytes(), None)?)?
-                } else {
-                    Vec::new()
-                };
-                levels.push(GDLevel {
-                    id: level_id,
-                    name: level.get("k2").unwrap().as_string().unwrap().to_string(),
-                    description: level_description,
-                    inner_level: level_inner,
-                });
+            } else {
+                info!("Multithreaded");
+                #[cfg(not(target_arch = "wasm32"))]
+                AsyncComputeTaskPool::get()
+                    .scope(|scope| {
+                        plist_levels.into_iter().for_each(|(key_name, key)| {
+                            if key_name != "_isArr" {
+                                scope.spawn(async move {
+                                    load_level(key.as_dictionary().unwrap()).await
+                                });
+                            }
+                        });
+                    })
+                    .into_iter()
+                    .filter_map(|res| {
+                        if let Err(err) = res.as_ref() {
+                            warn!("Error loading level: {}", err);
+                        }
+                        res.ok()
+                    })
+                    .for_each(|level| {
+                        levels.push(level);
+                    });
             }
             load_context.set_default_asset(LoadedAsset::new(GDSaveFile { levels }));
             info!("Done");
@@ -84,6 +91,35 @@ impl AssetLoader for GDSaveLoader {
     fn extensions(&self) -> &[&str] {
         &["dat"]
     }
+}
+
+async fn load_level(level_data: &Dictionary) -> Result<GDLevel, bevy::asset::Error> {
+    let level_id = if let Some(id) = level_data.get("k1") {
+        Some(id.as_unsigned_integer().unwrap())
+    } else {
+        None
+    };
+    let level_description = if let Some(description) = level_data.get("k3") {
+        Some(description.as_string().unwrap().to_string())
+    } else {
+        None
+    };
+    let level_inner = if let Some(inner) = level_data.get("k4") {
+        decode_inner_level(&decrypt(inner.as_string().unwrap().as_bytes(), None)?)?
+    } else {
+        Vec::new()
+    };
+    Ok(GDLevel {
+        id: level_id,
+        name: level_data
+            .get("k2")
+            .unwrap()
+            .as_string()
+            .unwrap()
+            .to_string(),
+        description: level_description,
+        inner_level: level_inner,
+    })
 }
 
 fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, bevy::asset::Error> {
