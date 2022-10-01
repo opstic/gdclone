@@ -1,5 +1,4 @@
 use bevy::asset::{AssetLoader, BoxedFuture, Handle, LoadContext, LoadedAsset};
-use bevy::log::info;
 use bevy::prelude::{FromWorld, Image, TextureAtlas, Vec2, World};
 use bevy::reflect::TypeUuid;
 use bevy::render::renderer::RenderDevice;

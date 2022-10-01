@@ -14,8 +14,7 @@ use bevy::ui::{
     AlignSelf, FlexDirection, JustifyContent, Node, Overflow, Size, Style, UiColor, UiRect, Val,
 };
 
-use crate::loaders::gdlevel::GDLevel;
-use crate::states::play::LevelIndex;
+use super::play::LevelIndex;
 use iyes_loopless::condition::ConditionSet;
 use iyes_loopless::prelude::AppLooplessStateExt;
 use iyes_loopless::state::NextState;
