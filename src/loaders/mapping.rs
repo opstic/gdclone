@@ -27,7 +27,6 @@ impl AssetLoader for ObjectMappingLoader {
                 let map = mapping.as_object().unwrap();
                 object_mapping.insert(map.get("id").unwrap().as_u64().unwrap() as u16, map.get("sprite").unwrap().as_str().unwrap().to_string());
             }
-            info!("{:?}", object_mapping);
             load_context.set_default_asset(LoadedAsset::new(ObjectMapping {
                 mapping: object_mapping
             }));
