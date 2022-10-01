@@ -59,6 +59,13 @@ impl AssetLoader for TexturePackerAtlasLoader {
             let mut texture_atlas = TextureAtlas::new_empty(texture_handle, texture_dimensions);
             let mut index = HashMap::new();
             for (frame_name, frame) in manifest.get("frames").unwrap().as_dictionary().unwrap() {
+                let rotated = frame
+                    .as_dictionary()
+                    .unwrap()
+                    .get("textureRotated")
+                    .unwrap()
+                    .as_boolean()
+                    .unwrap();
                 let texture_index = texture_atlas.add_texture(texture_packer_rect_to_bevy_rect(
                     frame
                         .as_dictionary()
@@ -67,14 +74,8 @@ impl AssetLoader for TexturePackerAtlasLoader {
                         .unwrap()
                         .as_string()
                         .unwrap(),
+                    rotated
                 ));
-                let rotated = frame
-                    .as_dictionary()
-                    .unwrap()
-                    .get("textureRotated")
-                    .unwrap()
-                    .as_boolean()
-                    .unwrap();
                 index.insert(frame_name.clone(), (texture_index, rotated));
             }
             let texture_atlas_handle =
@@ -104,15 +105,22 @@ fn texture_packer_size_to_vec2(size_string: &str) -> Vec2 {
     }
 }
 
-fn texture_packer_rect_to_bevy_rect(rect_string: &str) -> Rect {
+fn texture_packer_rect_to_bevy_rect(rect_string: &str, is_rotated: bool) -> Rect {
     let stripped_str = strip_texture_packer(rect_string);
     let dimensions: Vec<f32> = stripped_str
         .split(",")
         .map(|s| strip_texture_packer(s).parse().unwrap())
         .collect();
-    Rect {
-        min: Vec2::new(dimensions[0], dimensions[1]),
-        max: Vec2::new(dimensions[0] + dimensions[2], dimensions[1] + dimensions[3]),
+    if is_rotated {
+        Rect {
+            min: Vec2::new(dimensions[0] + 5., dimensions[1] - 10.),
+            max: Vec2::new(dimensions[0] + dimensions[2] + 5., dimensions[1] + dimensions[3] - 10.),
+        }
+    } else {
+        Rect {
+            min: Vec2::new(dimensions[0], dimensions[1]),
+            max: Vec2::new(dimensions[0] + dimensions[2], dimensions[1] + dimensions[3]),
+        }
     }
 }
 
