@@ -6,6 +6,7 @@ use bevy::window::{PresentMode, WindowResizeConstraints, WindowResized};
 use bevy::winit::WinitSettings;
 use bevy_asset_loader::prelude::*;
 use bevy_editor_pls::EditorPlugin;
+#[cfg(not(target_arch = "wasm32"))]
 use bevy_framepace::FramepacePlugin;
 use bevy_kira_audio::AudioPlugin;
 use bevy_tweening::*;
