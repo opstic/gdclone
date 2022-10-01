@@ -48,8 +48,8 @@ impl AssetLoader for GDSaveLoader {
             let decrypted = decrypt(bytes, Some(11_u8))?;
             let fixed = AhoCorasick::new(FIX_PATTERN).replace_all_bytes(&decrypted, FIX_REPLACE);
             let plist: Dictionary = plist::from_bytes(&fixed)?;
-            let mut plist_levels = plist.get("LLM_01").unwrap().as_dictionary().unwrap();
-            let mut levels: Vec<GDLevel> = Vec::new();
+            let plist_levels = plist.get("LLM_01").unwrap().as_dictionary().unwrap();
+            let mut levels: Vec<GDLevel> = Vec::with_capacity(plist_levels.len());
 
             // TODO: Also use multithreading on wasm once taskpools work on there
             if plist_levels.len() <= 2 || cfg!(target_arch = "wasm32") {
