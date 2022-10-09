@@ -141,7 +141,7 @@ fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, bevy::asset::Error>
 }
 
 fn decode_inner_level(bytes: &[u8]) -> Result<Vec<GDLevelObject>, bevy::asset::Error> {
-    let mut objects = Vec::new();
+    let mut objects = Vec::with_capacity(bytes.len() / 100);
     for object_string in bytes.split(|byte| *byte == b';') {
         let mut object = GDLevelObject {
             id: 0,

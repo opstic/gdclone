@@ -1,7 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
+use bevy::math::Vec3A;
 use bevy::prelude::*;
+use bevy::render::primitives::Aabb;
+use bevy::render::view::{NoFrustumCulling, VisibilitySystems};
+use bevy::sprite::Mesh2dHandle;
 use bevy::window::{PresentMode, WindowResizeConstraints, WindowResized};
 use bevy::winit::WinitSettings;
 use bevy_asset_loader::prelude::*;
@@ -61,7 +65,11 @@ fn main() {
     .add_plugins(StatePlugins)
     .add_startup_system(setup)
     .add_system(update_fps)
-    .add_system(handle_resize);
+    .add_system(handle_resize)
+    .add_system_to_stage(
+        CoreStage::PostUpdate,
+        calculate_bounds.label(VisibilitySystems::CalculateBounds),
+    );
 
     // Framepace doesn't work on wasm right now
     #[cfg(not(target_arch = "wasm32"))]
@@ -151,6 +159,54 @@ fn handle_resize(mut windows: ResMut<Windows>, mut resize_events: EventReader<Wi
                 }
             }
             None => unreachable!("Bevy should have handled ghost window events for us"),
+        }
+    }
+}
+
+pub fn calculate_bounds(
+    mut commands: Commands,
+    meshes: Res<Assets<Mesh>>,
+    images: Res<Assets<Image>>,
+    atlases: Res<Assets<TextureAtlas>>,
+    meshes_without_aabb: Query<(Entity, &Mesh2dHandle), (Without<Aabb>, Without<NoFrustumCulling>)>,
+    sprites_without_aabb: Query<
+        (Entity, &Sprite, &Handle<Image>),
+        (Without<Aabb>, Without<NoFrustumCulling>),
+    >,
+    atlases_without_aabb: Query<
+        (Entity, &TextureAtlasSprite, &Handle<TextureAtlas>),
+        (Without<Aabb>, Without<NoFrustumCulling>),
+    >,
+) {
+    for (entity, mesh_handle) in meshes_without_aabb.iter() {
+        if let Some(mesh) = meshes.get(&mesh_handle.0) {
+            if let Some(aabb) = mesh.compute_aabb() {
+                commands.entity(entity).insert(aabb);
+            }
+        }
+    }
+    for (entity, sprite, texture_handle) in sprites_without_aabb.iter() {
+        if let Some(image) = images.get(texture_handle) {
+            let size = sprite.custom_size.unwrap_or_else(|| image.size());
+            let aabb = Aabb {
+                center: Vec3A::ZERO,
+                half_extents: (0.5 * size).extend(0.0).into(),
+            };
+            commands.entity(entity).insert(aabb);
+        }
+    }
+    for (entity, atlas_sprite, atlas_handle) in atlases_without_aabb.iter() {
+        if let Some(atlas) = atlases.get(atlas_handle) {
+            if let Some(rect) = atlas.textures.get(atlas_sprite.index) {
+                let size = atlas_sprite
+                    .custom_size
+                    .unwrap_or_else(|| (rect.min - rect.max).abs());
+                let aabb = Aabb {
+                    center: Vec3A::ZERO,
+                    half_extents: (0.5 * size).extend(0.0).into(),
+                };
+                commands.entity(entity).insert(aabb);
+            }
         }
     }
 }
