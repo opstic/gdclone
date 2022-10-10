@@ -9,9 +9,9 @@ use bevy::sprite::Mesh2dHandle;
 use bevy::window::{PresentMode, WindowResizeConstraints, WindowResized};
 use bevy::winit::WinitSettings;
 use bevy_asset_loader::prelude::*;
-use bevy_editor_pls::EditorPlugin;
 #[cfg(not(target_arch = "wasm32"))]
 use bevy_framepace::FramepacePlugin;
+use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_kira_audio::AudioPlugin;
 use bevy_tweening::*;
 use bevy_ui_navigation::DefaultNavigationPlugins;
@@ -57,10 +57,10 @@ fn main() {
     )
     .add_plugins(DefaultPlugins)
     .add_plugin(AudioPlugin)
-    // .add_plugin(EditorPlugin)
     .add_plugins(DefaultNavigationPlugins)
     .add_plugin(FrameTimeDiagnosticsPlugin)
     .add_plugin(TweeningPlugin)
+    .add_plugin(WorldInspectorPlugin::new())
     .add_plugin(AssetLoaderPlugin)
     .add_plugins(StatePlugins)
     .add_startup_system(setup)
