@@ -9,8 +9,6 @@ use bevy::sprite::Mesh2dHandle;
 use bevy::window::{PresentMode, WindowResizeConstraints, WindowResized};
 use bevy::winit::WinitSettings;
 use bevy_asset_loader::prelude::*;
-#[cfg(not(target_arch = "wasm32"))]
-use bevy_framepace::FramepacePlugin;
 use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_kira_audio::AudioPlugin;
 use bevy_tweening::*;
@@ -69,13 +67,8 @@ fn main() {
     .add_system_to_stage(
         CoreStage::PostUpdate,
         calculate_bounds.label(VisibilitySystems::CalculateBounds),
-    );
-
-    // Framepace doesn't work on wasm right now
-    #[cfg(not(target_arch = "wasm32"))]
-    app.add_plugin(FramepacePlugin);
-
-    app.run();
+    )
+    .run();
 }
 
 #[derive(AssetCollection)]

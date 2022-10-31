@@ -41,9 +41,6 @@ quick-xml = { version = "0.25.0", features = ["serialize"] }
 serde = "1.0.143"
 serde_json = "1.0.85"
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-bevy_framepace = "0.7.0"
-
 # Enable only a small amount of optimization in debug mode
 [profile.dev]
 opt-level = 1
