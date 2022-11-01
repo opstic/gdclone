@@ -1,4 +1,5 @@
 use aho_corasick::AhoCorasick;
+use base64_simd::Base64;
 use bevy::asset::{AssetLoader, LoadContext, LoadedAsset};
 use bevy::prelude::*;
 use bevy::reflect::TypeUuid;
@@ -119,20 +120,23 @@ async fn load_level(level_data: &Dictionary) -> Result<GDLevel, bevy::asset::Err
 }
 
 fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, bevy::asset::Error> {
+    let mut xor = Vec::with_capacity(Base64::URL_SAFE.estimated_decoded_length(bytes.len()));
+    let mut decompressed = Vec::with_capacity(xor.len() + xor.len() / 2);
     let nul_byte_start = bytes
         .iter()
         .rposition(|byte| *byte != 11_u8)
         .unwrap_or(bytes.len() - 1);
-    let xor: Vec<u8> = match key {
+    xor.extend(match key {
         Some(key) => bytes[..nul_byte_start + 1]
             .iter()
             .map(|byte| *byte ^ key)
             .collect::<Vec<u8>>(),
         None => bytes[..nul_byte_start + 1].to_vec(),
-    };
-    let decoded = base64::decode_config(&xor, base64::URL_SAFE)?;
-    let mut decompressed = Vec::with_capacity(decoded.len() + decoded.len() / 2);
-    flate2::read::GzDecoder::new(&*decoded).read_to_end(&mut decompressed)?;
+    });
+    Base64::URL_SAFE
+        .decode_inplace(&mut xor)
+        .expect("Invalid base64 in level data");
+    flate2::read::GzDecoder::new(&*xor).read_to_end(&mut decompressed)?;
     Ok(decompressed)
 }
 
