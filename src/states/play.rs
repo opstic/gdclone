@@ -86,14 +86,7 @@ fn play_setup(
                     transform: Transform {
                         translation: Vec3::from((object.x, object.y, 0.)),
                         rotation: Quat::from_rotation_z(
-                            -(object.rot
-                                + if texture_rotated { -90. } else { 0. }
-                                + if texture_rotated && object.flip_y {
-                                    -180.
-                                } else {
-                                    0.
-                                })
-                            .to_radians(),
+                            -(object.rot + if texture_rotated { -90. } else { 0. }).to_radians(),
                         ),
                         scale: Vec3::new(object.scale, object.scale, 0.),
                     },

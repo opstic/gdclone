@@ -108,13 +108,13 @@ fn texture_packer_size_to_vec2(size_string: &str) -> Vec2 {
 fn texture_packer_rect_to_bevy_rect(rect_string: &str, is_rotated: bool) -> Rect {
     let stripped_str = strip_texture_packer(rect_string);
     let dimensions: Vec<f32> = stripped_str
-        .split(",")
+        .split(',')
         .map(|s| strip_texture_packer(s).parse().unwrap())
         .collect();
     if is_rotated {
         Rect {
-            min: Vec2::new(dimensions[0] + 5., dimensions[1] - 10.),
-            max: Vec2::new(dimensions[0] + dimensions[2] + 5., dimensions[1] + dimensions[3] - 10.),
+            min: Vec2::new(dimensions[0], dimensions[1]),
+            max: Vec2::new(dimensions[0] + dimensions[3], dimensions[1] + dimensions[2]),
         }
     } else {
         Rect {
