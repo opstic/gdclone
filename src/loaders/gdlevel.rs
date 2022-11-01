@@ -94,16 +94,12 @@ impl AssetLoader for GDSaveLoader {
 }
 
 async fn load_level(level_data: &Dictionary) -> Result<GDLevel, bevy::asset::Error> {
-    let level_id = if let Some(id) = level_data.get("k1") {
-        Some(id.as_unsigned_integer().unwrap())
-    } else {
-        None
-    };
-    let level_description = if let Some(description) = level_data.get("k3") {
-        Some(description.as_string().unwrap().to_string())
-    } else {
-        None
-    };
+    let level_id = level_data
+        .get("k1")
+        .map(|id| id.as_unsigned_integer().unwrap());
+    let level_description = level_data
+        .get("k3")
+        .map(|description| description.as_string().unwrap().to_string());
     let level_inner = if let Some(inner) = level_data.get("k4") {
         decode_inner_level(&decrypt(inner.as_string().unwrap().as_bytes(), None)?)?
     } else {
@@ -189,10 +185,7 @@ fn decode_inner_level(bytes: &[u8]) -> Result<Vec<GDLevelObject>, bevy::asset::E
 }
 
 fn u8_to_bool(byte: &[u8]) -> bool {
-    match byte {
-        b"1" => true,
-        _ => false,
-    }
+    matches!(byte, b"1")
 }
 
 const FIX_PATTERN: &[&str; 8] = &["<d />", "d>", "k>", "r>", "i>", "s>", "<t", "<f"];
