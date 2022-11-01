@@ -77,7 +77,7 @@ fn play_setup(
                 }
             }
         } else {
-            info!("Object not found in mapping: {:?}", object);
+            warn!("Object not found in mapping: {:?}", object);
             continue;
         }
         if let Some(handle) = atlas_handle {
@@ -101,7 +101,7 @@ fn play_setup(
                 })
                 .insert(LevelObject);
         } else {
-            info!("Object texture not found: {:?}", object);
+            warn!("Object texture not found: {:?}", object);
             continue;
         }
     }

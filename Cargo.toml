@@ -9,7 +9,7 @@ readme = "README.md"
 
 [dependencies]
 aho-corasick = "0.7.18"
-base64-simd = "0.7.0"
+base64 = "0.20.0-alpha.1"
 benimator = "4.0.0-rc.1"
 bevy = { version = "0.8.1", default-features = false, features = [
     "animation",
