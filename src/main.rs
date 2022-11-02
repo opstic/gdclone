@@ -96,7 +96,7 @@ struct LevelAssets {}
 struct FpsText;
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn_bundle(Camera2dBundle::default());
+    commands.spawn_bundle(Camera2dBundle::new_with_far(1300.));
     commands
         .spawn_bundle(TextBundle {
             style: Style {

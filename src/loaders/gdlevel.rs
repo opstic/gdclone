@@ -150,6 +150,8 @@ fn decode_inner_level(bytes: &[u8]) -> Result<Vec<GDLevelObject>, bevy::asset::E
             flip_x: false,
             flip_y: false,
             rot: 0.0,
+            z_layer: 1,
+            z_order: 1,
             scale: 1.0,
         };
         let mut iterator = object_string.split(|byte| *byte == b',');
