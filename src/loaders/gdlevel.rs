@@ -31,6 +31,8 @@ pub struct GDLevelObject {
     pub(crate) flip_x: bool,
     pub(crate) flip_y: bool,
     pub(crate) rot: f32,
+    pub(crate) z_layer: i8,
+    pub(crate) z_order: i16,
     pub(crate) scale: f32,
 }
 
@@ -172,6 +174,8 @@ fn decode_inner_level(bytes: &[u8]) -> Result<Vec<GDLevelObject>, bevy::asset::E
                 b"4" => object.flip_x = u8_to_bool(property_value),
                 b"5" => object.flip_y = u8_to_bool(property_value),
                 b"6" => object.rot = String::from_utf8_lossy(property_value).parse().unwrap(),
+                b"24" => object.z_layer = String::from_utf8_lossy(property_value).parse().unwrap(),
+                b"25" => object.z_order = String::from_utf8_lossy(property_value).parse().unwrap(),
                 b"32" => object.scale = String::from_utf8_lossy(property_value).parse().unwrap(),
                 _ => {}
             }
