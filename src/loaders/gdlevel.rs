@@ -133,7 +133,8 @@ fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, bevy::asset::Error>
             .collect::<Vec<u8>>(),
         None => bytes[..nul_byte_start + 1].to_vec(),
     });
-    let decoded = base64::decode_config(&xor, base64::URL_SAFE)?;
+    let mut decoded = Vec::new();
+    base64::decode_engine_vec(xor, &mut decoded, &BASE64_URL_SAFE)?;
     let mut decompressed = Vec::with_capacity(decoded.len() + decoded.len() / 2);
     flate2::read::GzDecoder::new(&*decoded).read_to_end(&mut decompressed)?;
     Ok(decompressed)
@@ -197,3 +198,9 @@ const FIX_PATTERN: &[&str; 8] = &["<d />", "d>", "k>", "r>", "i>", "s>", "<t", "
 const FIX_REPLACE: &[&str; 8] = &[
     "<dict/>", "dict>", "key>", "real>", "integer>", "string>", "<true", "<false",
 ];
+
+const BASE64_URL_SAFE: base64::engine::fast_portable::FastPortable =
+    base64::engine::fast_portable::FastPortable::from(
+        &base64::alphabet::URL_SAFE,
+        base64::engine::fast_portable::PAD,
+    );
