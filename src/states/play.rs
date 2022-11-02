@@ -84,7 +84,12 @@ fn play_setup(
             commands
                 .spawn_bundle(SpriteSheetBundle {
                     transform: Transform {
-                        translation: Vec3::from((object.x, object.y, 0.)),
+                        translation: Vec3::from((
+                            object.x,
+                            object.y,
+                            (object.z_layer + 3) as f32 * 100.
+                                + object.z_order as f32 * 100. / (999. + 9999.),
+                        )),
                         rotation: Quat::from_rotation_z(
                             -(object.rot + if texture_rotated { -90. } else { 0. }).to_radians(),
                         ),
