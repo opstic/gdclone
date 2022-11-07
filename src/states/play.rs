@@ -40,14 +40,14 @@ fn play_setup(
         projection.scale = 1.0;
     }
 
-    for object in &save_file
+    let level = &save_file
         .get(&global_assets.save_file)
         .unwrap()
         .levels
         .get(level_index.index)
-        .unwrap()
-        .inner_level
-    {
+        .unwrap();
+
+    for object in &level.inner_level {
         let texture_name = mapping
             .get(&global_assets.texture_mapping)
             .unwrap()
@@ -97,6 +97,18 @@ fn play_setup(
                     },
                     sprite: TextureAtlasSprite {
                         index: atlas_mapping,
+                        color: if let Some(color) =
+                            level.start_object.colors.get(&object.main_color)
+                        {
+                            Color::rgba(
+                                color.r as f32 / u8::MAX as f32,
+                                color.g as f32 / u8::MAX as f32,
+                                color.b as f32 / u8::MAX as f32,
+                                color.opacity,
+                            )
+                        } else {
+                            Color::WHITE
+                        },
                         flip_x: object.flip_x,
                         flip_y: object.flip_y,
                         ..Default::default()
