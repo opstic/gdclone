@@ -1,6 +1,6 @@
 # gdclone
 
-An attempt at a GD client that uses a better engine and better optimized systems!
+An attempt at a GD client that uses another engine!
 
 Built using Rust and Bevy engine.
 
@@ -14,5 +14,3 @@ Built using Rust and Bevy engine.
 ALL RIGHTS RESERVED.
 
 Not affiliated with RobTop Games.
-
-For personal use only.
