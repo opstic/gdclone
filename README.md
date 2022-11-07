@@ -2,7 +2,7 @@
 
 An attempt at a GD client that uses another engine!
 
-Built using Rust and Bevy engine.
+Built using Bevy engine and Rust.
 
 
 ```
