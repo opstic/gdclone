@@ -11,9 +11,9 @@ use play::PlayStatePlugin;
 
 #[derive(Component, Clone, Eq, PartialEq, Debug, Hash, Copy)]
 pub(crate) enum GameState {
-    LoadingState,
-    LevelSelectState,
-    PlayState,
+    Loading,
+    LevelSelect,
+    Play,
 }
 
 pub(crate) struct StatePlugins;

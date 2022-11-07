@@ -6,8 +6,8 @@ pub(crate) struct LoadingStatePlugin;
 
 impl Plugin for LoadingStatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_enter_system(GameState::LoadingState, loading_setup)
-            .add_exit_system(GameState::LoadingState, loading_cleanup);
+        app.add_enter_system(GameState::Loading, loading_setup)
+            .add_exit_system(GameState::Loading, loading_cleanup);
     }
 }
 

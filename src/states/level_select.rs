@@ -23,11 +23,11 @@ pub(crate) struct LevelSelectStatePlugin;
 
 impl Plugin for LevelSelectStatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_enter_system(GameState::LevelSelectState, select_setup)
-            .add_exit_system(GameState::LevelSelectState, select_cleanup)
+        app.add_enter_system(GameState::LevelSelect, select_setup)
+            .add_exit_system(GameState::LevelSelect, select_cleanup)
             .add_system_set(
                 ConditionSet::new()
-                    .run_in_state(GameState::LevelSelectState)
+                    .run_in_state(GameState::LevelSelect)
                     .with_system(mouse_scroll)
                     .with_system(button_system)
                     .into(),
@@ -270,7 +270,7 @@ fn button_system(
                 commands.insert_resource(LevelIndex {
                     index: button.level_index,
                 });
-                commands.insert_resource(NextState(GameState::PlayState));
+                commands.insert_resource(NextState(GameState::Play));
             }
             Interaction::Hovered => {
                 *color = HOVERED_BUTTON.into();

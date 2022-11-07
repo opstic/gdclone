@@ -46,11 +46,11 @@ fn main() {
         },
         ..default()
     })
-    .add_loopless_state(GameState::LoadingState)
-    .add_plugin(ProgressPlugin::new(GameState::LoadingState))
+    .add_loopless_state(GameState::Loading)
+    .add_plugin(ProgressPlugin::new(GameState::Loading))
     .add_loading_state(
-        LoadingState::new(GameState::LoadingState)
-            .continue_to_state(GameState::LevelSelectState)
+        LoadingState::new(GameState::Loading)
+            .continue_to_state(GameState::LevelSelect)
             .with_collection::<GlobalAssets>(),
     )
     .add_plugins(DefaultPlugins)

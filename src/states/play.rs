@@ -6,11 +6,11 @@ pub(crate) struct PlayStatePlugin;
 
 impl Plugin for PlayStatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_enter_system(GameState::PlayState, play_setup)
-            .add_exit_system(GameState::PlayState, play_cleanup)
+        app.add_enter_system(GameState::Play, play_setup)
+            .add_exit_system(GameState::Play, play_cleanup)
             .add_system_set(
                 ConditionSet::new()
-                    .run_in_state(GameState::PlayState)
+                    .run_in_state(GameState::Play)
                     .with_system(move_camera)
                     .with_system(exit_play)
                     .into(),
@@ -167,7 +167,7 @@ fn move_camera(
 
 fn exit_play(mut commands: Commands, keys: Res<Input<KeyCode>>) {
     if keys.pressed(KeyCode::Escape) {
-        commands.insert_resource(NextState(GameState::LevelSelectState));
+        commands.insert_resource(NextState(GameState::LevelSelect));
     }
 }
 
