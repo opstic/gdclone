@@ -11,6 +11,6 @@ Built using Bevy engine and Rust.
 }
 ```
 
-ALL RIGHTS RESERVED. With exception of objectTextureMap.json.mapping by SMJS.
+ALL RIGHTS RESERVED. With exception of objectTextureMap.json.mapping by @SMJSGaming.
 
 Not affiliated with RobTop Games.
