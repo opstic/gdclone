@@ -1,5 +1,9 @@
+use crate::loaders::gdlevel::GDColorChannel::{BaseColor, CopyColor};
+use crate::loaders::gdlevel::{GDBaseColor, GDColorChannel};
 use crate::{GDSaveFile, GameState, GlobalAssets, ObjectMapping, TexturePackerAtlas};
 use bevy::prelude::*;
+use bevy::utils::HashMap;
+use bevy_inspector_egui::egui::color::{hsv_from_rgb, rgb_from_hsv};
 use iyes_loopless::prelude::{AppLooplessStateExt, ConditionSet, NextState};
 
 pub(crate) struct PlayStatePlugin;
@@ -110,15 +114,10 @@ fn play_setup(
                     },
                     sprite: TextureAtlasSprite {
                         index: atlas_mapping,
-                        color: if let Some(color) =
-                            level.start_object.colors.get(&object.main_color)
-                        {
-                            Color::rgba(
-                                color.r as f32 / u8::MAX as f32,
-                                color.g as f32 / u8::MAX as f32,
-                                color.b as f32 / u8::MAX as f32,
-                                color.opacity,
-                            )
+                        color: if level.start_object.colors.contains_key(&object.main_color) {
+                            let (r, g, b, a) =
+                                get_color(&level.start_object.colors, &object.main_color);
+                            Color::rgba(r, g, b, a)
                         } else {
                             Color::WHITE
                         },
@@ -133,6 +132,29 @@ fn play_setup(
         } else {
             warn!("Object texture not found: {:?}", object);
             continue;
+        }
+    }
+}
+
+fn get_color(colors: &HashMap<u128, GDColorChannel>, index: &u128) -> (f32, f32, f32, f32) {
+    match colors
+        .get(index)
+        .unwrap_or(&BaseColor(GDBaseColor::default()))
+    {
+        BaseColor(color) => (
+            color.r as f32 / u8::MAX as f32,
+            color.g as f32 / u8::MAX as f32,
+            color.b as f32 / u8::MAX as f32,
+            color.opacity,
+        ),
+        CopyColor(color) => {
+            let (r, g, b, a) = get_color(colors, &color.copied_index);
+            let (mut h, mut s, mut v) = hsv_from_rgb([r, g, b]);
+            h += color.hsv.h;
+            s *= color.hsv.s;
+            v *= color.hsv.v;
+            let [r, g, b] = rgb_from_hsv((h, s, v));
+            (r, g, b, if color.copy_opacity { a } else { color.opacity })
         }
     }
 }

@@ -11,12 +11,12 @@ use std::io::Read;
 
 #[derive(Debug, Deserialize, TypeUuid)]
 #[uuid = "1303d57b-af74-4318-ac9b-5d9e5519bcf1"]
-pub struct GDSaveFile {
+pub(crate) struct GDSaveFile {
     pub(crate) levels: Vec<GDLevel>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct GDLevel {
+pub(crate) struct GDLevel {
     pub(crate) id: Option<u64>,
     pub(crate) name: String,
     pub(crate) description: Option<String>,
@@ -42,18 +42,47 @@ pub(crate) struct GDLevelObject {
     pub(crate) z_layer: i8,
     pub(crate) z_order: i16,
     pub(crate) scale: f32,
+    pub(crate) main_hsv_enabled: bool,
+    pub(crate) second_hsv_enabled: bool,
+    pub(crate) main_hsv: GDHSV,
+    pub(crate) second_hsv: GDHSV,
     pub(crate) groups: Vec<u128>,
     pub(crate) other: HashMap<String, String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub(crate) struct GDColorChannel {
+pub(crate) struct GDHSV {
+    pub(crate) h: f32,
+    pub(crate) s: f32,
+    pub(crate) v: f32,
+    pub(crate) checked_s: i128,
+    pub(crate) checked_v: i128,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub(crate) struct GDBaseColor {
     pub(crate) index: u128,
     pub(crate) r: u8,
     pub(crate) g: u8,
     pub(crate) b: u8,
     pub(crate) opacity: f32,
     pub(crate) blending: bool,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub(crate) struct GDCopyColor {
+    pub(crate) index: u128,
+    pub(crate) copied_index: u128,
+    pub(crate) copy_opacity: bool,
+    pub(crate) opacity: f32,
+    pub(crate) blending: bool,
+    pub(crate) hsv: GDHSV,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub(crate) enum GDColorChannel {
+    BaseColor(GDBaseColor),
+    CopyColor(GDCopyColor),
 }
 
 impl Default for GDStartObject {
@@ -78,21 +107,50 @@ impl Default for GDLevelObject {
             z_layer: 1,
             z_order: 1,
             scale: 1.0,
+            main_hsv_enabled: false,
+            second_hsv_enabled: false,
+            main_hsv: GDHSV::default(),
+            second_hsv: GDHSV::default(),
             groups: Vec::new(),
             other: HashMap::new(),
         }
     }
 }
 
-impl Default for GDColorChannel {
+impl Default for GDHSV {
     fn default() -> Self {
-        GDColorChannel {
+        GDHSV {
+            h: 0.,
+            s: 1.,
+            v: 1.,
+            checked_s: 0,
+            checked_v: 0,
+        }
+    }
+}
+
+impl Default for GDBaseColor {
+    fn default() -> Self {
+        GDBaseColor {
             index: 0,
             r: 0,
             g: 0,
             b: 0,
             opacity: 1.,
             blending: false,
+        }
+    }
+}
+
+impl Default for GDCopyColor {
+    fn default() -> Self {
+        GDCopyColor {
+            index: 0,
+            copied_index: 0,
+            copy_opacity: false,
+            opacity: 1.,
+            blending: false,
+            hsv: GDHSV::default(),
         }
     }
 }
@@ -202,7 +260,9 @@ fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, bevy::asset::Error>
     Ok(decompressed)
 }
 
-fn decode_inner_level(bytes: &[u8]) -> Result<(GDStartObject, Vec<GDLevelObject>), bevy::asset::Error> {
+fn decode_inner_level(
+    bytes: &[u8],
+) -> Result<(GDStartObject, Vec<GDLevelObject>), bevy::asset::Error> {
     let mut objects = Vec::with_capacity(bytes.len() / 100);
     let mut start_object = GDStartObject::default();
     for object_string in bytes.split(|byte| *byte == b';') {
@@ -230,13 +290,22 @@ fn decode_inner_level(bytes: &[u8]) -> Result<(GDStartObject, Vec<GDLevelObject>
                 b"4" => object.flip_x = u8_to_bool(property_value),
                 b"5" => object.flip_y = u8_to_bool(property_value),
                 b"6" => object.rot = String::from_utf8_lossy(property_value).parse().unwrap(),
-                b"21" => object.main_color = String::from_utf8_lossy(property_value).parse().unwrap(),
-                b"22" => object.second_color = String::from_utf8_lossy(property_value).parse().unwrap(),
+                b"21" => {
+                    object.main_color = String::from_utf8_lossy(property_value).parse().unwrap()
+                }
+                b"22" => {
+                    object.second_color = String::from_utf8_lossy(property_value).parse().unwrap()
+                }
                 b"24" => object.z_layer = String::from_utf8_lossy(property_value).parse().unwrap(),
                 b"25" => object.z_order = String::from_utf8_lossy(property_value).parse().unwrap(),
                 b"32" => object.scale = String::from_utf8_lossy(property_value).parse().unwrap(),
                 b"57" => object.groups = parse_integer_array(property_value).unwrap(),
-                _ => { object.other.insert(String::from_utf8_lossy(property_id).to_string(), String::from_utf8_lossy(property_value).to_string()); }
+                _ => {
+                    object.other.insert(
+                        String::from_utf8_lossy(property_id).to_string(),
+                        String::from_utf8_lossy(property_value).to_string(),
+                    );
+                }
             }
         }
         if object.id == 0 {
@@ -267,31 +336,112 @@ fn parse_start_object(object: GDLevelObject) -> Result<GDStartObject, bevy::asse
 fn parse_color_string(bytes: &[u8]) -> Result<HashMap<u128, GDColorChannel>, bevy::asset::Error> {
     let mut colors = HashMap::new();
     for color_string in bytes.split(|byte| *byte == b'|') {
-        let mut color = GDColorChannel::default();
+        let mut properties = HashMap::new();
         let mut iterator = color_string.split(|byte| *byte == b'_');
         while let Some(property_id) = iterator.next() {
             let property_value = match iterator.next() {
                 Some(value) => value,
                 None => break,
             };
-            match property_id {
-                b"1" => color.r = String::from_utf8_lossy(property_value).parse().unwrap(),
-                b"2" => color.g = String::from_utf8_lossy(property_value).parse().unwrap(),
-                b"3" => color.b = String::from_utf8_lossy(property_value).parse().unwrap(),
-                b"5" => color.blending = u8_to_bool(property_value),
-                b"6" => color.index = String::from_utf8_lossy(property_value).parse().unwrap(),
-                b"7" => color.opacity = String::from_utf8_lossy(property_value).parse().unwrap(),
-                _ => {}
-            }
+            properties.insert(
+                String::from_utf8_lossy(property_id),
+                String::from_utf8_lossy(property_value),
+            );
         }
-        colors.insert(color.index, color);
+        let mut index = 0;
+        if let Some(got_index) = properties.get("6") {
+            index = got_index.parse().unwrap();
+        } else {
+            continue;
+        }
+        let mut color: GDColorChannel;
+        if properties.contains_key("9") {
+            let mut temp_color = GDCopyColor::default();
+            temp_color.index = index;
+            temp_color.copied_index = if let Some(value) = properties.get("9") {
+                value.parse().unwrap()
+            } else {
+                0
+            };
+            temp_color.copy_opacity = if let Some(value) = properties.get("17") {
+                u8_to_bool(value.as_bytes())
+            } else {
+                false
+            };
+            temp_color.opacity = if let Some(value) = properties.get("7") {
+                value.parse().unwrap()
+            } else {
+                1.
+            };
+            temp_color.blending = if let Some(value) = properties.get("5") {
+                u8_to_bool(value.as_bytes())
+            } else {
+                false
+            };
+            temp_color.hsv = if let Some(value) = properties.get("10") {
+                parse_hsv_string(value.as_bytes()).unwrap()
+            } else {
+                GDHSV::default()
+            };
+            color = GDColorChannel::CopyColor(temp_color);
+        } else {
+            let mut temp_color = GDBaseColor::default();
+            temp_color.index = index;
+            temp_color.r = if let Some(value) = properties.get("1") {
+                value.parse().unwrap()
+            } else {
+                255
+            };
+            temp_color.g = if let Some(value) = properties.get("2") {
+                value.parse().unwrap()
+            } else {
+                255
+            };
+            temp_color.b = if let Some(value) = properties.get("3") {
+                value.parse().unwrap()
+            } else {
+                255
+            };
+            temp_color.opacity = if let Some(value) = properties.get("7") {
+                value.parse().unwrap()
+            } else {
+                1.
+            };
+            temp_color.blending = if let Some(value) = properties.get("5") {
+                u8_to_bool(value.as_bytes())
+            } else {
+                false
+            };
+            color = GDColorChannel::BaseColor(temp_color);
+        }
+        colors.insert(index, color);
     }
     Ok(colors)
 }
 
+fn parse_hsv_string(bytes: &[u8]) -> Result<GDHSV, bevy::asset::Error> {
+    let mut hsv = GDHSV::default();
+    for (i, bytes) in bytes.split(|byte| *byte == b'a').enumerate() {
+        match i {
+            0 => hsv.h = String::from_utf8_lossy(bytes).parse().unwrap(),
+            1 => hsv.s = String::from_utf8_lossy(bytes).parse().unwrap(),
+            2 => hsv.v = String::from_utf8_lossy(bytes).parse().unwrap(),
+            3 => hsv.checked_s = String::from_utf8_lossy(bytes).parse().unwrap(),
+            4 => hsv.checked_v = String::from_utf8_lossy(bytes).parse().unwrap(),
+            _ => {}
+        }
+    }
+    Ok(hsv)
+}
+
 fn parse_integer_array(bytes: &[u8]) -> Result<Vec<u128>, bevy::asset::Error> {
     let mut array = Vec::new();
-    array.extend(bytes.split(|byte| *byte == b'.').into_iter().map(|b| String::from_utf8_lossy(b).parse::<u128>().unwrap()));
+    array.extend(
+        bytes
+            .split(|byte| *byte == b'.')
+            .into_iter()
+            .map(|b| String::from_utf8_lossy(b).parse::<u128>().unwrap()),
+    );
     Ok(array)
 }
 
