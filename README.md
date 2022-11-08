@@ -1,6 +1,6 @@
 # gdclone
 
-An attempt at a GD client that uses another engine!
+An attempt at a GD client.
 
 Built using Bevy engine and Rust.
 
