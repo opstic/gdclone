@@ -73,8 +73,8 @@ fn play_setup(
                 match packer_atlas.index.get(name) {
                     Some((mapping, rotated)) => {
                         atlas_handle = Some(packer_atlas.texture_atlas.clone());
-                        atlas_mapping = mapping.clone();
-                        texture_rotated = rotated.clone();
+                        atlas_mapping = *mapping;
+                        texture_rotated = *rotated;
                         break;
                     }
                     None => continue,
