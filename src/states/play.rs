@@ -88,10 +88,23 @@ fn play_setup(
                             object.x,
                             object.y,
                             (object.z_layer + 3) as f32 * 100.
-                                + object.z_order as f32 * 100. / (999. + 9999.),
+                                + (object.z_order + 999) as f32 * 100. / (999. + 10000.)
+                                - 0.099,
                         )),
                         rotation: Quat::from_rotation_z(
-                            -(object.rot + if texture_rotated { -90. } else { 0. }).to_radians(),
+                            -(object.rot
+                                + if texture_rotated { -90. } else { 0. }
+                                + if texture_rotated && object.flip_x {
+                                    180.
+                                } else {
+                                    0.
+                                }
+                                + if texture_rotated && object.flip_y {
+                                    180.
+                                } else {
+                                    0.
+                                })
+                            .to_radians(),
                         ),
                         scale: Vec3::new(object.scale, object.scale, 0.),
                     },
