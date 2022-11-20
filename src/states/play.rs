@@ -1,27 +1,26 @@
 use crate::loaders::gdlevel::GDColorChannel::{BaseColor, CopyColor};
 use crate::loaders::gdlevel::{GDBaseColor, GDColorChannel};
-use crate::{GDSaveFile, GameState, GlobalAssets, ObjectMapping, TexturePackerAtlas};
+use crate::states::loading::GlobalAssets;
+use crate::{GDSaveFile, GameState, ObjectMapping, TexturePackerAtlas};
 use bevy::prelude::*;
+use bevy::sprite::Anchor;
 use bevy::utils::HashMap;
-use bevy_inspector_egui::egui::color::{hsv_from_rgb, rgb_from_hsv};
-use iyes_loopless::prelude::{AppLooplessStateExt, ConditionSet, NextState};
 
 pub(crate) struct PlayStatePlugin;
 
 impl Plugin for PlayStatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_enter_system(GameState::Play, play_setup)
-            .add_exit_system(GameState::Play, play_cleanup)
+        app.add_system_set(SystemSet::on_enter(GameState::Play).with_system(play_setup))
+            .add_system_set(SystemSet::on_exit(GameState::Play).with_system(play_cleanup))
             .add_system_set(
-                ConditionSet::new()
-                    .run_in_state(GameState::Play)
+                SystemSet::on_update(GameState::Play)
                     .with_system(move_camera)
-                    .with_system(exit_play)
-                    .into(),
+                    .with_system(exit_play),
             );
     }
 }
 
+#[derive(Resource)]
 pub(crate) struct LevelIndex {
     pub(crate) index: usize,
 }
@@ -86,7 +85,7 @@ fn play_setup(
         }
         if let Some(handle) = atlas_handle {
             commands
-                .spawn_bundle(SpriteSheetBundle {
+                .spawn(SpriteSheetBundle {
                     transform: Transform {
                         translation: Vec3::from((
                             object.x,
@@ -149,11 +148,11 @@ fn get_color(colors: &HashMap<u128, GDColorChannel>, index: &u128) -> (f32, f32,
         ),
         CopyColor(color) => {
             let (r, g, b, a) = get_color(colors, &color.copied_index);
-            let (mut h, mut s, mut v) = hsv_from_rgb([r, g, b]);
+            let (mut h, mut s, mut v) = rgb_to_hsv([r, g, b]);
             h += color.hsv.h;
             s *= color.hsv.s;
             v *= color.hsv.v;
-            let [r, g, b] = rgb_from_hsv((h, s, v));
+            let [r, g, b] = hsv_to_rgb((h, s, v));
             (r, g, b, if color.copy_opacity { a } else { color.opacity })
         }
     }
@@ -200,9 +199,9 @@ fn move_camera(
     }
 }
 
-fn exit_play(mut commands: Commands, keys: Res<Input<KeyCode>>) {
+fn exit_play(mut state: ResMut<State<GameState>>, keys: Res<Input<KeyCode>>) {
     if keys.pressed(KeyCode::Escape) {
-        commands.insert_resource(NextState(GameState::LevelSelect));
+        state.set(GameState::LevelSelect).unwrap()
     }
 }
 
@@ -211,4 +210,60 @@ struct LevelObject;
 
 fn play_cleanup(mut commands: Commands, query: Query<Entity, With<LevelObject>>) {
     query.for_each(|entity| commands.entity(entity).despawn_recursive());
+}
+
+#[inline(always)]
+pub fn rgb_to_hsv(rgb: [f32; 3]) -> (f32, f32, f32) {
+    let [r, g, b] = rgb;
+    let (max, min, diff, add) = {
+        let (max, min, diff, add) = if r > g {
+            (r, g, g - b, 0.0)
+        } else {
+            (g, r, b - r, 2.0)
+        };
+        if b > max {
+            (b, min, r - g, 4.0)
+        } else {
+            (max, b.min(min), diff, add)
+        }
+    };
+
+    let v = max;
+    let h = if max == min {
+        0.0
+    } else {
+        let mut h = 60.0 * (add + diff / (max - min));
+        if h < 0.0 {
+            h += 360.0;
+        }
+        h
+    };
+    let s = if max == 0.0 { 0.0 } else { (max - min) / max };
+
+    (h, s, v)
+}
+
+/// Convert hsv to rgb. Expects h [0, 360], s [0, 1], v [0, 1]
+#[inline(always)]
+pub fn hsv_to_rgb((h, s, v): (f32, f32, f32)) -> [f32; 3] {
+    let c = s * v;
+    let h = h / 60.0;
+    let x = c * (1.0 - (h % 2.0 - 1.0).abs());
+    let m = v - c;
+
+    let (r, g, b) = if (0.0..=1.0).contains(&h) {
+        (c, x, 0.0)
+    } else if h <= 2.0 {
+        (x, c, 0.0)
+    } else if h <= 3.0 {
+        (0.0, c, x)
+    } else if h <= 4.0 {
+        (0.0, x, c)
+    } else if h <= 5.0 {
+        (x, 0.0, c)
+    } else {
+        (c, 0.0, x)
+    };
+
+    [r + m, g + m, b + m]
 }

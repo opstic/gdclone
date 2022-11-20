@@ -1,5 +1,5 @@
 use crate::AlignSelf::Center;
-use crate::{GDSaveFile, GameState, GlobalAssets};
+use crate::{GDSaveFile, GameState};
 use bevy::app::{App, Plugin};
 use bevy::asset::{AssetServer, Assets};
 use bevy::ecs::component::Component;
@@ -7,30 +7,27 @@ use bevy::hierarchy::{BuildChildren, Children, DespawnRecursiveExt};
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::{
     default, Button, ButtonBundle, Changed, Color, Commands, Entity, EventReader, Interaction,
-    NodeBundle, Query, Res, TextBundle, With,
+    NodeBundle, Query, Res, ResMut, State, SystemSet, TextBundle, With,
 };
 use bevy::text::TextStyle;
 use bevy::ui::{
-    AlignSelf, FlexDirection, JustifyContent, Node, Overflow, Size, Style, UiColor, UiRect, Val,
+    AlignSelf, BackgroundColor, FlexDirection, JustifyContent, Node, Overflow, Size, Style, UiRect,
+    Val,
 };
 
+use super::loading::GlobalAssets;
 use super::play::LevelIndex;
-use iyes_loopless::condition::ConditionSet;
-use iyes_loopless::prelude::AppLooplessStateExt;
-use iyes_loopless::state::NextState;
 
 pub(crate) struct LevelSelectStatePlugin;
 
 impl Plugin for LevelSelectStatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_enter_system(GameState::LevelSelect, select_setup)
-            .add_exit_system(GameState::LevelSelect, select_cleanup)
+        app.add_system_set(SystemSet::on_enter(GameState::LevelSelect).with_system(select_setup))
+            .add_system_set(SystemSet::on_exit(GameState::LevelSelect).with_system(select_cleanup))
             .add_system_set(
-                ConditionSet::new()
-                    .run_in_state(GameState::LevelSelect)
+                SystemSet::on_update(GameState::LevelSelect)
                     .with_system(mouse_scroll)
-                    .with_system(button_system)
-                    .into(),
+                    .with_system(button_system),
             );
     }
 }
@@ -42,32 +39,32 @@ fn select_setup(
     saves: Res<Assets<GDSaveFile>>,
 ) {
     commands
-        .spawn_bundle(NodeBundle {
+        .spawn(NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
                 justify_content: JustifyContent::SpaceBetween,
                 ..default()
             },
-            color: Color::NONE.into(),
+            background_color: Color::NONE.into(),
             ..default()
         })
         .insert(SelectMenu)
         .with_children(|parent| {
             parent
-                .spawn_bundle(NodeBundle {
+                .spawn(NodeBundle {
                     style: Style {
-                        flex_direction: FlexDirection::ColumnReverse,
+                        flex_direction: FlexDirection::Column,
                         justify_content: JustifyContent::Center,
                         align_self: Center,
                         size: Size::new(Val::Percent(50.0), Val::Percent(75.0)),
                         ..default()
                     },
-                    color: Color::rgb(0.15, 0.15, 0.15).into(),
+                    background_color: Color::rgb(0.15, 0.15, 0.15).into(),
                     ..default()
                 })
                 .with_children(|parent| {
                     // Title
-                    parent.spawn_bundle(
+                    parent.spawn(
                         TextBundle::from_section(
                             "Loaded Levels",
                             TextStyle {
@@ -89,29 +86,29 @@ fn select_setup(
                     );
                     // List with hidden overflow
                     parent
-                        .spawn_bundle(NodeBundle {
+                        .spawn(NodeBundle {
                             style: Style {
-                                flex_direction: FlexDirection::ColumnReverse,
+                                flex_direction: FlexDirection::Column,
                                 align_self: Center,
                                 size: Size::new(Val::Percent(100.0), Val::Percent(50.0)),
                                 overflow: Overflow::Hidden,
                                 ..default()
                             },
-                            color: Color::rgb(0.10, 0.10, 0.10).into(),
+                            background_color: Color::rgb(0.10, 0.10, 0.10).into(),
                             ..default()
                         })
                         .with_children(|parent| {
                             // Moving panel
                             parent
-                                .spawn_bundle(NodeBundle {
+                                .spawn(NodeBundle {
                                     style: Style {
-                                        flex_direction: FlexDirection::ColumnReverse,
+                                        flex_direction: FlexDirection::Column,
                                         flex_grow: 1.0,
                                         align_self: Center,
                                         max_size: Size::new(Val::Undefined, Val::Undefined),
                                         ..default()
                                     },
-                                    color: Color::NONE.into(),
+                                    background_color: Color::NONE.into(),
                                     ..default()
                                 })
                                 .insert(ScrollingList::default())
@@ -125,7 +122,7 @@ fn select_setup(
                                         .enumerate()
                                     {
                                         parent
-                                            .spawn_bundle(NodeBundle {
+                                            .spawn(NodeBundle {
                                                 style: Style {
                                                     flex_shrink: 0.,
                                                     size: Size::new(
@@ -139,11 +136,11 @@ fn select_setup(
                                                     },
                                                     ..default()
                                                 },
-                                                color: Color::NONE.into(),
+                                                background_color: Color::NONE.into(),
                                                 ..default()
                                             })
                                             .with_children(|parent| {
-                                                parent.spawn_bundle(
+                                                parent.spawn(
                                                     // Create a TextBundle that has a Text with a list of sections.
                                                     TextBundle::from_section(
                                                         &level.name,
@@ -165,7 +162,7 @@ fn select_setup(
                                                             bottom: Val::Auto,
                                                             ..default()
                                                         },
-                                                        align_self: AlignSelf::FlexStart,
+                                                        align_self: AlignSelf::FlexEnd,
                                                         max_size: Size::new(
                                                             Val::Percent(50.),
                                                             Val::Px(50.),
@@ -174,7 +171,7 @@ fn select_setup(
                                                     }),
                                                 );
                                                 parent
-                                                    .spawn_bundle(ButtonBundle {
+                                                    .spawn(ButtonBundle {
                                                         style: Style {
                                                             flex_shrink: 0.,
                                                             size: Size::new(
@@ -192,20 +189,16 @@ fn select_setup(
                                                     })
                                                     .insert(OpenButton { level_index: index })
                                                     .with_children(|parent| {
-                                                        parent.spawn_bundle(
-                                                            TextBundle::from_section(
-                                                                "Open",
-                                                                TextStyle {
-                                                                    font: asset_server.load(
-                                                                        "fonts/FiraSans-Bold.ttf",
-                                                                    ),
-                                                                    font_size: 25.0,
-                                                                    color: Color::rgb(
-                                                                        0.9, 0.9, 0.9,
-                                                                    ),
-                                                                },
-                                                            ),
-                                                        );
+                                                        parent.spawn(TextBundle::from_section(
+                                                            "Open",
+                                                            TextStyle {
+                                                                font: asset_server.load(
+                                                                    "fonts/FiraSans-Bold.ttf",
+                                                                ),
+                                                                font_size: 25.0,
+                                                                color: Color::rgb(0.9, 0.9, 0.9),
+                                                            },
+                                                        ));
                                                     });
                                             });
                                     }
@@ -237,9 +230,9 @@ fn mouse_scroll(
         for (mut scrolling_list, mut style, children, uinode) in &mut query_list {
             let items_height: f32 = children
                 .iter()
-                .map(|entity| query_item.get(*entity).unwrap().size.y)
+                .map(|entity| query_item.get(*entity).unwrap().size().y)
                 .sum();
-            let panel_height = uinode.size.y;
+            let panel_height = uinode.size().y;
             let max_scroll = (items_height - panel_height).max(0.);
             let dy = match mouse_wheel_event.unit {
                 MouseScrollUnit::Line => mouse_wheel_event.y * 20.,
@@ -258,8 +251,9 @@ const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
 fn button_system(
     mut commands: Commands,
+    mut state: ResMut<State<GameState>>,
     mut interaction_query: Query<
-        (&Interaction, &mut UiColor, &OpenButton),
+        (&Interaction, &mut BackgroundColor, &OpenButton),
         (Changed<Interaction>, With<Button>),
     >,
 ) {
@@ -270,7 +264,7 @@ fn button_system(
                 commands.insert_resource(LevelIndex {
                     index: button.level_index,
                 });
-                commands.insert_resource(NextState(GameState::Play));
+                state.set(GameState::Play).unwrap()
             }
             Interaction::Hovered => {
                 *color = HOVERED_BUTTON.into();

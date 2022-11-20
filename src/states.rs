@@ -2,7 +2,7 @@ use bevy::app::PluginGroupBuilder;
 use bevy::prelude::*;
 
 mod level_select;
-mod loading;
+pub(crate) mod loading;
 mod play;
 
 use level_select::LevelSelectStatePlugin;
@@ -19,10 +19,10 @@ pub(crate) enum GameState {
 pub(crate) struct StatePlugins;
 
 impl PluginGroup for StatePlugins {
-    fn build(&mut self, group: &mut PluginGroupBuilder) {
-        group
+    fn build(self) -> PluginGroupBuilder {
+        PluginGroupBuilder::start::<Self>()
             .add(LoadingStatePlugin)
             .add(LevelSelectStatePlugin)
-            .add(PlayStatePlugin);
+            .add(PlayStatePlugin)
     }
 }

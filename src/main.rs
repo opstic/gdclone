@@ -8,59 +8,43 @@ use bevy::render::view::{NoFrustumCulling, VisibilitySystems};
 use bevy::sprite::Mesh2dHandle;
 use bevy::window::{PresentMode, WindowResizeConstraints, WindowResized};
 use bevy::winit::WinitSettings;
-use bevy_asset_loader::prelude::*;
-use bevy_inspector_egui::WorldInspectorPlugin;
-use bevy_kira_audio::AudioPlugin;
-use bevy_tweening::*;
-use bevy_ui_navigation::DefaultNavigationPlugins;
-use iyes_loopless::prelude::AppLooplessStateExt;
-use iyes_progress::ProgressPlugin;
 use std::time::Duration;
 
 mod loaders;
 mod states;
 
-use loaders::{
-    gdlevel::GDSaveFile, mapping::ObjectMapping, texture_packer::TexturePackerAtlas,
-    AssetLoaderPlugin,
-};
-use states::{GameState, StatePlugins};
+use crate::loaders::AssetLoaderPlugin;
+use loaders::{gdlevel::GDSaveFile, mapping::ObjectMapping, texture_packer::TexturePackerAtlas};
+use states::{loading::AssetsLoading, GameState, StatePlugins};
 
 fn main() {
     let mut app = App::new();
-    app.insert_resource(WindowDescriptor {
-        resize_constraints: WindowResizeConstraints {
-            // well if you are willing to play at such horrendous resolution here you go
-            min_width: 128.,
-            min_height: 72.,
-            ..default()
-        },
-        title: "GDClone".to_string(),
-        present_mode: PresentMode::AutoNoVsync,
-        ..default()
-    })
-    .insert_resource(WinitSettings {
+    app.insert_resource(WinitSettings {
         focused_mode: bevy::winit::UpdateMode::Continuous,
         unfocused_mode: bevy::winit::UpdateMode::ReactiveLowPower {
             max_wait: Duration::from_millis(100),
         },
         ..default()
     })
-    .add_loopless_state(GameState::Loading)
-    .add_plugin(ProgressPlugin::new(GameState::Loading))
-    .add_loading_state(
-        LoadingState::new(GameState::Loading)
-            .continue_to_state(GameState::LevelSelect)
-            .with_collection::<GlobalAssets>(),
-    )
-    .add_plugins(DefaultPlugins)
-    .add_plugin(AudioPlugin)
-    .add_plugins(DefaultNavigationPlugins)
+    .insert_resource(AssetsLoading::default())
+    .add_plugins(DefaultPlugins.set(WindowPlugin {
+        window: WindowDescriptor {
+            resize_constraints: WindowResizeConstraints {
+                // well if you are willing to play at such horrendous resolution here you go
+                min_width: 128.,
+                min_height: 72.,
+                ..default()
+            },
+            title: "GDClone".to_string(),
+            present_mode: PresentMode::AutoNoVsync,
+            ..default()
+        },
+        ..default()
+    }))
     .add_plugin(FrameTimeDiagnosticsPlugin)
-    .add_plugin(TweeningPlugin)
-    .add_plugin(WorldInspectorPlugin::new())
     .add_plugin(AssetLoaderPlugin)
     .add_plugins(StatePlugins)
+    .add_state(GameState::Loading)
     .add_startup_system(setup)
     .add_system(update_fps)
     .add_system(handle_resize)
@@ -71,36 +55,15 @@ fn main() {
     .run();
 }
 
-#[derive(AssetCollection)]
-struct GlobalAssets {
-    #[asset(path = "CCLocalLevels.dat")]
-    save_file: Handle<GDSaveFile>,
-    #[asset(path = "data/objectTextureMap.json.mapping")]
-    texture_mapping: Handle<ObjectMapping>,
-    #[asset(path = "Resources/GJ_GameSheet-uhd.plist")]
-    atlas1: Handle<TexturePackerAtlas>,
-    #[asset(path = "Resources/GJ_GameSheet02-uhd.plist")]
-    atlas2: Handle<TexturePackerAtlas>,
-    #[asset(path = "Resources/GJ_GameSheet03-uhd.plist")]
-    atlas3: Handle<TexturePackerAtlas>,
-    #[asset(path = "Resources/GJ_GameSheet04-uhd.plist")]
-    atlas4: Handle<TexturePackerAtlas>,
-    #[asset(path = "Resources/GJ_GameSheetGlow-uhd.plist")]
-    atlas5: Handle<TexturePackerAtlas>,
-}
-
-#[derive(AssetCollection)]
-struct LevelAssets {}
-
 #[derive(Component)]
 struct FpsText;
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn_bundle(Camera2dBundle::new_with_far(1300.));
+    commands.spawn(Camera2dBundle::new_with_far(1300.));
     commands
-        .spawn_bundle(TextBundle {
+        .spawn(TextBundle {
             style: Style {
-                align_self: AlignSelf::FlexEnd,
+                align_self: AlignSelf::FlexStart,
                 ..default()
             },
             text: Text {

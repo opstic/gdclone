@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 
-pub(crate) mod gdlevel;
 pub(crate) mod mapping;
 pub(crate) mod texture_packer;
+// mod render;
+pub(crate) mod gdlevel;
 
 use gdlevel::{GDSaveFile, GDSaveLoader};
 use mapping::{ObjectMapping, ObjectMappingLoader};

@@ -1,22 +1,45 @@
+use crate::loaders::gdlevel::GDSaveFile;
+use crate::loaders::mapping::ObjectMapping;
+use crate::loaders::texture_packer::TexturePackerAtlas;
 use crate::GameState;
 use bevy::prelude::*;
-use iyes_loopless::prelude::AppLooplessStateExt;
 
 pub(crate) struct LoadingStatePlugin;
 
 impl Plugin for LoadingStatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_enter_system(GameState::Loading, loading_setup)
-            .add_exit_system(GameState::Loading, loading_cleanup);
+        app.add_system_set(SystemSet::on_enter(GameState::Loading).with_system(loading_setup))
+            .add_system_set(SystemSet::on_exit(GameState::Loading).with_system(loading_cleanup))
+            .add_system_set(
+                SystemSet::on_update(GameState::Loading).with_system(check_assets_ready),
+            );
     }
 }
 
 #[derive(Component)]
 struct LoadingText;
 
-fn loading_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+#[derive(Resource)]
+pub(crate) struct GlobalAssets {
+    pub(crate) save_file: Handle<GDSaveFile>,
+    pub(crate) texture_mapping: Handle<ObjectMapping>,
+    pub(crate) atlas1: Handle<TexturePackerAtlas>,
+    pub(crate) atlas2: Handle<TexturePackerAtlas>,
+    pub(crate) atlas3: Handle<TexturePackerAtlas>,
+    pub(crate) atlas4: Handle<TexturePackerAtlas>,
+    pub(crate) atlas5: Handle<TexturePackerAtlas>,
+}
+
+#[derive(Resource, Default)]
+pub(crate) struct AssetsLoading(Vec<HandleUntyped>);
+
+fn loading_setup(
+    mut commands: Commands,
+    server: Res<AssetServer>,
+    mut loading: ResMut<AssetsLoading>,
+) {
     commands
-        .spawn_bundle(TextBundle {
+        .spawn(TextBundle {
             style: Style {
                 align_self: AlignSelf::Center,
                 ..default()
@@ -25,7 +48,7 @@ fn loading_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 sections: vec![TextSection {
                     value: "Loading...".to_string(),
                     style: TextStyle {
-                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font: server.load("fonts/FiraSans-Bold.ttf"),
                         font_size: 50.,
                         color: Color::WHITE,
                     },
@@ -35,6 +58,53 @@ fn loading_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         })
         .insert(LoadingText);
+
+    let save_file: Handle<GDSaveFile> = server.load("CCLocalLevels.dat");
+    let texture_mapping: Handle<ObjectMapping> = server.load("data/objectTextureMap.json.mapping");
+    let atlas1: Handle<TexturePackerAtlas> = server.load("Resources/GJ_GameSheet-uhd.plist");
+    let atlas2: Handle<TexturePackerAtlas> = server.load("Resources/GJ_GameSheet02-uhd.plist");
+    let atlas3: Handle<TexturePackerAtlas> = server.load("Resources/GJ_GameSheet03-uhd.plist");
+    let atlas4: Handle<TexturePackerAtlas> = server.load("Resources/GJ_GameSheet04-uhd.plist");
+    let atlas5: Handle<TexturePackerAtlas> = server.load("Resources/GJ_GameSheetGlow-uhd.plist");
+
+    loading.0.push(save_file.clone_untyped());
+    loading.0.push(texture_mapping.clone_untyped());
+    loading.0.push(atlas1.clone_untyped());
+    loading.0.push(atlas2.clone_untyped());
+    loading.0.push(atlas3.clone_untyped());
+    loading.0.push(atlas4.clone_untyped());
+    loading.0.push(atlas5.clone_untyped());
+
+    commands.insert_resource(GlobalAssets {
+        save_file,
+        texture_mapping,
+        atlas1,
+        atlas2,
+        atlas3,
+        atlas4,
+        atlas5,
+    });
+}
+
+fn check_assets_ready(
+    mut commands: Commands,
+    server: Res<AssetServer>,
+    loading: Res<AssetsLoading>,
+    mut state: ResMut<State<GameState>>,
+) {
+    use bevy::asset::LoadState;
+
+    match server.get_group_load_state(loading.0.iter().map(|h| h.id)) {
+        LoadState::Failed => {}
+        LoadState::Loaded => {
+            info!("everything loaded");
+            commands.remove_resource::<AssetsLoading>();
+            state.set(GameState::LevelSelect).unwrap();
+        }
+        _ => {
+            // NotLoaded/Loading: not fully ready yet
+        }
+    }
 }
 
 fn loading_cleanup(mut commands: Commands, query: Query<Entity, With<LoadingText>>) {
