@@ -57,8 +57,9 @@ fn play_setup(
             .mapping
             .get(&object.id);
         let mut atlas_handle: Option<Handle<TextureAtlas>> = None;
-        let mut atlas_mapping: usize = 0;
-        let mut texture_rotated: bool = false;
+        let mut atlas_mapping = 0;
+        let mut texture_offset = Vec2::default();
+        let mut texture_rotated = false;
         if let Some(name) = texture_name {
             let atlases = vec![
                 &global_assets.atlas1,
@@ -70,9 +71,10 @@ fn play_setup(
             for atlas in atlases {
                 let packer_atlas = packer_atlases.get(atlas).unwrap();
                 match packer_atlas.index.get(name) {
-                    Some((mapping, rotated)) => {
+                    Some((mapping, offset, rotated)) => {
                         atlas_handle = Some(packer_atlas.texture_atlas.clone());
                         atlas_mapping = *mapping;
+                        texture_offset = *offset;
                         texture_rotated = *rotated;
                         break;
                     }
@@ -109,7 +111,11 @@ fn play_setup(
                                 })
                             .to_radians(),
                         ),
-                        scale: Vec3::new(object.scale, object.scale, 0.),
+                        scale: Vec3::new(
+                            object.scale * if object.flip_x { -1. } else { 1. },
+                            object.scale * if object.flip_y { -1. } else { 1. },
+                            0.,
+                        ),
                     },
                     sprite: TextureAtlasSprite {
                         index: atlas_mapping,
@@ -120,8 +126,7 @@ fn play_setup(
                         } else {
                             Color::WHITE
                         },
-                        flip_x: object.flip_x,
-                        flip_y: object.flip_y,
+                        anchor: Anchor::Custom(texture_offset),
                         ..Default::default()
                     },
                     texture_atlas: handle,

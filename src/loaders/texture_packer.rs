@@ -1,18 +1,43 @@
 use bevy::asset::{AssetLoader, BoxedFuture, Handle, LoadContext, LoadedAsset};
+use bevy::math::Rect;
 use bevy::prelude::{FromWorld, Image, TextureAtlas, Vec2, World};
 use bevy::reflect::TypeUuid;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::texture::{CompressedImageFormats, ImageType};
-use bevy::sprite::Rect;
 use bevy::utils::HashMap;
 use plist::Dictionary;
 use std::path::Path;
+use serde::Deserialize;
 
 #[derive(Debug, TypeUuid)]
 #[uuid = "f2c8ed94-b8c8-4d9e-99e9-7ba9b7e8603b"]
 pub struct TexturePackerAtlas {
-    pub(crate) index: HashMap<String, (usize, bool)>,
+    pub(crate) index: HashMap<String, (usize, Vec2, bool)>,
     pub(crate) texture_atlas: Handle<TextureAtlas>,
+}
+
+#[derive(Deserialize)]
+struct AtlasFile {
+    frames: HashMap<String, Frame>,
+    metadata: Metadata,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Metadata {
+    real_texture_file_name: String,
+    size: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Frame {
+    aliases: Vec<String>,
+    sprite_offset: String,
+    sprite_size: String,
+    sprite_source_size: String,
+    texture_rect: String,
+    texture_rotated: bool,
 }
 
 pub struct TexturePackerAtlasLoader {
@@ -39,44 +64,39 @@ impl AssetLoader for TexturePackerAtlasLoader {
         load_context: &'a mut LoadContext,
     ) -> BoxedFuture<'a, Result<(), bevy::asset::Error>> {
         Box::pin(async move {
-            let manifest: Dictionary = plist::from_bytes(bytes).expect("Invalid manifest");
-            let metadata = manifest.get("metadata").unwrap().as_dictionary().unwrap();
-            let texture_filename = metadata
-                .get("realTextureFileName")
-                .unwrap()
-                .as_string()
-                .unwrap();
-            let texture_dimensions =
-                texture_packer_size_to_vec2(metadata.get("size").unwrap().as_string().unwrap());
+            let manifest: AtlasFile = plist::from_bytes(bytes).expect("Invalid manifest");
             let texture = load_texture(
                 load_context,
-                texture_filename,
+                &manifest.metadata.real_texture_file_name,
                 self.supported_compressed_formats,
             )
             .await?;
             let texture_handle =
                 load_context.set_labeled_asset("texture", LoadedAsset::new(texture));
-            let mut texture_atlas = TextureAtlas::new_empty(texture_handle, texture_dimensions);
+            let mut texture_atlas = TextureAtlas::new_empty(texture_handle, texture_packer_size_to_vec2(&manifest.metadata.size));
             let mut index = HashMap::new();
-            for (frame_name, frame) in manifest.get("frames").unwrap().as_dictionary().unwrap() {
-                let rotated = frame
-                    .as_dictionary()
-                    .unwrap()
-                    .get("textureRotated")
-                    .unwrap()
-                    .as_boolean()
-                    .unwrap();
-                let texture_index = texture_atlas.add_texture(texture_packer_rect_to_bevy_rect(
-                    frame
-                        .as_dictionary()
-                        .unwrap()
-                        .get("textureRect")
-                        .unwrap()
-                        .as_string()
-                        .unwrap(),
-                    rotated
-                ));
-                index.insert(frame_name.clone(), (texture_index, rotated));
+            for (frame_name, frame) in manifest.frames {
+                let sprite_source_size = texture_packer_size_to_vec2(
+                    &frame.sprite_source_size
+                );
+                let sprite_size = texture_packer_size_to_vec2(
+                    &frame.sprite_size
+                );
+                let offset = texture_packer_size_to_vec2(
+                    &frame.sprite_offset
+                );
+                let texture_index = texture_atlas.add_texture(
+                    texture_packer_rect_to_bevy_rect(&frame.texture_rect, frame.texture_rotated)
+                );
+
+                index.insert(
+                    frame_name.clone(),
+                    (
+                        texture_index,
+                        Vec2::new(offset.y / sprite_size.y * if frame.texture_rotated {-1.} else {1.}, offset.x / sprite_size.x),
+                        frame.texture_rotated,
+                    ),
+                );
             }
             let texture_atlas_handle =
                 load_context.set_labeled_asset("texture_atlas", LoadedAsset::new(texture_atlas));
