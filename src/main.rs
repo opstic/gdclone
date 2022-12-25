@@ -14,7 +14,7 @@ mod loaders;
 mod states;
 
 use crate::loaders::AssetLoaderPlugin;
-use loaders::{gdlevel::GDSaveFile, mapping::ObjectMapping, texture_packer::TexturePackerAtlas};
+use loaders::{cocos2d_atlas::Cocos2dAtlas, gdlevel::GDSaveFile, mapping::ObjectMapping};
 use states::{loading::AssetsLoading, GameState, StatePlugins};
 
 fn main() {

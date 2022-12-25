@@ -1,6 +1,6 @@
+use crate::loaders::cocos2d_atlas::Cocos2dAtlas;
 use crate::loaders::gdlevel::GDSaveFile;
 use crate::loaders::mapping::ObjectMapping;
-use crate::loaders::texture_packer::TexturePackerAtlas;
 use crate::GameState;
 use bevy::prelude::*;
 
@@ -23,11 +23,11 @@ struct LoadingText;
 pub(crate) struct GlobalAssets {
     pub(crate) save_file: Handle<GDSaveFile>,
     pub(crate) texture_mapping: Handle<ObjectMapping>,
-    pub(crate) atlas1: Handle<TexturePackerAtlas>,
-    pub(crate) atlas2: Handle<TexturePackerAtlas>,
-    pub(crate) atlas3: Handle<TexturePackerAtlas>,
-    pub(crate) atlas4: Handle<TexturePackerAtlas>,
-    pub(crate) atlas5: Handle<TexturePackerAtlas>,
+    pub(crate) atlas1: Handle<Cocos2dAtlas>,
+    pub(crate) atlas2: Handle<Cocos2dAtlas>,
+    pub(crate) atlas3: Handle<Cocos2dAtlas>,
+    pub(crate) atlas4: Handle<Cocos2dAtlas>,
+    pub(crate) atlas5: Handle<Cocos2dAtlas>,
 }
 
 #[derive(Resource, Default)]

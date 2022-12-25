@@ -1,7 +1,7 @@
 use crate::loaders::gdlevel::GDColorChannel::{BaseColor, CopyColor};
 use crate::loaders::gdlevel::{GDBaseColor, GDColorChannel};
 use crate::states::loading::GlobalAssets;
-use crate::{GDSaveFile, GameState, ObjectMapping, TexturePackerAtlas};
+use crate::{Cocos2dAtlas, GDSaveFile, GameState, ObjectMapping};
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 use bevy::utils::HashMap;
@@ -33,7 +33,7 @@ fn play_setup(
     save_file: Res<Assets<GDSaveFile>>,
     level_index: Res<LevelIndex>,
     mapping: Res<Assets<ObjectMapping>>,
-    packer_atlases: Res<Assets<TexturePackerAtlas>>,
+    cocos2d_atlases: Res<Assets<Cocos2dAtlas>>,
 ) {
     for mut transform in camera_transforms.iter_mut() {
         transform.translation.x = 0.0;
