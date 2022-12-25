@@ -30,6 +30,7 @@ pub(crate) struct GlobalAssets {
     pub(crate) atlas3: Handle<Cocos2dAtlas>,
     pub(crate) atlas4: Handle<Cocos2dAtlas>,
     pub(crate) atlas5: Handle<Cocos2dAtlas>,
+    pub(crate) font: Handle<Font>,
 }
 
 #[derive(Resource, Default)]

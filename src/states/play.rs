@@ -112,10 +112,10 @@ fn play_setup(
                 &global_assets.atlas5,
             ];
             for atlas in atlases {
-                let packer_atlas = packer_atlases.get(atlas).unwrap();
-                match packer_atlas.index.get(name) {
+                let cocos2d_atlas = cocos2d_atlases.get(atlas).unwrap();
+                match cocos2d_atlas.index.get(name) {
                     Some((mapping, offset, rotated)) => {
-                        atlas_handle = Some(packer_atlas.texture_atlas.clone());
+                        atlas_handle = Some(cocos2d_atlas.texture_atlas.clone());
                         atlas_mapping = *mapping;
                         texture_offset = *offset;
                         texture_rotated = *rotated;
