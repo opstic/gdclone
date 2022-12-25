@@ -26,6 +26,7 @@ bevy = { version = "0.9.1", default-features = false, features = [
     "x11",
     "filesystem_watcher",
 ] }
+bevy_editor_pls = "0.2.0"
 flate2 = "1.0.24"
 plist = { git = "https://github.com/pr2502/rust-plist", rev = "1e05b72" }
 quick-xml = { version = "0.26.0", features = ["serialize"] }

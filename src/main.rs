@@ -8,6 +8,7 @@ use bevy::render::view::{NoFrustumCulling, VisibilitySystems};
 use bevy::sprite::Mesh2dHandle;
 use bevy::window::{PresentMode, WindowResizeConstraints, WindowResized};
 use bevy::winit::WinitSettings;
+use bevy_editor_pls::EditorPlugin;
 use std::time::Duration;
 
 mod loaders;
@@ -42,6 +43,7 @@ fn main() {
         },
         ..default()
     }))
+    .add_plugin(EditorPlugin)
     .add_plugin(FrameTimeDiagnosticsPlugin)
     .add_plugin(AssetLoaderPlugin)
     .add_plugins(StatePlugins)
