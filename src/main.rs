@@ -26,6 +26,7 @@ fn main() {
         },
         ..default()
     })
+    .insert_resource(Msaa { samples: 1 })
     .insert_resource(AssetsLoading::default())
     .add_plugins(DefaultPlugins.set(WindowPlugin {
         window: WindowDescriptor {
