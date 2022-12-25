@@ -3,6 +3,8 @@ use crate::loaders::gdlevel::GDSaveFile;
 use crate::loaders::mapping::ObjectMapping;
 use crate::GameState;
 use bevy::prelude::*;
+use std::thread::sleep;
+use std::time::{Duration, Instant};
 
 pub(crate) struct LoadingStatePlugin;
 
@@ -66,6 +68,7 @@ fn loading_setup(
     let atlas3: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet03-uhd.plist");
     let atlas4: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet04-uhd.plist");
     let atlas5: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheetGlow-uhd.plist");
+    let font: Handle<Font> = server.load("fonts/FiraSans-Bold.ttf");
 
     loading.0.push(save_file.clone_untyped());
     loading.0.push(texture_mapping.clone_untyped());
@@ -74,6 +77,7 @@ fn loading_setup(
     loading.0.push(atlas3.clone_untyped());
     loading.0.push(atlas4.clone_untyped());
     loading.0.push(atlas5.clone_untyped());
+    loading.0.push(font.clone_untyped());
 
     commands.insert_resource(GlobalAssets {
         save_file,
@@ -83,6 +87,7 @@ fn loading_setup(
         atlas3,
         atlas4,
         atlas5,
+        font,
     });
 }
 
