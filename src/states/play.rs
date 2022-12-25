@@ -50,7 +50,50 @@ fn play_setup(
         .get(level_index.index)
         .unwrap();
 
+    let mut entities = Vec::with_capacity(level.inner_level.len());
     for object in &level.inner_level {
+        if object.id == 914 {
+            let object_string = String::from_utf8_lossy(
+                &base64::decode_engine(object.other.get("31").unwrap(), &BASE64_URL_SAFE).unwrap(),
+            )
+            .to_string();
+            commands
+                .spawn(Text2dBundle {
+                    text: Text::from_section(
+                        object_string,
+                        TextStyle {
+                            font: global_assets.font.clone(),
+                            font_size: 200.0,
+                            color: if level.start_object.colors.contains_key(&object.main_color) {
+                                let (r, g, b, a) =
+                                    get_color(&level.start_object.colors, &object.main_color);
+                                Color::rgba(r, g, b, a)
+                            } else {
+                                Color::WHITE
+                            },
+                        },
+                    )
+                    .with_alignment(TextAlignment::CENTER),
+                    transform: Transform {
+                        translation: Vec3::from((
+                            object.x,
+                            object.y,
+                            (object.z_layer + 3) as f32 * 100.
+                                + (object.z_order + 999) as f32 * 100. / (999. + 10000.)
+                                - 0.099,
+                        )),
+                        rotation: Quat::from_rotation_z(-object.rot.to_radians()),
+                        scale: Vec3::new(
+                            object.scale * if object.flip_x { -1. } else { 1. },
+                            object.scale * if object.flip_y { -1. } else { 1. },
+                            0.,
+                        ),
+                    },
+                    ..default()
+                })
+                .insert(LevelObject);
+            continue;
+        }
         let texture_name = mapping
             .get(&global_assets.texture_mapping)
             .unwrap()
@@ -86,8 +129,12 @@ fn play_setup(
             continue;
         }
         if let Some(handle) = atlas_handle {
-            commands
-                .spawn(SpriteSheetBundle {
+            let mut object = object.clone();
+            if texture_rotated {
+                std::mem::swap(&mut object.flip_x, &mut object.flip_y);
+            }
+            entities.push((
+                SpriteSheetBundle {
                     transform: Transform {
                         translation: Vec3::from((
                             object.x,
@@ -97,19 +144,7 @@ fn play_setup(
                                 - 0.099,
                         )),
                         rotation: Quat::from_rotation_z(
-                            -(object.rot
-                                + if texture_rotated { -90. } else { 0. }
-                                + if texture_rotated && object.flip_x {
-                                    180.
-                                } else {
-                                    0.
-                                }
-                                + if texture_rotated && object.flip_y {
-                                    180.
-                                } else {
-                                    0.
-                                })
-                            .to_radians(),
+                            -(object.rot + if texture_rotated { -90. } else { 0. }).to_radians(),
                         ),
                         scale: Vec3::new(
                             object.scale * if object.flip_x { -1. } else { 1. },
@@ -131,13 +166,15 @@ fn play_setup(
                     },
                     texture_atlas: handle,
                     ..default()
-                })
-                .insert(LevelObject);
+                },
+                LevelObject,
+            ));
         } else {
             warn!("Object texture not found: {:?}", object);
             continue;
         }
     }
+    commands.spawn_batch(entities);
 }
 
 fn get_color(colors: &HashMap<u128, GDColorChannel>, index: &u128) -> (f32, f32, f32, f32) {
@@ -272,3 +309,9 @@ pub fn hsv_to_rgb((h, s, v): (f32, f32, f32)) -> [f32; 3] {
 
     [r + m, g + m, b + m]
 }
+
+const BASE64_URL_SAFE: base64::engine::fast_portable::FastPortable =
+    base64::engine::fast_portable::FastPortable::from(
+        &base64::alphabet::URL_SAFE,
+        base64::engine::fast_portable::PAD,
+    );
