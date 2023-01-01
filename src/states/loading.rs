@@ -63,7 +63,7 @@ fn loading_setup(
         .insert(LoadingText);
 
     let save_file: Handle<GDSaveFile> = server.load("CCLocalLevels.dat");
-    let texture_mapping: Handle<ObjectMapping> = server.load("data/objectTextureMap.json.mapping");
+    let texture_mapping: Handle<ObjectMapping> = server.load("data/objectTexture.json.mapping");
     let atlas1: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet-uhd.plist");
     let atlas2: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet02-uhd.plist");
     let atlas3: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet03-uhd.plist");
