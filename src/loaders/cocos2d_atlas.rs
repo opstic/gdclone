@@ -93,17 +93,17 @@ impl AssetLoader for Cocos2dAtlasLoader {
                     texture_atlas.add_texture(frame.texture_rect)
                 };
 
+                let mut offset = -(frame.sprite_offset / frame.sprite_size);
+                if frame.texture_rotated {
+                    offset = Vec2 {
+                        x: offset.y,
+                        y: -offset.x,
+                    };
+                }
+
                 index.insert(
                     frame_name.clone(),
-                    (
-                        texture_index,
-                        Vec2 {
-                            x: frame.sprite_offset.y / frame.sprite_size.y
-                                * if frame.texture_rotated { -1. } else { 1. },
-                            y: frame.sprite_offset.x / frame.sprite_size.x,
-                        },
-                        frame.texture_rotated,
-                    ),
+                    (texture_index, offset, frame.texture_rotated),
                 );
             }
             let texture_atlas_handle =
