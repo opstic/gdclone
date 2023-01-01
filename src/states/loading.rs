@@ -1,6 +1,6 @@
 use crate::loaders::cocos2d_atlas::Cocos2dAtlas;
 use crate::loaders::gdlevel::GDSaveFile;
-use crate::loaders::mapping::ObjectMapping;
+use crate::loaders::mapping::Mapping;
 use crate::GameState;
 use bevy::prelude::*;
 use std::thread::sleep;
@@ -24,7 +24,7 @@ struct LoadingText;
 #[derive(Resource)]
 pub(crate) struct GlobalAssets {
     pub(crate) save_file: Handle<GDSaveFile>,
-    pub(crate) texture_mapping: Handle<ObjectMapping>,
+    pub(crate) texture_mapping: Handle<Mapping>,
     pub(crate) atlas1: Handle<Cocos2dAtlas>,
     pub(crate) atlas2: Handle<Cocos2dAtlas>,
     pub(crate) atlas3: Handle<Cocos2dAtlas>,
@@ -63,7 +63,7 @@ fn loading_setup(
         .insert(LoadingText);
 
     let save_file: Handle<GDSaveFile> = server.load("CCLocalLevels.dat");
-    let texture_mapping: Handle<ObjectMapping> = server.load("data/objectTexture.json.mapping");
+    let texture_mapping: Handle<Mapping> = server.load("data/objectTexture.json.mapping");
     let atlas1: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet-uhd.plist");
     let atlas2: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet02-uhd.plist");
     let atlas3: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet03-uhd.plist");
