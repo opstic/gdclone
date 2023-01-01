@@ -81,24 +81,17 @@ impl AssetLoader for Cocos2dAtlasLoader {
             let mut texture_atlas = TextureAtlas::new_empty(texture_handle, manifest.metadata.size);
             let mut index = HashMap::new();
             for (frame_name, frame) in manifest.frames {
-                let texture_index;
-                if frame.texture_rotated {
-                    texture_index = texture_atlas.add_texture(Rect {
+                let texture_index = if frame.texture_rotated {
+                    texture_atlas.add_texture(Rect {
                         min: frame.texture_rect.min,
                         max: Vec2 {
                             x: frame.texture_rect.min.x + frame.sprite_size.y,
-                            y: frame.texture_rect.min.y + frame.sprite_size.x
+                            y: frame.texture_rect.min.y + frame.sprite_size.x,
                         },
-                    });
+                    })
                 } else {
-                    texture_index = texture_atlas.add_texture(Rect {
-                        min: frame.texture_rect.min,
-                        max: Vec2 {
-                            x: frame.texture_rect.min.x + frame.sprite_size.x,
-                            y: frame.texture_rect.min.y + frame.sprite_size.y
-                        },
-                    });
-                }
+                    texture_atlas.add_texture(frame.texture_rect)
+                };
 
                 index.insert(
                     frame_name.clone(),
