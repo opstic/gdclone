@@ -18,6 +18,10 @@ You'll also have to copy your `CCLocalLevels.dat` to the resources folder.
 
 `%LOCALAPPDATA%/GeometryDash/CCLocalLevels.dat` -> `GDClone/assets/CCLocalLevels.dat`
 
+Controls are WASD to move, arrow keys to move slower, left-shift to move faster.
+
+Q and E to zoom in and out.
+
 ## License
 
 Copyright (c) 2022, Opstic
