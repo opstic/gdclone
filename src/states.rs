@@ -3,7 +3,7 @@ use bevy::prelude::*;
 
 mod level_select;
 pub(crate) mod loading;
-mod play;
+pub(crate) mod play;
 
 use level_select::LevelSelectStatePlugin;
 use loading::LoadingStatePlugin;

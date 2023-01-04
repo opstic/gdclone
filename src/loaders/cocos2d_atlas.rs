@@ -84,6 +84,7 @@ impl AssetLoader for Cocos2dAtlasLoader {
                 let texture_index = if frame.texture_rotated {
                     texture_atlas.add_texture(Rect {
                         min: frame.texture_rect.min,
+                        // WTF why does cocos need this badness i was stuck on this for WEEKS
                         max: Vec2 {
                             x: frame.texture_rect.min.x + frame.sprite_size.y,
                             y: frame.texture_rect.min.y + frame.sprite_size.x,
@@ -93,17 +94,18 @@ impl AssetLoader for Cocos2dAtlasLoader {
                     texture_atlas.add_texture(frame.texture_rect)
                 };
 
-                let mut offset = -(frame.sprite_offset / frame.sprite_size);
+                // Also WTF is this offset calculation
+                let mut anchor = -(frame.sprite_offset / frame.sprite_size);
                 if frame.texture_rotated {
-                    offset = Vec2 {
-                        x: offset.y,
-                        y: -offset.x,
+                    anchor = Vec2 {
+                        x: anchor.y,
+                        y: -anchor.x,
                     };
                 }
 
                 index.insert(
                     frame_name.clone(),
-                    (texture_index, offset, frame.texture_rotated),
+                    (texture_index, anchor, frame.texture_rotated),
                 );
             }
             let texture_atlas_handle =

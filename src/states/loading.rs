@@ -103,7 +103,7 @@ fn check_assets_ready(
     match server.get_group_load_state(loading.0.iter().map(|h| h.id)) {
         LoadState::Failed => {}
         LoadState::Loaded => {
-            info!("everything loaded");
+            info!("Everything loaded");
             commands.remove_resource::<AssetsLoading>();
             state.set(GameState::LevelSelect).unwrap();
         }

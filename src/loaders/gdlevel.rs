@@ -26,10 +26,10 @@ pub(crate) struct GDLevel {
 
 #[derive(Debug, Deserialize, Clone)]
 pub(crate) struct GDStartObject {
-    pub(crate) colors: HashMap<u128, GDColorChannel>,
+    pub(crate) colors: HashMap<u64, GDColorChannel>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Reflect)]
 pub(crate) struct GDLevelObject {
     pub(crate) id: u16,
     pub(crate) x: f32,
@@ -37,8 +37,8 @@ pub(crate) struct GDLevelObject {
     pub(crate) flip_x: bool,
     pub(crate) flip_y: bool,
     pub(crate) rot: f32,
-    pub(crate) main_color: u128,
-    pub(crate) second_color: u128,
+    pub(crate) main_color: u64,
+    pub(crate) second_color: u64,
     pub(crate) z_layer: i8,
     pub(crate) z_order: i16,
     pub(crate) scale: f32,
@@ -46,33 +46,37 @@ pub(crate) struct GDLevelObject {
     pub(crate) second_hsv_enabled: bool,
     pub(crate) main_hsv: GDHSV,
     pub(crate) second_hsv: GDHSV,
-    pub(crate) groups: Vec<u128>,
+    pub(crate) groups: Vec<u64>,
     pub(crate) other: HashMap<String, String>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Reflect)]
 pub(crate) struct GDHSV {
     pub(crate) h: f32,
     pub(crate) s: f32,
     pub(crate) v: f32,
-    pub(crate) checked_s: i128,
-    pub(crate) checked_v: i128,
+    pub(crate) checked_s: i64,
+    pub(crate) checked_v: i64,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub(crate) struct GDBaseColor {
-    pub(crate) index: u128,
+    pub(crate) index: u64,
     pub(crate) r: u8,
     pub(crate) g: u8,
     pub(crate) b: u8,
     pub(crate) opacity: f32,
+    pub(crate) original_r: u8,
+    pub(crate) original_g: u8,
+    pub(crate) original_b: u8,
+    pub(crate) original_opacity: f32,
     pub(crate) blending: bool,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub(crate) struct GDCopyColor {
-    pub(crate) index: u128,
-    pub(crate) copied_index: u128,
+    pub(crate) index: u64,
+    pub(crate) copied_index: u64,
     pub(crate) copy_opacity: bool,
     pub(crate) opacity: f32,
     pub(crate) blending: bool,
@@ -83,6 +87,12 @@ pub(crate) struct GDCopyColor {
 pub(crate) enum GDColorChannel {
     BaseColor(GDBaseColor),
     CopyColor(GDCopyColor),
+}
+
+impl Default for GDColorChannel {
+    fn default() -> Self {
+        GDColorChannel::BaseColor(GDBaseColor::default())
+    }
 }
 
 impl Default for GDStartObject {
@@ -133,10 +143,14 @@ impl Default for GDBaseColor {
     fn default() -> Self {
         GDBaseColor {
             index: 0,
-            r: 0,
-            g: 0,
-            b: 0,
+            r: 255,
+            g: 255,
+            b: 255,
             opacity: 1.,
+            original_r: 255,
+            original_g: 255,
+            original_b: 255,
+            original_opacity: 1.,
             blending: false,
         }
     }
@@ -333,7 +347,7 @@ fn parse_start_object(object: GDLevelObject) -> Result<GDStartObject, bevy::asse
     Ok(start)
 }
 
-fn parse_color_string(bytes: &[u8]) -> Result<HashMap<u128, GDColorChannel>, bevy::asset::Error> {
+fn parse_color_string(bytes: &[u8]) -> Result<HashMap<u64, GDColorChannel>, bevy::asset::Error> {
     let mut colors = HashMap::new();
     for color_string in bytes.split(|byte| *byte == b'|') {
         let mut properties = HashMap::new();
@@ -392,21 +406,25 @@ fn parse_color_string(bytes: &[u8]) -> Result<HashMap<u128, GDColorChannel>, bev
             } else {
                 255
             };
+            temp_color.original_r = temp_color.r;
             temp_color.g = if let Some(value) = properties.get("2") {
                 value.parse().unwrap()
             } else {
                 255
             };
+            temp_color.original_g = temp_color.g;
             temp_color.b = if let Some(value) = properties.get("3") {
                 value.parse().unwrap()
             } else {
                 255
             };
+            temp_color.original_b = temp_color.b;
             temp_color.opacity = if let Some(value) = properties.get("7") {
                 value.parse().unwrap()
             } else {
                 1.
             };
+            temp_color.original_opacity = temp_color.opacity;
             temp_color.blending = if let Some(value) = properties.get("5") {
                 u8_to_bool(value.as_bytes())
             } else {
@@ -434,13 +452,13 @@ fn parse_hsv_string(bytes: &[u8]) -> Result<GDHSV, bevy::asset::Error> {
     Ok(hsv)
 }
 
-fn parse_integer_array(bytes: &[u8]) -> Result<Vec<u128>, bevy::asset::Error> {
+fn parse_integer_array(bytes: &[u8]) -> Result<Vec<u64>, bevy::asset::Error> {
     let mut array = Vec::new();
     array.extend(
         bytes
             .split(|byte| *byte == b'.')
             .into_iter()
-            .map(|b| String::from_utf8_lossy(b).parse::<u128>().unwrap()),
+            .map(|b| String::from_utf8_lossy(b).parse::<u64>().unwrap()),
     );
     Ok(array)
 }

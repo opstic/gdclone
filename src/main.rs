@@ -1,21 +1,31 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
+use bevy::log::info;
 use bevy::math::Vec3A;
+use bevy::prelude::shape::Quad;
 use bevy::prelude::*;
+use bevy::render::mesh::PrimitiveTopology;
 use bevy::render::primitives::Aabb;
 use bevy::render::view::{NoFrustumCulling, VisibilitySystems};
-use bevy::sprite::Mesh2dHandle;
+use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle, SpritePlugin};
 use bevy::window::{PresentMode, WindowResizeConstraints, WindowResized};
 use bevy::winit::WinitSettings;
 use bevy_editor_pls::EditorPlugin;
 use std::time::Duration;
 
+mod level;
 mod loaders;
+mod render;
 mod states;
+mod utils;
 
-use crate::loaders::AssetLoaderPlugin;
-use loaders::{cocos2d_atlas::Cocos2dAtlas, gdlevel::GDSaveFile, mapping::ObjectMapping};
+use crate::states::play::Player;
+use level::LevelPlugin;
+use loaders::{
+    cocos2d_atlas::Cocos2dAtlas, gdlevel::GDSaveFile, mapping::Mapping, AssetLoaderPlugin,
+};
+use render::sprite::CustomSpritePlugin;
 use states::{loading::AssetsLoading, GameState, StatePlugins};
 
 fn main() {
@@ -29,23 +39,29 @@ fn main() {
     })
     .insert_resource(Msaa { samples: 1 })
     .insert_resource(AssetsLoading::default())
-    .add_plugins(DefaultPlugins.set(WindowPlugin {
-        window: WindowDescriptor {
-            resize_constraints: WindowResizeConstraints {
-                // well if you are willing to play at such horrendous resolution here you go
-                min_width: 128.,
-                min_height: 72.,
+    .add_plugins(
+        DefaultPlugins
+            .set(WindowPlugin {
+                window: WindowDescriptor {
+                    resize_constraints: WindowResizeConstraints {
+                        // well if you are willing to play at such horrendous resolution here you go
+                        min_width: 128.,
+                        min_height: 72.,
+                        ..default()
+                    },
+                    title: "GDClone".to_string(),
+                    present_mode: PresentMode::AutoNoVsync,
+                    ..default()
+                },
                 ..default()
-            },
-            title: "GDClone".to_string(),
-            present_mode: PresentMode::AutoNoVsync,
-            ..default()
-        },
-        ..default()
-    }))
-    .add_plugin(EditorPlugin)
+            })
+            .disable::<SpritePlugin>()
+            .add_before::<SpritePlugin, CustomSpritePlugin>(CustomSpritePlugin::default()),
+    )
+    // .add_plugin(EditorPlugin)
     .add_plugin(FrameTimeDiagnosticsPlugin)
     .add_plugin(AssetLoaderPlugin)
+    .add_plugin(LevelPlugin)
     .add_plugins(StatePlugins)
     .add_state(GameState::Loading)
     .add_startup_system(setup)
@@ -62,7 +78,9 @@ fn main() {
 struct FpsText;
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn(Camera2dBundle::new_with_far(1300.));
+    commands
+        .spawn(Camera2dBundle::new_with_far(1300.))
+        .insert(Player);
     commands
         .spawn(TextBundle {
             style: Style {
@@ -124,7 +142,8 @@ fn handle_resize(mut windows: ResMut<Windows>, mut resize_events: EventReader<Wi
 
 pub fn calculate_bounds(
     mut commands: Commands,
-    meshes: Res<Assets<Mesh>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
     images: Res<Assets<Image>>,
     atlases: Res<Assets<TextureAtlas>>,
     meshes_without_aabb: Query<(Entity, &Mesh2dHandle), (Without<Aabb>, Without<NoFrustumCulling>)>,
@@ -149,7 +168,9 @@ pub fn calculate_bounds(
             let size = sprite.custom_size.unwrap_or_else(|| image.size());
             let aabb = Aabb {
                 center: Vec3A::ZERO,
-                half_extents: (0.5 * size).extend(0.0).into(),
+                half_extents: ((0.5 + sprite.anchor.as_vec().abs()) * size)
+                    .extend(0.0)
+                    .into(),
             };
             commands.entity(entity).insert(aabb);
         }
@@ -162,7 +183,9 @@ pub fn calculate_bounds(
                     .unwrap_or_else(|| (rect.min - rect.max).abs());
                 let aabb = Aabb {
                     center: Vec3A::ZERO,
-                    half_extents: (0.5 * size).extend(0.0).into(),
+                    half_extents: ((0.5 + atlas_sprite.anchor.as_vec().abs()) * size)
+                        .extend(0.0)
+                        .into(),
                 };
                 commands.entity(entity).insert(aabb);
             }
