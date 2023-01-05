@@ -21,9 +21,10 @@ You'll also have to copy your `CCLocalLevels.dat` to the `assets` folder.
 Controls are WASD to move, use arrow keys to move slower, hold left-shift to move faster.
 
 Q and E to zoom in and out.
-
-## License
-
+### License
+<sup>
+  
 Copyright (c) 2022, Opstic
 
 ALL RIGHTS RESERVED. With exception of objectTexture.json.mapping by [@SMJSGaming](https://github.com/SMJSGaming).
+</sup>
