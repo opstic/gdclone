@@ -26,4 +26,4 @@ Q and E to zoom in and out.
 
 Copyright (c) 2022, Opstic
 
-ALL RIGHTS RESERVED. With exception of objectTextureMap.json.mapping by [@SMJSGaming](https://github.com/SMJSGaming).
+ALL RIGHTS RESERVED. With exception of objectTexture.json.mapping by [@SMJSGaming](https://github.com/SMJSGaming).
