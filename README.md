@@ -14,7 +14,7 @@ Built using Bevy engine and Rust.
 
 Your files should be like this: `<Your GD folder>/Resources` -> `GDClone/assets/Resources`
 
-You'll also have to copy your `CCLocalLevels.dat` to the resources folder.
+You'll also have to copy your `CCLocalLevels.dat` to the `assets` folder.
 
 `%LOCALAPPDATA%/GeometryDash/CCLocalLevels.dat` -> `GDClone/assets/CCLocalLevels.dat`
 
