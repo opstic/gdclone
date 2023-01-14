@@ -3,7 +3,7 @@ use crate::level::trigger::{TriggerCompleted, TriggerDuration, TriggerFunction};
 use crate::loaders::gdlevel::GDColorChannel::BaseColor;
 use crate::loaders::gdlevel::{GDBaseColor, GDColorChannel};
 use crate::states::play::{ColorChannels, ObjectColor};
-use crate::utils::lerp;
+use interpolation::lerp;
 use bevy::log::info;
 use bevy::prelude::{Color, Entity, Events, Mut, Transform, Visibility};
 use std::sync::mpsc::channel;
