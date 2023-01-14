@@ -1,10 +1,10 @@
 pub(crate) mod color;
 pub(crate) mod de;
 pub(crate) mod easing;
-pub(crate) mod object;
+// pub(crate) mod object;
 pub(crate) mod trigger;
 
-use crate::level::object::{Object, StartObject};
+// use crate::level::object::{Object, StartObject};
 use crate::level::trigger::TriggerSystems::TickTriggers;
 use crate::level::trigger::{finish_triggers, tick_triggers, TriggerCompleted, TriggerSystems};
 use bevy::app::{App, CoreStage, Plugin};
@@ -32,10 +32,10 @@ impl Plugin for LevelPlugin {
     }
 }
 
-struct Level {
-    name: String,
-    description: Option<String>,
-    id: Option<u64>,
-    start_object: StartObject,
-    objects: Vec<Object>,
-}
+// struct Level {
+//     name: String,
+//     description: Option<String>,
+//     id: Option<u64>,
+//     start_object: StartObject,
+//     objects: Vec<Object>,
+// }
