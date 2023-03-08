@@ -1,5 +1,5 @@
 use crate::AlignSelf::Center;
-use crate::{GDSaveFile, GameState};
+use crate::GameState;
 use bevy::app::{App, Plugin};
 use bevy::asset::{AssetServer, Assets};
 use bevy::ecs::component::Component;
@@ -14,6 +14,7 @@ use bevy::ui::{
     AlignSelf, BackgroundColor, FlexDirection, JustifyContent, Node, Overflow, Size, Style, UiRect,
     Val,
 };
+use crate::loaders::gdlevel::SaveFile;
 
 use super::loading::GlobalAssets;
 use super::play::LevelIndex;
@@ -36,7 +37,7 @@ fn select_setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     global_assets: Res<GlobalAssets>,
-    saves: Res<Assets<GDSaveFile>>,
+    saves: Res<Assets<SaveFile>>,
 ) {
     commands
         .spawn(NodeBundle {

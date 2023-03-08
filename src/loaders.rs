@@ -6,14 +6,14 @@ pub(crate) mod mapping;
 pub(crate) mod gdlevel;
 
 use cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasLoader};
-use gdlevel::{GDSaveFile, GDSaveLoader};
+use gdlevel::{GDSaveLoader, SaveFile};
 use mapping::{Mapping, MappingLoader};
 
 pub(crate) struct AssetLoaderPlugin;
 
 impl Plugin for AssetLoaderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_asset::<GDSaveFile>()
+        app.add_asset::<SaveFile>()
             .add_asset::<Mapping>()
             .add_asset::<Cocos2dAtlas>()
             .init_asset_loader::<GDSaveLoader>()

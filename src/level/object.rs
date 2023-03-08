@@ -1,159 +1,159 @@
-use crate::level::color::{ColorChannel, HSV};
-use crate::level::easing::Easing;
-use crate::level::trigger::TriggerDuration;
-use bevy::prelude::Reflect;
-use bevy::utils::HashMap;
-use serde::Deserialize;
+use crate::level::color;
+use crate::level::color::{ColorChannels, Hsv};
+use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasSprite};
+use crate::loaders::mapping::Mapping;
+use crate::render::sprite::BlendingSprite;
+use crate::states::loading::GlobalAssets;
+use crate::utils::u8_to_bool;
+use bevy::asset::{Assets, Handle};
+use bevy::math::{Quat, Vec2, Vec3Swizzles};
+use bevy::prelude::{Commands, Component, Entity, Query, Res, Transform, Without};
+use bevy::sprite::{Anchor, SpriteSheetBundle, TextureAtlas, TextureAtlasSprite};
+use bevy::utils::{default, HashMap};
 
-// THANK YOU https://gdprogra.me/
-// also can't figure out a better way to do this
-#[derive(Debug, Default, Deserialize, Reflect)]
+#[derive(Component, Default)]
 pub(crate) struct Object {
-    #[serde(rename = "1")]
-    id: Option<u16>,
-    #[serde(rename = "2")]
-    x: Option<f32>,
-    #[serde(rename = "3")]
-    y: Option<f32>,
-    #[serde(rename = "4")]
-    flip_x: Option<bool>,
-    #[serde(rename = "5")]
-    flip_y: Option<bool>,
-    #[serde(rename = "6")]
-    rot: Option<f32>,
-    #[serde(rename = "7")]
-    trigger_r: Option<u8>,
-    #[serde(rename = "8")]
-    trigger_g: Option<u8>,
-    #[serde(rename = "9")]
-    trigger_b: Option<u8>,
-    #[serde(rename = "10")]
-    trigger_duration: Option<TriggerDuration>,
-    #[serde(rename = "11")]
-    trigger_touch: Option<bool>,
-    #[serde(rename = "12")]
-    coin_id: Option<u8>,
-    #[serde(rename = "13")]
-    checked: Option<bool>,
-    #[serde(rename = "14")]
-    trigger_tint_ground: Option<bool>,
-    #[serde(rename = "15")]
-    trigger_player_color_1: Option<bool>,
-    #[serde(rename = "16")]
-    trigger_player_color_2: Option<bool>,
-    #[serde(rename = "17")]
-    trigger_blending: Option<bool>,
-    // ??? why is this bool
-    #[serde(rename = "20")]
-    editor_layer_1: Option<bool>,
-    // yay 18,446,744,073,709,551,615 color channels available
-    #[serde(rename = "21")]
-    main_color: Option<u64>,
-    #[serde(rename = "22")]
-    second_color: Option<u64>,
-    #[serde(rename = "23")]
-    trigger_target_color: Option<u64>,
-    #[serde(rename = "24")]
-    z_layer: Option<i8>,
-    #[serde(rename = "25")]
-    z_order: Option<i16>,
-    #[serde(rename = "28")]
-    trigger_offset_x: Option<f32>,
-    #[serde(rename = "29")]
-    trigger_offset_y: Option<f32>,
-    #[serde(rename = "30")]
-    trigger_easing: Option<Easing>,
-    #[serde(rename = "31")]
-    text: Option<String>,
-    #[serde(rename = "32")]
-    scaling: Option<f32>,
-    #[serde(rename = "34")]
-    group_parent: Option<bool>,
-    #[serde(rename = "35")]
-    trigger_opacity: Option<f32>,
-    #[serde(rename = "41")]
-    main_color_hsv_enabled: Option<bool>,
-    #[serde(rename = "42")]
-    second_color_hsv_enabled: Option<bool>,
-    #[serde(rename = "43")]
-    main_color_hsv: Option<HSV>,
-    #[serde(rename = "44")]
-    second_color_hsv: Option<HSV>,
-    #[serde(rename = "45")]
-    trigger_fade_in: Option<f32>,
-    #[serde(rename = "46")]
-    trigger_hold: Option<f32>,
-    #[serde(rename = "47")]
-    trigger_fade_out: Option<f32>,
-    // pulse triggers are not there yet
-    // #[serde(rename = "48")]
-    // pulse_mode: Option<PulseMode>
-    #[serde(rename = "49")]
-    trigger_copied_color_hsv: Option<HSV>,
-    #[serde(rename = "50")]
-    trigger_copied_color: Option<u64>,
-    // yay 18,446,744,073,709,551,615 groups avaliable
-    #[serde(rename = "51")]
-    trigger_group_1: Option<u64>,
-    // #[serde(rename = "52")]
-    // pulse_mode: Option<PulseTarget>
-    #[serde(rename = "54")]
-    teleport_offset: Option<f32>,
-    #[serde(rename = "55")]
-    teleport_ease: Option<bool>,
-    #[serde(rename = "56")]
-    trigger_activate: Option<bool>,
-    #[serde(rename = "57")]
-    groups: Option<Vec<u64>>,
-    #[serde(rename = "58")]
-    trigger_lock_x: Option<bool>,
-    #[serde(rename = "59")]
-    trigger_lock_y: Option<bool>,
-    #[serde(rename = "60")]
-    trigger_copy_opacity: Option<bool>,
-    #[serde(rename = "61")]
-    editor_layer_2: Option<i16>,
-    #[serde(rename = "62")]
-    trigger_spawn_activated: Option<bool>,
-    #[serde(rename = "63")]
-    trigger_spawn_delay: Option<f32>,
-    #[serde(rename = "64")]
-    dont_fade: Option<bool>,
-    #[serde(rename = "65")]
-    trigger_main_only: Option<bool>,
-    #[serde(rename = "66")]
-    trigger_second_only: Option<bool>,
-    #[serde(rename = "67")]
-    dont_enter: Option<bool>,
-    #[serde(rename = "68")]
-    trigger_degrees: Option<i32>,
-    #[serde(rename = "69")]
-    trigger_times_360: Option<i32>,
-    #[serde(rename = "70")]
-    trigger_lock_rotation: Option<bool>,
-    #[serde(rename = "71")]
-    trigger_group_2: Option<u64>,
-    #[serde(rename = "72")]
-    trigger_x_mod: Option<f32>,
-    #[serde(rename = "73")]
-    trigger_y_mod: Option<f32>,
-    #[serde(rename = "75")]
-    trigger_strength: Option<f32>,
-    #[serde(rename = "76")]
-    trigger_animation: Option<i8>,
-    #[serde(rename = "77")]
-    trigger_count: Option<i16>,
-    #[serde(rename = "78")]
-    trigger_subtract: Option<bool>,
-    // pickup also not there
-    // #[serde(rename = "79")]
-    // trigger_pickup: Option<Pickup>,
-    #[serde(rename = "80")]
-    item: Option<u16>,
-    // start object properties
-    #[serde(rename = "kA1")]
-    audio: Option<u32>,
-    #[serde(rename = "kS38")]
-    color_channels: Option<HashMap<u64, ColorChannel>>,
-    // TODO: add the rest
+    pub(crate) id: u64,
+    pub(crate) transform: Transform,
+    pub(crate) z_layer: u8,
+    pub(crate) z_order: u16,
+    pub(crate) color_channel: u64,
+    pub(crate) hsv: Option<Hsv>,
+    pub(crate) flip_x: bool,
+    pub(crate) flip_y: bool,
+}
+
+pub(crate) fn spawn_object(
+    commands: &mut Commands,
+    object_data: &HashMap<&[u8], &[u8]>,
+) -> Result<Entity, anyhow::Error> {
+    let mut object = Object::default();
+    if let Some(id) = object_data.get(b"1".as_ref()) {
+        object.id = std::str::from_utf8(id)?.parse()?;
+    }
+    if let Some(x) = object_data.get(b"2".as_ref()) {
+        object.transform.translation.x = std::str::from_utf8(x)?.parse()?;
+    }
+    if let Some(y) = object_data.get(b"3".as_ref()) {
+        object.transform.translation.y = std::str::from_utf8(y)?.parse()?;
+    }
+    if let Some(flip_x) = object_data.get(b"4".as_ref()) {
+        object.flip_x = u8_to_bool(flip_x);
+    }
+    if let Some(flip_y) = object_data.get(b"5".as_ref()) {
+        object.flip_y = u8_to_bool(flip_y);
+    }
+    if let Some(rotation) = object_data.get(b"6".as_ref()) {
+        object.transform.rotation =
+            Quat::from_rotation_z(std::str::from_utf8(rotation)?.parse::<f32>()?.to_radians());
+    }
+    if let Some(scale) = object_data.get(b"32".as_ref()) {
+        object.transform.scale =
+            (std::str::from_utf8(scale)?.parse::<f32>()? * Vec2::ONE).extend(0.);
+    }
+    if let Some(color_channel) = object_data.get(b"21".as_ref()) {
+        object.color_channel = std::str::from_utf8(color_channel)?.parse()?;
+    }
+    if let Some(hsv) = object_data.get(b"43".as_ref()) {
+        object.hsv = Some(Hsv::parse(hsv)?);
+    }
+    Ok(commands.spawn(object).id())
+}
+
+pub(crate) fn create_atlas_sprite(
+    mut commands: Commands,
+    global_assets: Res<GlobalAssets>,
+    mapping: Res<Assets<Mapping>>,
+    cocos2d_atlases: Res<Assets<Cocos2dAtlas>>,
+    object_without_cocos2d: Query<(Entity, &Object), Without<Cocos2dAtlasSprite>>,
+) {
+    let atlases = vec![
+        &global_assets.atlas1,
+        &global_assets.atlas2,
+        &global_assets.atlas3,
+        &global_assets.atlas4,
+        &global_assets.atlas5,
+    ];
+    for (entity, object) in object_without_cocos2d.iter() {
+        if let Some((index, anchor, rotated, handle)) = find_texture(
+            &mapping.get(&global_assets.texture_mapping).unwrap().mapping,
+            &cocos2d_atlases,
+            &atlases,
+            &object.id,
+        ) {
+            commands.entity(entity).insert(Cocos2dAtlasSprite {
+                index,
+                anchor,
+                rotated,
+                handle,
+            });
+        }
+    }
+}
+
+pub(crate) fn create_sprite(
+    mut commands: Commands,
+    colors: Res<ColorChannels>,
+    cocos2d_without_sprite: Query<
+        (Entity, &Object, &Cocos2dAtlasSprite),
+        Without<TextureAtlasSprite>,
+    >,
+) {
+    for (entity, object, sprite) in cocos2d_without_sprite.iter() {
+        let (color, blending) = color::get_color(&colors.0, &object.color_channel);
+        let mut flip_x = object.flip_x;
+        let mut flip_y = object.flip_y;
+        let mut translation =
+            (object.transform.translation.xy() * 4.).extend(object.z_order as f32);
+        let mut rotation = object.transform.rotation;
+        if sprite.rotated {
+            std::mem::swap(&mut flip_x, &mut flip_y);
+            rotation *= Quat::from_rotation_z((-90 as f32).to_radians())
+        }
+        rotation = rotation.inverse();
+        let mut scale = object.transform.scale;
+        scale.x *= if flip_x { -1. } else { 1. };
+        scale.y *= if flip_y { -1. } else { 1. };
+        let mut entity = commands.entity(entity);
+        entity.insert(SpriteSheetBundle {
+            transform: Transform {
+                translation,
+                rotation,
+                scale,
+            },
+            sprite: TextureAtlasSprite {
+                color,
+                index: sprite.index,
+                anchor: Anchor::Custom(sprite.anchor),
+                ..default()
+            },
+            texture_atlas: sprite.handle.clone(),
+            ..default()
+        });
+        if blending {
+            entity.insert(BlendingSprite);
+        }
+    }
+}
+
+#[inline(always)]
+fn find_texture(
+    mapping: &HashMap<u64, String>,
+    cocos2d_atlases: &Res<Assets<Cocos2dAtlas>>,
+    atlases: &Vec<&Handle<Cocos2dAtlas>>,
+    id: &u64,
+) -> Option<(usize, Vec2, bool, Handle<TextureAtlas>)> {
+    let texture_name = mapping.get(&*id);
+    if let Some(name) = texture_name {
+        for atlas_handle in atlases {
+            if let Some(atlas) = cocos2d_atlases.get(atlas_handle) {
+                if let Some((index, anchor, rotated)) = atlas.index.get(name) {
+                    return Some((*index, *anchor, *rotated, atlas.texture_atlas.clone()));
+                }
+            }
+        }
+        None
+    } else {
+        None
+    }
 }

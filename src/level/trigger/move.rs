@@ -63,13 +63,13 @@ impl TriggerFunction for MoveTrigger {
         if group == &u64::MAX {
             if self.player_previous_x == 0. && self.player_previous_y == 0. {
                 self.player_previous_x = transform.translation.x;
-                self.player_previous_y = transform.translation.x;
+                self.player_previous_y = transform.translation.y;
             } else {
                 self.player_previous_x = self.player_x;
                 self.player_previous_y = self.player_y;
             }
             self.player_x = transform.translation.x;
-            self.player_y = transform.translation.x;
+            self.player_y = transform.translation.y;
         } else {
             transform.translation += Vec2::new(
                 self.x_offset * self.amount * 4.,

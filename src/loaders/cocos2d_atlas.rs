@@ -1,19 +1,27 @@
 use bevy::asset::{AssetLoader, BoxedFuture, Handle, LoadContext, LoadedAsset};
-use bevy::log::info;
 use bevy::math::Rect;
-use bevy::prelude::{FromWorld, Image, TextureAtlas, Vec2, World};
+use bevy::prelude::{Component, FromWorld, Image, TextureAtlas, Vec2, World};
 use bevy::reflect::TypeUuid;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::texture::{CompressedImageFormats, ImageType};
+use bevy::sprite::Anchor;
 use bevy::utils::HashMap;
 use serde::{Deserialize, Deserializer};
 use std::path::Path;
 
 #[derive(Debug, TypeUuid)]
 #[uuid = "f2c8ed94-b8c8-4d9e-99e9-7ba9b7e8603b"]
-pub struct Cocos2dAtlas {
+pub(crate) struct Cocos2dAtlas {
     pub(crate) index: HashMap<String, (usize, Vec2, bool)>,
     pub(crate) texture_atlas: Handle<TextureAtlas>,
+}
+
+#[derive(Component)]
+pub(crate) struct Cocos2dAtlasSprite {
+    pub(crate) index: usize,
+    pub(crate) anchor: Vec2,
+    pub(crate) rotated: bool,
+    pub(crate) handle: Handle<TextureAtlas>,
 }
 
 #[derive(Deserialize)]
@@ -84,7 +92,7 @@ impl AssetLoader for Cocos2dAtlasLoader {
                 let texture_index = if frame.texture_rotated {
                     texture_atlas.add_texture(Rect {
                         min: frame.texture_rect.min,
-                        // WTF why does cocos need this badness i was stuck on this for WEEKS
+                        // WTF why does cocos need this i was stuck on this for WEEKS
                         max: Vec2 {
                             x: frame.texture_rect.min.x + frame.sprite_size.y,
                             y: frame.texture_rect.min.y + frame.sprite_size.x,

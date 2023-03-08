@@ -23,7 +23,7 @@ mod utils;
 use crate::states::play::Player;
 use level::LevelPlugin;
 use loaders::{
-    cocos2d_atlas::Cocos2dAtlas, gdlevel::GDSaveFile, mapping::Mapping, AssetLoaderPlugin,
+    cocos2d_atlas::Cocos2dAtlas, gdlevel::SaveFile, mapping::Mapping, AssetLoaderPlugin,
 };
 use render::sprite::CustomSpritePlugin;
 use states::{loading::AssetsLoading, GameState, StatePlugins};
@@ -80,7 +80,7 @@ struct FpsText;
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
         .spawn(Camera2dBundle::new_with_far(1300.))
-        .insert(Player);
+        .insert(Player(Vec2::ZERO));
     commands
         .spawn(TextBundle {
             style: Style {
@@ -142,8 +142,7 @@ fn handle_resize(mut windows: ResMut<Windows>, mut resize_events: EventReader<Wi
 
 pub fn calculate_bounds(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    meshes: Res<Assets<Mesh>>,
     images: Res<Assets<Image>>,
     atlases: Res<Assets<TextureAtlas>>,
     meshes_without_aabb: Query<(Entity, &Mesh2dHandle), (Without<Aabb>, Without<NoFrustumCulling>)>,
@@ -167,10 +166,8 @@ pub fn calculate_bounds(
         if let Some(image) = images.get(texture_handle) {
             let size = sprite.custom_size.unwrap_or_else(|| image.size());
             let aabb = Aabb {
-                center: Vec3A::ZERO,
-                half_extents: ((0.5 + sprite.anchor.as_vec().abs()) * size)
-                    .extend(0.0)
-                    .into(),
+                center: (-sprite.anchor.as_vec()).extend(0.0).into(),
+                half_extents: (0.5 * size).extend(0.0).into(),
             };
             commands.entity(entity).insert(aabb);
         }
@@ -182,10 +179,8 @@ pub fn calculate_bounds(
                     .custom_size
                     .unwrap_or_else(|| (rect.min - rect.max).abs());
                 let aabb = Aabb {
-                    center: Vec3A::ZERO,
-                    half_extents: ((0.5 + atlas_sprite.anchor.as_vec().abs()) * size)
-                        .extend(0.0)
-                        .into(),
+                    center: (-atlas_sprite.anchor.as_vec()).extend(0.0).into(),
+                    half_extents: (0.5 * size).extend(0.0).into(),
                 };
                 commands.entity(entity).insert(aabb);
             }
