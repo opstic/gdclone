@@ -9,8 +9,9 @@ use level_select::LevelSelectStatePlugin;
 use loading::LoadingStatePlugin;
 use play::PlayStatePlugin;
 
-#[derive(Component, Clone, Eq, PartialEq, Debug, Hash, Copy)]
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
 pub(crate) enum GameState {
+    #[default]
     Loading,
     LevelSelect,
     Play,

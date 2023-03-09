@@ -1,10 +1,9 @@
-use bevy::asset::{AssetLoader, BoxedFuture, Handle, LoadContext, LoadedAsset};
+use bevy::asset::{AssetLoader, Assets, BoxedFuture, Handle, LoadContext, LoadedAsset};
 use bevy::math::Rect;
-use bevy::prelude::{Component, FromWorld, Image, TextureAtlas, Vec2, World};
+use bevy::prelude::{FromWorld, Image, Res, TextureAtlas, Vec2, World};
 use bevy::reflect::TypeUuid;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::texture::{CompressedImageFormats, ImageType};
-use bevy::sprite::Anchor;
 use bevy::utils::HashMap;
 use serde::{Deserialize, Deserializer};
 use std::path::Path;
@@ -12,16 +11,15 @@ use std::path::Path;
 #[derive(Debug, TypeUuid)]
 #[uuid = "f2c8ed94-b8c8-4d9e-99e9-7ba9b7e8603b"]
 pub(crate) struct Cocos2dAtlas {
-    pub(crate) index: HashMap<String, (usize, Vec2, bool)>,
+    pub(crate) index: HashMap<String, Cocos2dTextureInfo>,
     pub(crate) texture_atlas: Handle<TextureAtlas>,
 }
 
-#[derive(Component)]
-pub(crate) struct Cocos2dAtlasSprite {
+#[derive(Clone, Debug)]
+pub(crate) struct Cocos2dTextureInfo {
     pub(crate) index: usize,
     pub(crate) anchor: Vec2,
     pub(crate) rotated: bool,
-    pub(crate) handle: Handle<TextureAtlas>,
 }
 
 #[derive(Deserialize)]
@@ -113,7 +111,11 @@ impl AssetLoader for Cocos2dAtlasLoader {
 
                 index.insert(
                     frame_name.clone(),
-                    (texture_index, anchor, frame.texture_rotated),
+                    Cocos2dTextureInfo {
+                        index: texture_index,
+                        anchor,
+                        rotated: frame.texture_rotated,
+                    },
                 );
             }
             let texture_atlas_handle =
@@ -174,4 +176,26 @@ async fn load_texture<'a>(
     let extension = Path::new(filename).extension().unwrap().to_str().unwrap();
     let image_type = ImageType::Extension(extension);
     Ok(Image::from_buffer(&bytes, image_type, supported_compressed_formats, true).unwrap())
+}
+
+#[inline(always)]
+pub(crate) fn find_texture(
+    mapping: &HashMap<u64, String>,
+    cocos2d_atlases: &Res<Assets<Cocos2dAtlas>>,
+    atlases: &Vec<&Handle<Cocos2dAtlas>>,
+    id: &u64,
+) -> Option<(Cocos2dTextureInfo, Handle<TextureAtlas>)> {
+    let texture_name = mapping.get(&*id);
+    if let Some(name) = texture_name {
+        for atlas_handle in atlases {
+            if let Some(atlas) = cocos2d_atlases.get(atlas_handle) {
+                if let Some(info) = atlas.index.get(name) {
+                    return Some(((*info).clone(), atlas.texture_atlas.clone()));
+                }
+            }
+        }
+        None
+    } else {
+        None
+    }
 }

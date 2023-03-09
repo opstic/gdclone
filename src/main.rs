@@ -11,7 +11,7 @@ use bevy::render::view::{NoFrustumCulling, VisibilitySystems};
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle, SpritePlugin};
 use bevy::window::{PresentMode, WindowResizeConstraints, WindowResized};
 use bevy::winit::WinitSettings;
-use bevy_editor_pls::EditorPlugin;
+use std::slice::Windows;
 use std::time::Duration;
 
 mod level;
@@ -37,12 +37,12 @@ fn main() {
         },
         ..default()
     })
-    .insert_resource(Msaa { samples: 1 })
+    .insert_resource(Msaa::Sample8)
     .insert_resource(AssetsLoading::default())
     .add_plugins(
         DefaultPlugins
             .set(WindowPlugin {
-                window: WindowDescriptor {
+                primary_window: Some(Window {
                     resize_constraints: WindowResizeConstraints {
                         // well if you are willing to play at such horrendous resolution here you go
                         min_width: 128.,
@@ -52,7 +52,7 @@ fn main() {
                     title: "GDClone".to_string(),
                     present_mode: PresentMode::AutoNoVsync,
                     ..default()
-                },
+                }),
                 ..default()
             })
             .disable::<SpritePlugin>()
@@ -62,15 +62,12 @@ fn main() {
     .add_plugin(FrameTimeDiagnosticsPlugin)
     .add_plugin(AssetLoaderPlugin)
     .add_plugin(LevelPlugin)
+    .add_state::<GameState>()
     .add_plugins(StatePlugins)
-    .add_state(GameState::Loading)
     .add_startup_system(setup)
     .add_system(update_fps)
-    .add_system(handle_resize)
-    .add_system_to_stage(
-        CoreStage::PostUpdate,
-        calculate_bounds.label(VisibilitySystems::CalculateBounds),
-    )
+    // .add_system(handle_resize)
+    .add_system(calculate_bounds.in_set(VisibilitySystems::CalculateBounds))
     .run();
 }
 
@@ -123,22 +120,22 @@ fn update_fps(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<Fp
     }
 }
 
-fn handle_resize(mut windows: ResMut<Windows>, mut resize_events: EventReader<WindowResized>) {
-    for event in resize_events.iter() {
-        match windows.get_mut(event.id) {
-            Some(window) => {
-                let scale_factor = f32::min(
-                    window.physical_width() as f32 / window.requested_width(),
-                    window.physical_height() as f32 / window.requested_height(),
-                ) as f64;
-                if scale_factor != 0.0 {
-                    window.update_scale_factor_from_backend(scale_factor);
-                }
-            }
-            None => unreachable!("Bevy should have handled ghost window events for us"),
-        }
-    }
-}
+// fn handle_resize(mut windows: Query<&mut Window>, mut resize_events: EventReader<WindowResized>) {
+//     for event in resize_events.iter() {
+//         match windows.get_mut(event.window) {
+//             Ok(window) => {
+//                 let scale_factor = f32::min(
+//                     window.physical_width() as f32 / window.width(),
+//                     window.physical_height() as f32 / window.requested_height(),
+//                 ) as f64;
+//                 if scale_factor != 0.0 {
+//                     window.update_scale_factor_from_backend(scale_factor);
+//                 }
+//             }
+//             Err(_) => unreachable!("Bevy should have handled ghost window events for us"),
+//         }
+//     }
+// }
 
 pub fn calculate_bounds(
     mut commands: Commands,

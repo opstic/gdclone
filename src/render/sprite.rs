@@ -4,28 +4,32 @@ use bevy::reflect::{TypeUuid, Uuid};
 use bevy::render::{
     render_phase::AddRenderCommand,
     render_resource::{Shader, SpecializedRenderPipelines},
-    Extract, RenderApp, RenderStage,
+    Extract, ExtractSchedule, RenderApp, RenderSet,
 };
 use bevy::sprite::{
-    Anchor, ColorMaterialPlugin, ExtractedSprite, ExtractedSprites, Mesh2dHandle,
-    Mesh2dRenderPlugin, Sprite, SpriteAssetEvents, SpriteSystem, TextureAtlas, TextureAtlasSprite,
+    queue_material2d_meshes, Anchor, ColorMaterial, ColorMaterialPlugin, ExtractedSprite,
+    ExtractedSprites, Mesh2dHandle, Mesh2dRenderPlugin, Sprite, SpriteAssetEvents, SpriteSystem,
+    TextureAtlas, TextureAtlasSprite,
 };
 use bevy::utils::{FloatOrd, HashMap};
 
 use std::cmp::Ordering;
 
+use crate::level::color::ColorChannels;
+use crate::level::object::Object;
+use crate::loaders::cocos2d_atlas::Cocos2dAtlas;
+use bevy::core_pipeline::tonemapping::DebandDither;
 use bevy::core_pipeline::{core_2d::Transparent2d, tonemapping::Tonemapping};
 use bevy::ecs::{
     prelude::*,
     system::{lifetimeless::*, SystemParamItem, SystemState},
 };
-use bevy::log::info;
-use bevy::math::{Rect, Vec2};
+use bevy::math::Vec2;
 use bevy::render::{
     color::Color,
     render_asset::RenderAssets,
     render_phase::{
-        BatchedPhaseItem, DrawFunctions, EntityRenderCommand, RenderCommand, RenderCommandResult,
+        BatchedPhaseItem, DrawFunctions, PhaseItem, RenderCommand, RenderCommandResult,
         RenderPhase, SetItemPipeline, TrackedRenderPass,
     },
     render_resource::*,
@@ -68,15 +72,21 @@ impl Plugin for CustomSpritePlugin {
                 .init_resource::<SpecializedRenderPipelines<SpritePipeline>>()
                 .init_resource::<SpriteMeta>()
                 .init_resource::<ExtractedSprites>()
-                .init_resource::<ExtractedBlending>()
+                .init_resource::<ExtractedObjects>()
                 .init_resource::<SpriteAssetEvents>()
                 .add_render_command::<Transparent2d, DrawSprite>()
-                .add_system_to_stage(
-                    RenderStage::Extract,
-                    extract_sprites.label(SpriteSystem::ExtractSprites),
+                .add_systems(
+                    (
+                        extract_sprites.in_set(SpriteSystem::ExtractSprites),
+                        extract_sprite_events,
+                    )
+                        .in_schedule(ExtractSchedule),
                 )
-                .add_system_to_stage(RenderStage::Extract, extract_sprite_events)
-                .add_system_to_stage(RenderStage::Queue, queue_sprites);
+                .add_system(
+                    queue_sprites
+                        .in_set(RenderSet::Queue)
+                        .ambiguous_with(queue_material2d_meshes::<ColorMaterial>),
+                );
         };
     }
 }
@@ -133,12 +143,7 @@ impl FromWorld for SpritePipeline {
             label: Some("sprite_material_layout"),
         });
         let dummy_white_gpu_image = {
-            let image = Image::new_fill(
-                Extent3d::default(),
-                TextureDimension::D2,
-                &[255u8; 4],
-                TextureFormat::bevy_default(),
-            );
+            let image = Image::default();
             let texture = render_device.create_texture(&image.texture_descriptor);
             let sampler = match image.sampler_descriptor {
                 ImageSampler::Default => (**default_sampler).clone(),
@@ -176,6 +181,7 @@ impl FromWorld for SpritePipeline {
                     image.texture_descriptor.size.width as f32,
                     image.texture_descriptor.size.height as f32,
                 ),
+                mip_level_count: image.texture_descriptor.mip_level_count,
             }
         };
 
@@ -192,19 +198,31 @@ bitflags::bitflags! {
     // NOTE: Apparently quadro drivers support up to 64x MSAA.
     // MSAA uses the highest 3 bits for the MSAA log2(sample count) to support up to 128x MSAA.
     pub struct SpritePipelineKey: u32 {
-        const NONE                        = 0;
-        const COLORED                     = (1 << 0);
-        const HDR                         = (1 << 1);
-        const TONEMAP_IN_SHADER           = (1 << 2);
-        const DEBAND_DITHER               = (1 << 3);
-        const BLENDING                    = (1 << 4);
-        const MSAA_RESERVED_BITS          = Self::MSAA_MASK_BITS << Self::MSAA_SHIFT_BITS;
+        const NONE                              = 0;
+        const COLORED                           = (1 << 0);
+        const HDR                               = (1 << 1);
+        const TONEMAP_IN_SHADER                 = (1 << 2);
+        const DEBAND_DITHER                     = (1 << 3);
+        const BLENDING                          = (1 << 4);
+        const MSAA_RESERVED_BITS                = Self::MSAA_MASK_BITS << Self::MSAA_SHIFT_BITS;
+        const TONEMAP_METHOD_RESERVED_BITS      = Self::TONEMAP_METHOD_MASK_BITS << Self::TONEMAP_METHOD_SHIFT_BITS;
+        const TONEMAP_METHOD_NONE               = 0 << Self::TONEMAP_METHOD_SHIFT_BITS;
+        const TONEMAP_METHOD_REINHARD           = 1 << Self::TONEMAP_METHOD_SHIFT_BITS;
+        const TONEMAP_METHOD_REINHARD_LUMINANCE = 2 << Self::TONEMAP_METHOD_SHIFT_BITS;
+        const TONEMAP_METHOD_ACES_FITTED        = 3 << Self::TONEMAP_METHOD_SHIFT_BITS;
+        const TONEMAP_METHOD_AGX                = 4 << Self::TONEMAP_METHOD_SHIFT_BITS;
+        const TONEMAP_METHOD_SOMEWHAT_BORING_DISPLAY_TRANSFORM = 5 << Self::TONEMAP_METHOD_SHIFT_BITS;
+        const TONEMAP_METHOD_TONY_MC_MAPFACE    = 6 << Self::TONEMAP_METHOD_SHIFT_BITS;
+        const TONEMAP_METHOD_BLENDER_FILMIC     = 7 << Self::TONEMAP_METHOD_SHIFT_BITS;
     }
 }
 
 impl SpritePipelineKey {
     const MSAA_MASK_BITS: u32 = 0b111;
     const MSAA_SHIFT_BITS: u32 = 32 - Self::MSAA_MASK_BITS.count_ones();
+    const TONEMAP_METHOD_MASK_BITS: u32 = 0b111;
+    const TONEMAP_METHOD_SHIFT_BITS: u32 =
+        Self::MSAA_SHIFT_BITS - Self::TONEMAP_METHOD_MASK_BITS.count_ones();
 
     #[inline]
     pub const fn from_msaa_samples(msaa_samples: u32) -> Self {
@@ -264,6 +282,27 @@ impl SpecializedRenderPipeline for SpritePipeline {
         if key.contains(SpritePipelineKey::TONEMAP_IN_SHADER) {
             shader_defs.push("TONEMAP_IN_SHADER".into());
 
+            let method = key.intersection(SpritePipelineKey::TONEMAP_METHOD_RESERVED_BITS);
+
+            if method == SpritePipelineKey::TONEMAP_METHOD_NONE {
+                shader_defs.push("TONEMAP_METHOD_NONE".into());
+            } else if method == SpritePipelineKey::TONEMAP_METHOD_REINHARD {
+                shader_defs.push("TONEMAP_METHOD_REINHARD".into());
+            } else if method == SpritePipelineKey::TONEMAP_METHOD_REINHARD_LUMINANCE {
+                shader_defs.push("TONEMAP_METHOD_REINHARD_LUMINANCE".into());
+            } else if method == SpritePipelineKey::TONEMAP_METHOD_ACES_FITTED {
+                shader_defs.push("TONEMAP_METHOD_ACES_FITTED".into());
+            } else if method == SpritePipelineKey::TONEMAP_METHOD_AGX {
+                shader_defs.push("TONEMAP_METHOD_AGX".into());
+            } else if method == SpritePipelineKey::TONEMAP_METHOD_SOMEWHAT_BORING_DISPLAY_TRANSFORM
+            {
+                shader_defs.push("TONEMAP_METHOD_SOMEWHAT_BORING_DISPLAY_TRANSFORM".into());
+            } else if method == SpritePipelineKey::TONEMAP_METHOD_BLENDER_FILMIC {
+                shader_defs.push("TONEMAP_METHOD_BLENDER_FILMIC".into());
+            } else if method == SpritePipelineKey::TONEMAP_METHOD_TONY_MC_MAPFACE {
+                shader_defs.push("TONEMAP_METHOD_TONY_MC_MAPFACE".into());
+            }
+
             // Debanding is tied to tonemapping in the shader, cannot run without it.
             if key.contains(SpritePipelineKey::DEBAND_DITHER) {
                 shader_defs.push("DEBAND_DITHER".into());
@@ -289,18 +328,6 @@ impl SpecializedRenderPipeline for SpritePipeline {
                 },
             },
             false => BlendState::ALPHA_BLENDING,
-            // false => BlendState {
-            //     color: BlendComponent {
-            //         src_factor: BlendFactor::SrcAlpha,
-            //         dst_factor: BlendFactor::One,
-            //         operation: BlendOperation::Add,
-            //     },
-            //     alpha: BlendComponent {
-            //         src_factor: BlendFactor::SrcAlpha,
-            //         dst_factor: BlendFactor::One,
-            //         operation: BlendOperation::Add,
-            //     },
-            // },
         };
 
         RenderPipelineDescriptor {
@@ -320,7 +347,7 @@ impl SpecializedRenderPipeline for SpritePipeline {
                     write_mask: ColorWrites::ALL,
                 })],
             }),
-            layout: Some(vec![self.view_layout.clone(), self.material_layout.clone()]),
+            layout: vec![self.view_layout.clone(), self.material_layout.clone()],
             primitive: PrimitiveState {
                 front_face: FrontFace::Ccw,
                 cull_mode: None,
@@ -337,16 +364,20 @@ impl SpecializedRenderPipeline for SpritePipeline {
                 alpha_to_coverage_enabled: false,
             },
             label: Some("sprite_pipeline".into()),
+            push_constant_ranges: Vec::new(),
         }
     }
 }
 
-#[derive(Component)]
-pub struct BlendingSprite;
-
 #[derive(Resource, Default)]
-pub struct ExtractedBlending {
-    pub blending: HashMap<u32, bool>,
+pub struct ExtractedObjects {
+    objects: HashMap<Entity, ExtractedObject>,
+}
+
+pub struct ExtractedObject {
+    rotated: bool,
+    z_layer: i8,
+    blending: bool,
 }
 
 pub fn extract_sprite_events(
@@ -372,10 +403,11 @@ pub fn extract_sprite_events(
     }
 }
 
-pub fn extract_sprites(
+fn extract_sprites(
     mut extracted_sprites: ResMut<ExtractedSprites>,
-    mut extracted_blending: ResMut<ExtractedBlending>,
+    mut extracted_objects: ResMut<ExtractedObjects>,
     texture_atlases: Extract<Res<Assets<TextureAtlas>>>,
+    color_channels: Extract<Res<ColorChannels>>,
     sprite_query: Extract<
         Query<(
             Entity,
@@ -383,7 +415,7 @@ pub fn extract_sprites(
             &Sprite,
             &GlobalTransform,
             &Handle<Image>,
-            Option<&BlendingSprite>,
+            Option<&Object>,
         )>,
     >,
     atlas_query: Extract<
@@ -393,20 +425,48 @@ pub fn extract_sprites(
             &TextureAtlasSprite,
             &GlobalTransform,
             &Handle<TextureAtlas>,
-            Option<&BlendingSprite>,
+            Option<&Object>,
         )>,
     >,
 ) {
     extracted_sprites.sprites.clear();
-    extracted_blending.blending.clear();
-    for (entity, visibility, sprite, transform, handle, blending) in sprite_query.iter() {
+    extracted_objects.objects.clear();
+    for (entity, visibility, sprite, transform, handle, object) in sprite_query.iter() {
         if !visibility.is_visible() {
             continue;
+        }
+        let color;
+        if let Some(object) = object {
+            // let (color_got, blending) = if let Some(color_channels) = color_channels {
+            //     color_channels.get_color(&object.color_channel);
+            // } else {
+            //     (sprite.color, false)
+            // };
+            let (color_got, blending) = color_channels.get_color(&object.color_channel);
+            extracted_objects.objects.insert(
+                entity,
+                ExtractedObject {
+                    rotated: object.rotated,
+                    z_layer: if blending {
+                        object.z_layer + 1
+                    } else {
+                        object.z_layer
+                    },
+                    blending,
+                },
+            );
+            color = if let Some(hsv) = &object.hsv {
+                hsv.apply(color_got)
+            } else {
+                color_got
+            };
+        } else {
+            color = sprite.color;
         }
         // PERF: we don't check in this function that the `Image` asset is ready, since it should be in most cases and hashing the handle is expensive
         extracted_sprites.sprites.push(ExtractedSprite {
             entity,
-            color: sprite.color,
+            color,
             transform: *transform,
             rect: sprite.rect,
             // Pass the custom size
@@ -416,21 +476,46 @@ pub fn extract_sprites(
             image_handle_id: handle.id(),
             anchor: sprite.anchor.as_vec(),
         });
-        extracted_blending
-            .blending
-            .insert(entity.index(), blending.is_some());
     }
-    for (entity, visibility, atlas_sprite, transform, texture_atlas_handle, blending) in
+    for (entity, visibility, atlas_sprite, transform, texture_atlas_handle, object) in
         atlas_query.iter()
     {
         if !visibility.is_visible() {
             continue;
         }
         if let Some(texture_atlas) = texture_atlases.get(texture_atlas_handle) {
+            let color;
+            if let Some(object) = object {
+                // let (color_got, blending) = if let Some(color_channels) = color_channels {
+                //     color_channels.get_color(&object.color_channel);
+                // } else {
+                //     (atlas_sprite.color, false)
+                // };
+                let (color_got, blending) = color_channels.get_color(&object.color_channel);
+                extracted_objects.objects.insert(
+                    entity,
+                    ExtractedObject {
+                        rotated: object.rotated,
+                        z_layer: if blending {
+                            object.z_layer + 1
+                        } else {
+                            object.z_layer
+                        },
+                        blending,
+                    },
+                );
+                color = if let Some(hsv) = &object.hsv {
+                    hsv.apply(color_got)
+                } else {
+                    color_got
+                };
+            } else {
+                color = atlas_sprite.color;
+            }
             let rect = Some(texture_atlas.textures[atlas_sprite.index]);
             extracted_sprites.sprites.push(ExtractedSprite {
                 entity,
-                color: atlas_sprite.color,
+                color,
                 transform: *transform,
                 // Select the area in the texture atlas
                 rect,
@@ -441,9 +526,6 @@ pub fn extract_sprites(
                 image_handle_id: texture_atlas.texture.id(),
                 anchor: atlas_sprite.anchor.as_vec(),
             });
-            extracted_blending
-                .blending
-                .insert(entity.index(), blending.is_some());
         }
     }
 }
@@ -519,20 +601,21 @@ pub fn queue_sprites(
     view_uniforms: Res<ViewUniforms>,
     sprite_pipeline: Res<SpritePipeline>,
     mut pipelines: ResMut<SpecializedRenderPipelines<SpritePipeline>>,
-    mut pipeline_cache: ResMut<PipelineCache>,
+    pipeline_cache: Res<PipelineCache>,
     mut image_bind_groups: ResMut<ImageBindGroups>,
     gpu_images: Res<RenderAssets<Image>>,
     msaa: Res<Msaa>,
-    mut extracted: (ResMut<ExtractedSprites>, Res<ExtractedBlending>),
+    mut extracted: (ResMut<ExtractedSprites>, ResMut<ExtractedObjects>),
     mut views: Query<(
         &mut RenderPhase<Transparent2d>,
         &VisibleEntities,
         &ExtractedView,
         Option<&Tonemapping>,
+        Option<&DebandDither>,
     )>,
     events: Res<SpriteAssetEvents>,
 ) {
-    let (mut extracted_sprites, extracted_blending) = extracted;
+    let (mut extracted_sprites, extracted_objects) = extracted;
 
     // If an image has changed, the GpuImage has (probably) changed
     for event in &events.images {
@@ -544,7 +627,7 @@ pub fn queue_sprites(
         };
     }
 
-    let msaa_key = SpritePipelineKey::from_msaa_samples(msaa.samples);
+    let msaa_key = SpritePipelineKey::from_msaa_samples(msaa.samples());
 
     if let Some(view_binding) = view_uniforms.uniforms.binding() {
         let sprite_meta = &mut sprite_meta;
@@ -562,7 +645,7 @@ pub fn queue_sprites(
             layout: &sprite_pipeline.view_layout,
         }));
 
-        let draw_sprite_function = draw_functions.read().get_id::<DrawSprite>().unwrap();
+        let draw_sprite_function = draw_functions.read().id::<DrawSprite>();
 
         // Vertex buffer indices
         let mut index = 0;
@@ -573,7 +656,17 @@ pub fn queue_sprites(
         let extracted_sprites = &mut extracted_sprites.sprites;
         // Sort sprites by z for correct transparency and then by handle to improve batching
         // NOTE: This can be done independent of views by reasonably assuming that all 2D views look along the negative-z axis in world space
-        extracted_sprites.sort_by(|a, b| {
+        extracted_sprites.sort_unstable_by(|a, b| {
+            if let Some(object_a) = extracted_objects.objects.get(&a.entity) {
+                if let Some(object_b) = extracted_objects.objects.get(&b.entity) {
+                    match object_a.z_layer.partial_cmp(&object_b.z_layer) {
+                        Some(Ordering::Equal) | None => (),
+                        Some(other) => {
+                            return other;
+                        }
+                    };
+                }
+            }
             match a
                 .transform
                 .translation()
@@ -586,34 +679,53 @@ pub fn queue_sprites(
         });
         let image_bind_groups = &mut *image_bind_groups;
 
-        for (mut transparent_phase, visible_entities, view, tonemapping) in &mut views {
+        for (mut transparent_phase, visible_entities, view, tonemapping, dither) in &mut views {
             let mut view_key = SpritePipelineKey::from_hdr(view.hdr) | msaa_key;
-            if let Some(Tonemapping::Enabled { deband_dither }) = tonemapping {
-                if !view.hdr {
-                    view_key |= SpritePipelineKey::TONEMAP_IN_SHADER;
 
-                    if *deband_dither {
-                        view_key |= SpritePipelineKey::DEBAND_DITHER;
-                    }
+            if !view.hdr {
+                if let Some(tonemapping) = tonemapping {
+                    view_key |= SpritePipelineKey::TONEMAP_IN_SHADER;
+                    view_key |= match tonemapping {
+                        Tonemapping::None => SpritePipelineKey::TONEMAP_METHOD_NONE,
+                        Tonemapping::Reinhard => SpritePipelineKey::TONEMAP_METHOD_REINHARD,
+                        Tonemapping::ReinhardLuminance => {
+                            SpritePipelineKey::TONEMAP_METHOD_REINHARD_LUMINANCE
+                        }
+                        Tonemapping::AcesFitted => SpritePipelineKey::TONEMAP_METHOD_ACES_FITTED,
+                        Tonemapping::AgX => SpritePipelineKey::TONEMAP_METHOD_AGX,
+                        Tonemapping::SomewhatBoringDisplayTransform => {
+                            SpritePipelineKey::TONEMAP_METHOD_SOMEWHAT_BORING_DISPLAY_TRANSFORM
+                        }
+                        Tonemapping::TonyMcMapface => {
+                            SpritePipelineKey::TONEMAP_METHOD_TONY_MC_MAPFACE
+                        }
+                        Tonemapping::BlenderFilmic => {
+                            SpritePipelineKey::TONEMAP_METHOD_BLENDER_FILMIC
+                        }
+                    };
+                }
+                if let Some(DebandDither::Enabled) = dither {
+                    view_key |= SpritePipelineKey::DEBAND_DITHER;
                 }
             }
+
             let pipeline = pipelines.specialize(
-                &mut pipeline_cache,
+                &pipeline_cache,
                 &sprite_pipeline,
                 view_key | SpritePipelineKey::from_colored(false),
             );
             let colored_pipeline = pipelines.specialize(
-                &mut pipeline_cache,
+                &pipeline_cache,
                 &sprite_pipeline,
                 view_key | SpritePipelineKey::from_colored(true),
             );
             let blending_pipeline = pipelines.specialize(
-                &mut pipeline_cache,
+                &pipeline_cache,
                 &sprite_pipeline,
                 view_key | SpritePipelineKey::from_colored(false) | SpritePipelineKey::BLENDING,
             );
             let colored_blending_pipeline = pipelines.specialize(
-                &mut pipeline_cache,
+                &pipeline_cache,
                 &sprite_pipeline,
                 view_key | SpritePipelineKey::from_colored(true) | SpritePipelineKey::BLENDING,
             );
@@ -628,9 +740,9 @@ pub fn queue_sprites(
                 colored: false,
                 blending: false,
             };
-            let mut current_batch_entity = Entity::from_raw(u32::MAX);
+            let mut current_batch_entity = Entity::PLACEHOLDER;
             let mut current_image_size = Vec2::ZERO;
-            // Add a phase item for each sprite, and detect when succesive items can be batched.
+            // Add a phase item for each sprite, and detect when successive items can be batched.
             // Spawn an entity with a `SpriteBatch` component for each possible batch.
             // Compatible items share the same entity.
             // Batches are merged later (in `batch_phase_system()`), so that they can be interrupted
@@ -642,12 +754,12 @@ pub fn queue_sprites(
                 let new_batch = SpriteBatch {
                     image_handle_id: extracted_sprite.image_handle_id,
                     colored: extracted_sprite.color != Color::WHITE,
-                    blending: match extracted_blending
-                        .blending
-                        .get(&extracted_sprite.entity.index())
+                    blending: if let Some(object) =
+                        extracted_objects.objects.get(&extracted_sprite.entity)
                     {
-                        Some(blend) => *blend,
-                        None => false,
+                        object.blending
+                    } else {
+                        false
                     },
                 };
                 if new_batch != current_batch {
@@ -728,16 +840,18 @@ pub fn queue_sprites(
 
                 // Store the vertex data and add the item to the render phase
                 if current_batch.colored {
+                    let vertex_color = extracted_sprite.color.as_linear_rgba_f32();
                     for i in QUAD_INDICES {
                         sprite_meta.colored_vertices.push(ColoredSpriteVertex {
                             position: positions[i],
                             uv: uvs[i].into(),
-                            color: extracted_sprite.color.as_linear_rgba_f32(),
+                            color: vertex_color,
                         });
                     }
                     let item_start = colored_index;
                     colored_index += QUAD_INDICES.len() as u32;
                     let item_end = colored_index;
+
                     if current_batch.blending {
                         transparent_phase.add(Transparent2d {
                             draw_function: draw_sprite_function,
@@ -765,6 +879,7 @@ pub fn queue_sprites(
                     let item_start = index;
                     index += QUAD_INDICES.len() as u32;
                     let item_end = index;
+
                     if current_batch.blending {
                         transparent_phase.add(Transparent2d {
                             draw_function: draw_sprite_function,
@@ -802,16 +917,18 @@ pub type DrawSprite = (
 );
 
 pub struct SetSpriteViewBindGroup<const I: usize>;
-impl<const I: usize> EntityRenderCommand for SetSpriteViewBindGroup<I> {
-    type Param = (SRes<SpriteMeta>, SQuery<Read<ViewUniformOffset>>);
+impl<P: PhaseItem, const I: usize> RenderCommand<P> for SetSpriteViewBindGroup<I> {
+    type Param = SRes<SpriteMeta>;
+    type ViewWorldQuery = Read<ViewUniformOffset>;
+    type ItemWorldQuery = ();
 
     fn render<'w>(
-        view: Entity,
-        _item: Entity,
-        (sprite_meta, view_query): SystemParamItem<'w, '_, Self::Param>,
+        _item: &P,
+        view_uniform: &'_ ViewUniformOffset,
+        _entity: (),
+        sprite_meta: SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
-        let view_uniform = view_query.get(view).unwrap();
         pass.set_bind_group(
             I,
             sprite_meta.into_inner().view_bind_group.as_ref().unwrap(),
@@ -821,16 +938,18 @@ impl<const I: usize> EntityRenderCommand for SetSpriteViewBindGroup<I> {
     }
 }
 pub struct SetSpriteTextureBindGroup<const I: usize>;
-impl<const I: usize> EntityRenderCommand for SetSpriteTextureBindGroup<I> {
-    type Param = (SRes<ImageBindGroups>, SQuery<Read<SpriteBatch>>);
+impl<P: PhaseItem, const I: usize> RenderCommand<P> for SetSpriteTextureBindGroup<I> {
+    type Param = SRes<ImageBindGroups>;
+    type ViewWorldQuery = ();
+    type ItemWorldQuery = Read<SpriteBatch>;
 
     fn render<'w>(
-        _view: Entity,
-        item: Entity,
-        (image_bind_groups, query_batch): SystemParamItem<'w, '_, Self::Param>,
+        _item: &P,
+        _view: (),
+        sprite_batch: &'_ SpriteBatch,
+        image_bind_groups: SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
-        let sprite_batch = query_batch.get(item).unwrap();
         let image_bind_groups = image_bind_groups.into_inner();
 
         pass.set_bind_group(
@@ -847,15 +966,17 @@ impl<const I: usize> EntityRenderCommand for SetSpriteTextureBindGroup<I> {
 
 pub struct DrawSpriteBatch;
 impl<P: BatchedPhaseItem> RenderCommand<P> for DrawSpriteBatch {
-    type Param = (SRes<SpriteMeta>, SQuery<Read<SpriteBatch>>);
+    type Param = SRes<SpriteMeta>;
+    type ViewWorldQuery = ();
+    type ItemWorldQuery = Read<SpriteBatch>;
 
     fn render<'w>(
-        _view: Entity,
         item: &P,
-        (sprite_meta, query_batch): SystemParamItem<'w, '_, Self::Param>,
+        _view: (),
+        sprite_batch: &'_ SpriteBatch,
+        sprite_meta: SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
-        let sprite_batch = query_batch.get(item.entity()).unwrap();
         let sprite_meta = sprite_meta.into_inner();
         if sprite_batch.colored {
             pass.set_vertex_buffer(0, sprite_meta.colored_vertices.buffer().unwrap().slice(..));

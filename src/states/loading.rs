@@ -10,11 +10,9 @@ pub(crate) struct LoadingStatePlugin;
 
 impl Plugin for LoadingStatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_system_set(SystemSet::on_enter(GameState::Loading).with_system(loading_setup))
-            .add_system_set(SystemSet::on_exit(GameState::Loading).with_system(loading_cleanup))
-            .add_system_set(
-                SystemSet::on_update(GameState::Loading).with_system(check_assets_ready),
-            );
+        app.add_system(loading_setup.in_schedule(OnEnter(GameState::Loading)))
+            .add_system(loading_cleanup.in_schedule(OnExit(GameState::Loading)))
+            .add_system(check_assets_ready.in_set(OnUpdate(GameState::Loading)));
     }
 }
 
@@ -96,16 +94,16 @@ fn check_assets_ready(
     mut commands: Commands,
     server: Res<AssetServer>,
     loading: Res<AssetsLoading>,
-    mut state: ResMut<State<GameState>>,
+    mut state: ResMut<NextState<GameState>>,
 ) {
     use bevy::asset::LoadState;
 
-    match server.get_group_load_state(loading.0.iter().map(|h| h.id)) {
+    match server.get_group_load_state(loading.0.iter().map(|h| h.id())) {
         LoadState::Failed => {}
         LoadState::Loaded => {
             info!("Everything loaded");
             commands.remove_resource::<AssetsLoading>();
-            state.set(GameState::LevelSelect).unwrap();
+            state.set(GameState::LevelSelect);
         }
         _ => {
             // NotLoaded/Loading: not fully ready yet

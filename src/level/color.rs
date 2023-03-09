@@ -5,8 +5,32 @@ use bevy::reflect::Reflect;
 use bevy::utils::HashMap;
 use serde::Deserialize;
 
-#[derive(Resource)]
+#[derive(Default, Resource)]
 pub(crate) struct ColorChannels(pub(crate) HashMap<u64, ColorChannel>);
+
+impl ColorChannels {
+    pub(crate) fn get_color(&self, index: &u64) -> (Color, bool) {
+        match self.0.get(index).unwrap_or(&ColorChannel::default()) {
+            ColorChannel::BaseColor(color) => (
+                Color::rgba(
+                    color.r as f32 / u8::MAX as f32,
+                    color.g as f32 / u8::MAX as f32,
+                    color.b as f32 / u8::MAX as f32,
+                    color.opacity,
+                ),
+                color.blending,
+            ),
+            ColorChannel::CopyColor(color) => {
+                let (original_color, _) = Self::get_color(self, &color.copied_index);
+                let mut transformed_color = color.hsv.apply(original_color);
+                if !color.copy_opacity {
+                    transformed_color.set_a(color.opacity);
+                }
+                (transformed_color, color.blending)
+            }
+        }
+    }
+}
 
 #[derive(Debug, Deserialize, Clone)]
 pub(crate) enum ColorChannel {
@@ -104,7 +128,7 @@ impl Hsv {
         })
     }
 
-    fn apply(&self, color: Color) -> Color {
+    pub(crate) fn apply(&self, color: Color) -> Color {
         let (h, s, v) = rgb_to_hsv([color.r(), color.g(), color.b()]);
         let [r, g, b] = hsv_to_rgb((
             h + self.h,

@@ -1,3 +1,4 @@
+use base64::Engine;
 use std::io::Read;
 
 #[inline(always)]
@@ -80,7 +81,7 @@ pub(crate) fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, anyhow::
         None => bytes[..nul_byte_start + 1].to_vec(),
     });
     let mut decoded = Vec::new();
-    base64::decode_engine_vec(xored, &mut decoded, &BASE64_URL_SAFE)?;
+    BASE64_URL_SAFE.decode_vec(xored, &mut decoded)?;
     Ok(decoded)
 }
 
@@ -97,8 +98,4 @@ pub(crate) fn decompress(bytes: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
     Ok(decompressed)
 }
 
-const BASE64_URL_SAFE: base64::engine::fast_portable::FastPortable =
-    base64::engine::fast_portable::FastPortable::from(
-        &base64::alphabet::URL_SAFE,
-        base64::engine::fast_portable::PAD,
-    );
+const BASE64_URL_SAFE: base64::engine::GeneralPurpose = base64::engine::general_purpose::URL_SAFE;

@@ -8,11 +8,11 @@ use crate::level::color::{ColorChannel, ColorChannels};
 use crate::GameState;
 // use crate::level::trigger::{finish_triggers, tick_triggers, TriggerCompleted, TriggerSystems};
 use crate::utils::{decompress, decrypt, u8_to_bool};
-use bevy::app::{App, CoreStage, Plugin};
-use bevy::log::error;
-use bevy::prelude::{Commands, Entity, IntoSystemDescriptor, RunCriteriaDescriptorCoercion};
-use bevy::utils::HashMap;
+use bevy::app::{App, IntoSystemAppConfig, Plugin};
 use bevy::ecs::schedule::SystemSet;
+use bevy::log::error;
+use bevy::prelude::{Commands, Entity, IntoSystemConfig, OnUpdate};
+use bevy::utils::HashMap;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 use std::io::Read;
@@ -23,11 +23,8 @@ pub(crate) struct LevelPlugin;
 
 impl Plugin for LevelPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system_set(
-            SystemSet::on_update(GameState::Play)
-                .with_system(object::create_atlas_sprite)
-                .with_system(object::create_sprite),
-        );
+        app.add_system(object::create_sprite.in_set(OnUpdate(GameState::Play)))
+            .init_resource::<ColorChannels>();
     }
 }
 

@@ -11,7 +11,6 @@ use crate::level::object::Object;
 //     TriggerInProgress, TriggerSystems, XPosActivate,
 // };
 use crate::loaders::gdlevel::SaveFile;
-use crate::render::sprite::BlendingSprite;
 use crate::states::loading::GlobalAssets;
 use crate::utils::{hsv_to_rgb, rgb_to_hsv, u8_to_bool};
 use crate::{Cocos2dAtlas, GameState, Mapping};
@@ -30,9 +29,8 @@ pub(crate) struct PlayStatePlugin;
 
 impl Plugin for PlayStatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_state_to_stage(CoreStage::PostUpdate, GameState::Play)
-            .add_system_set(SystemSet::on_enter(GameState::Play).with_system(play_setup))
-            .add_system_set(SystemSet::on_exit(GameState::Play).with_system(play_cleanup))
+        app.add_system(play_setup.in_schedule(OnEnter(GameState::Play)))
+            .add_system(play_cleanup.in_schedule(OnExit(GameState::Play)))
             // .add_system_set_to_stage(
             //     CoreStage::PostUpdate,
             //     SystemSet::on_update(GameState::Play)
@@ -47,11 +45,7 @@ impl Plugin for PlayStatePlugin {
             //                 .after(TriggerSystems::ActivateTriggers),
             //         ),
             // )
-            .add_system_set(
-                SystemSet::on_update(GameState::Play)
-                    .with_system(move_camera)
-                    .with_system(exit_play),
-            );
+            .add_systems((move_camera, exit_play).in_set(OnUpdate(GameState::Play)));
         // .init_resource::<Groups>()
         // .init_resource::<ColorChannels>()
         // .register_type::<LevelObject>();
@@ -95,12 +89,10 @@ fn play_setup(
         .levels
         .get(level_index.index)
         .unwrap();
-    if let Some(decompressed_level) = level.decompress_inner_level() {
-        decompressed_level
-            .unwrap()
-            .parse()
-            .unwrap()
-            .spawn_level(&mut commands, false);
+    if let Some(Ok(decompressed_level)) = level.decompress_inner_level() {
+        if let Ok(parsed_level) = decompressed_level.parse() {
+            parsed_level.spawn_level(&mut commands, false).unwrap();
+        }
     }
 }
 
@@ -304,9 +296,9 @@ fn move_camera(
     }
 }
 
-fn exit_play(mut state: ResMut<State<GameState>>, keys: Res<Input<KeyCode>>) {
+fn exit_play(mut next_state: ResMut<NextState<GameState>>, keys: Res<Input<KeyCode>>) {
     if keys.pressed(KeyCode::Escape) {
-        state.set(GameState::LevelSelect).unwrap()
+        next_state.set(GameState::LevelSelect);
     }
 }
 
