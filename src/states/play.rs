@@ -1,31 +1,14 @@
 use crate::level::color::ColorChannels;
-use crate::level::easing::Easing;
+
 use crate::level::object::Object;
-// use crate::level::trigger::alpha::AlphaTrigger;
-// use crate::level::trigger::color::ColorTrigger;
-// use crate::level::trigger::r#move::MoveTrigger;
-// use crate::level::trigger::rotate::RotateTrigger;
-// use crate::level::trigger::toggle::ToggleTrigger;
-// use crate::level::trigger::{
-//     MultiActivate, Trigger, TriggerActivated, TriggerCompleted, TriggerDuration, TriggerFunction,
-//     TriggerInProgress, TriggerSystems, XPosActivate,
-// };
 use crate::level::trigger::ExecutingTriggers;
 use crate::level::Groups;
 use crate::loaders::gdlevel::SaveFile;
 use crate::states::loading::GlobalAssets;
-use crate::utils::{hsv_to_rgb, rgb_to_hsv, u8_to_bool};
-use crate::{Cocos2dAtlas, GameState, Mapping};
-use bevy::core_pipeline::clear_color::ClearColorConfig;
-use bevy::ecs::storage::Table;
-use bevy::prelude::system_adapter::unwrap;
+
+use crate::GameState;
+
 use bevy::prelude::*;
-use bevy::render::view::VisibilitySystems;
-use bevy::sprite::Anchor;
-use bevy::transform::TransformSystem;
-use bevy::utils::HashMap;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 pub(crate) struct PlayStatePlugin;
 
@@ -67,15 +50,10 @@ pub(crate) struct LevelIndex {
 fn play_setup(
     mut camera_transforms: Query<&mut Transform, With<Camera>>,
     mut projections: Query<&mut OrthographicProjection, With<Camera>>,
-    mut cameras: Query<&mut Camera2d>,
     mut commands: Commands,
-    // mut groups_res: ResMut<Groups>,
-    // mut colors_res: ResMut<ColorChannels>,
     global_assets: Res<GlobalAssets>,
     save_file: Res<Assets<SaveFile>>,
     level_index: Res<LevelIndex>,
-    mapping: Res<Assets<Mapping>>,
-    cocos2d_atlases: Res<Assets<Cocos2dAtlas>>,
 ) {
     for mut transform in camera_transforms.iter_mut() {
         transform.translation.x = 0.0;

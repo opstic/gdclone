@@ -1,11 +1,9 @@
-use crate::level::object::Object;
 use crate::level::trigger::{TriggerDuration, TriggerFunction};
 use crate::level::Groups;
 use crate::utils::lerp;
 use bevy::ecs::system::SystemState;
-use bevy::prelude::{Entity, Query, Res, ResMut, World};
+use bevy::prelude::{Res, ResMut, World};
 use bevy::time::Time;
-use bevy::utils::HashMap;
 
 #[derive(Clone, Default)]
 pub(crate) struct AlphaTrigger {

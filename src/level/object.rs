@@ -1,16 +1,15 @@
-use crate::level::color::{ColorChannels, Hsv};
-use crate::level::{color, trigger};
-use crate::loaders::cocos2d_atlas::{find_texture, Cocos2dAtlas, Cocos2dTextureInfo};
+use crate::level::color::Hsv;
+use crate::level::trigger;
+use crate::loaders::cocos2d_atlas::{find_texture, Cocos2dAtlas};
 use crate::loaders::mapping::Mapping;
 use crate::states::loading::GlobalAssets;
 use crate::utils::u8_to_bool;
-use bevy::asset::{Assets, Handle};
+use bevy::asset::Assets;
 use bevy::log::info;
 use bevy::math::{Quat, Vec2, Vec3Swizzles};
 use bevy::prelude::{Commands, Component, Entity, Query, Res, Transform, Without};
-use bevy::sprite::{Anchor, SpriteSheetBundle, TextureAtlas, TextureAtlasSprite};
+use bevy::sprite::{Anchor, SpriteSheetBundle, TextureAtlasSprite};
 use bevy::utils::{default, HashMap};
-use std::process::id;
 
 #[derive(Component, Default)]
 pub(crate) struct Object {

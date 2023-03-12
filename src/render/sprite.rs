@@ -620,7 +620,7 @@ pub fn queue_sprites(
     mut image_bind_groups: ResMut<ImageBindGroups>,
     gpu_images: Res<RenderAssets<Image>>,
     msaa: Res<Msaa>,
-    mut extracted: (ResMut<ExtractedSprites>, ResMut<ExtractedObjects>),
+    extracted: (ResMut<ExtractedSprites>, Res<ExtractedObjects>),
     mut views: Query<(
         &mut RenderPhase<Transparent2d>,
         &VisibleEntities,

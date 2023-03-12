@@ -5,20 +5,17 @@ pub(crate) mod object;
 pub(crate) mod trigger;
 
 use crate::level::color::{ColorChannel, ColorChannels};
-// use crate::level::trigger::{finish_triggers, tick_triggers, TriggerCompleted, TriggerSystems};
 use crate::level::trigger::TriggerSystems;
 use crate::utils::{decompress, decrypt, u8_to_bool};
 use crate::GameState;
-use bevy::app::{App, CoreSet, IntoSystemAppConfig, Plugin};
-use bevy::ecs::schedule::SystemSet;
+use bevy::app::{App, Plugin};
+
 use bevy::log::error;
-use bevy::prelude::{Commands, Entity, IntoSystemConfig, IntoSystemSetConfig, OnUpdate, Resource};
-use bevy::render::view::VisibilitySystems::CheckVisibility;
-use bevy::transform::TransformSystem::TransformPropagate;
+use bevy::prelude::{Commands, Entity, IntoSystemConfig, OnUpdate, Resource};
 use bevy::utils::HashMap;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
-use std::io::Read;
+
 use std::marker::PhantomData;
 
 #[derive(Default)]

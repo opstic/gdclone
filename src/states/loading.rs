@@ -3,8 +3,6 @@ use crate::loaders::gdlevel::SaveFile;
 use crate::loaders::mapping::Mapping;
 use crate::GameState;
 use bevy::prelude::*;
-use std::thread::sleep;
-use std::time::{Duration, Instant};
 
 pub(crate) struct LoadingStatePlugin;
 

@@ -1,8 +1,6 @@
 use crate::loaders::gdlevel::SaveFile;
 use crate::AlignSelf::Center;
 use crate::GameState;
-use bevy::a11y::accesskit::{NodeBuilder, Role};
-use bevy::a11y::AccessibilityNode;
 use bevy::app::{App, IntoSystemAppConfig, Plugin};
 use bevy::asset::{AssetServer, Assets};
 use bevy::ecs::component::Component;
@@ -14,7 +12,6 @@ use bevy::ui::{
     AlignSelf, BackgroundColor, FlexDirection, JustifyContent, Node, Overflow, Size, Style, UiRect,
     Val,
 };
-use std::thread::spawn;
 
 use super::loading::GlobalAssets;
 use super::play::LevelIndex;

@@ -1,17 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
-use bevy::log::info;
-use bevy::math::Vec3A;
-use bevy::prelude::shape::Quad;
 use bevy::prelude::*;
-use bevy::render::mesh::PrimitiveTopology;
 use bevy::render::primitives::Aabb;
 use bevy::render::view::{NoFrustumCulling, VisibilitySystems};
-use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle, SpritePlugin};
-use bevy::window::{PresentMode, WindowResizeConstraints, WindowResized};
+use bevy::sprite::{Mesh2dHandle, SpritePlugin};
+use bevy::window::{PresentMode, WindowResizeConstraints};
 use bevy::winit::WinitSettings;
-use std::slice::Windows;
+
 use std::time::Duration;
 
 mod level;
@@ -22,9 +18,7 @@ mod utils;
 
 use crate::states::play::Player;
 use level::LevelPlugin;
-use loaders::{
-    cocos2d_atlas::Cocos2dAtlas, gdlevel::SaveFile, mapping::Mapping, AssetLoaderPlugin,
-};
+use loaders::AssetLoaderPlugin;
 use render::sprite::CustomSpritePlugin;
 use states::{loading::AssetsLoading, GameState, StatePlugins};
 

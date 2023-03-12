@@ -1,15 +1,11 @@
 use crate::level::Level;
 use crate::utils::{decompress, decrypt};
-use aho_corasick::AhoCorasick;
 use bevy::asset::{AssetLoader, LoadContext, LoadedAsset};
 use bevy::prelude::*;
 use bevy::reflect::TypeUuid;
-#[cfg(not(target_arch = "wasm32"))]
-use bevy::tasks::AsyncComputeTaskPool;
-use bevy::utils::{BoxedFuture, HashMap};
+use bevy::utils::BoxedFuture;
 use plist::Dictionary;
 use serde::Deserialize;
-use std::io::Read;
 
 #[derive(Debug, Deserialize, TypeUuid)]
 #[uuid = "1303d57b-af74-4318-ac9b-5d9e5519bcf1"]
@@ -28,7 +24,7 @@ impl AssetLoader for GDSaveLoader {
     ) -> BoxedFuture<'a, Result<(), bevy::asset::Error>> {
         Box::pin(async move {
             info!("Loading save");
-            let decrypted = decompress(decrypt(&bytes, Some(11_u8)).unwrap().as_slice()).unwrap();
+            let decrypted = decompress(decrypt(bytes, Some(11_u8)).unwrap().as_slice()).unwrap();
             let parsed_save: Dictionary = plist::from_bytes::<Dictionary>(&decrypted).unwrap();
             let mut levels: Vec<Level> = Vec::with_capacity(parsed_save.len() - 1);
             for (key_name, key) in parsed_save.get("LLM_01").unwrap().as_dictionary().unwrap() {

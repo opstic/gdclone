@@ -104,14 +104,6 @@ impl<'a> Reader<'a> for SliceReader<'a> {
     }
 }
 
-pub(crate) fn from_str<'de, T>(s: &'de str, sep: u8) -> Result<T, DeError>
-where
-    T: Deserialize<'de>,
-{
-    let mut de = SeparatorDeserializer::from_slice(s.as_bytes(), sep);
-    T::deserialize(&mut de)
-}
-
 pub(crate) fn from_slice<'de, T>(b: &'de [u8], sep: u8) -> Result<T, DeError>
 where
     T: Deserialize<'de>,
@@ -358,8 +350,8 @@ where
 
     fn deserialize_newtype_struct<V>(
         self,
-        name: &'static str,
-        visitor: V,
+        _name: &'static str,
+        _visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
@@ -374,7 +366,7 @@ where
         visitor.visit_seq(self)
     }
 
-    fn deserialize_tuple<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_tuple<V>(self, _len: usize, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
@@ -383,9 +375,9 @@ where
 
     fn deserialize_tuple_struct<V>(
         self,
-        name: &'static str,
-        len: usize,
-        visitor: V,
+        _name: &'static str,
+        _len: usize,
+        _visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
@@ -402,8 +394,8 @@ where
 
     fn deserialize_struct<V>(
         self,
-        name: &'static str,
-        fields: &'static [&'static str],
+        _name: &'static str,
+        _fields: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
@@ -414,9 +406,9 @@ where
 
     fn deserialize_enum<V>(
         self,
-        name: &'static str,
-        variants: &'static [&'static str],
-        visitor: V,
+        _name: &'static str,
+        _variants: &'static [&'static str],
+        _visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,

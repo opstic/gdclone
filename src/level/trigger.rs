@@ -7,7 +7,7 @@ use crate::level::trigger::rotate::RotateTrigger;
 use crate::level::trigger::toggle::ToggleTrigger;
 use crate::utils::u8_to_bool;
 use bevy::hierarchy::Parent;
-use bevy::log::info;
+
 use bevy::prelude::{
     Camera2d, Commands, Component, Entity, Mut, Query, ResMut, Resource, SystemSet, Transform,
     Visibility, With, Without, World,
@@ -89,10 +89,6 @@ impl TriggerDuration {
     fn completed(&self) -> bool {
         self.elapsed > self.duration
     }
-
-    fn reset(&mut self) {
-        self.elapsed = Duration::ZERO;
-    }
 }
 
 pub(crate) trait TriggerFunction: Send + Sync + DynClone {
@@ -106,7 +102,7 @@ pub(crate) trait TriggerFunction: Send + Sync + DynClone {
 dyn_clone::clone_trait_object!(TriggerFunction);
 
 pub(crate) fn activate_xpos_triggers(
-    mut commands: Commands,
+    commands: Commands,
     entity_with_parent: Query<&Parent>,
     triggers: Query<
         (Entity, &Transform, &Visibility, &Trigger),
