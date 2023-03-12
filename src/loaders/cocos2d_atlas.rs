@@ -180,22 +180,16 @@ async fn load_texture<'a>(
 
 #[inline(always)]
 pub(crate) fn find_texture(
-    mapping: &HashMap<u64, String>,
     cocos2d_atlases: &Res<Assets<Cocos2dAtlas>>,
     atlases: &Vec<&Handle<Cocos2dAtlas>>,
-    id: &u64,
+    name: &String,
 ) -> Option<(Cocos2dTextureInfo, Handle<TextureAtlas>)> {
-    let texture_name = mapping.get(&*id);
-    if let Some(name) = texture_name {
-        for atlas_handle in atlases {
-            if let Some(atlas) = cocos2d_atlases.get(atlas_handle) {
-                if let Some(info) = atlas.index.get(name) {
-                    return Some(((*info).clone(), atlas.texture_atlas.clone()));
-                }
+    for atlas_handle in atlases {
+        if let Some(atlas) = cocos2d_atlases.get(atlas_handle) {
+            if let Some(info) = atlas.index.get(name) {
+                return Some(((*info).clone(), atlas.texture_atlas.clone()));
             }
         }
-        None
-    } else {
-        None
     }
+    None
 }

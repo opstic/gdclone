@@ -80,9 +80,9 @@ pub(crate) fn spawn_object(
 pub(crate) fn create_sprite(
     mut commands: Commands,
     global_assets: Res<GlobalAssets>,
-    mapping: Res<Assets<Mapping>>,
+    mappings: Res<Assets<Mapping>>,
     cocos2d_atlases: Res<Assets<Cocos2dAtlas>>,
-    object_without_cocos2d: Query<(Entity, &Object), Without<TextureAtlasSprite>>,
+    mut object_without_cocos2d: Query<(Entity, &mut Object), Without<TextureAtlasSprite>>,
 ) {
     let atlases = vec![
         &global_assets.atlas1,
@@ -91,44 +91,48 @@ pub(crate) fn create_sprite(
         &global_assets.atlas4,
         &global_assets.atlas5,
     ];
-    for (entity, object) in object_without_cocos2d.iter() {
-        if let Some((info, handle)) = find_texture(
-            &mapping.get(&global_assets.texture_mapping).unwrap().mapping,
-            &cocos2d_atlases,
-            &atlases,
-            &object.id,
-        ) {
-            info!("Object id {}", object.id);
-            let mut flip_x = object.flip_x;
-            let mut flip_y = object.flip_y;
-            let translation = (object.transform.translation.xy() * 4.)
-                .extend((object.transform.translation.z + 999.) / (999. + 10000.) * 999.);
-            let mut rotation = object.transform.rotation;
-            if info.rotated {
-                std::mem::swap(&mut flip_x, &mut flip_y);
-                rotation *= Quat::from_rotation_z((-90_f32).to_radians())
+    for (entity, mut object) in &mut object_without_cocos2d {
+        if let Some(mapping) = mappings.get(&global_assets.mapping) {
+            if let Some(metadata) = mapping.0.get(&object.id) {
+                if let Some((info, handle)) =
+                    find_texture(&cocos2d_atlases, &atlases, &metadata.texture_name)
+                {
+                    if object.z_layer == 0 {
+                        object.z_layer = metadata.default_z_layer;
+                    }
+                    if object.transform.translation.z == 0. {
+                        object.transform.translation.z = metadata.default_z_order as f32;
+                    }
+                    let mut flip_x = object.flip_x;
+                    let mut flip_y = object.flip_y;
+                    let translation = (object.transform.translation.xy() * 4.)
+                        .extend((object.transform.translation.z + 999.) / (999. + 10000.) * 999.);
+                    let mut rotation = object.transform.rotation;
+                    if info.rotated {
+                        std::mem::swap(&mut flip_x, &mut flip_y);
+                        rotation *= Quat::from_rotation_z((-90_f32).to_radians())
+                    }
+                    rotation = rotation.inverse();
+                    let mut scale = object.transform.scale;
+                    scale.x *= if flip_x { -1. } else { 1. };
+                    scale.y *= if flip_y { -1. } else { 1. };
+                    let mut entity = commands.entity(entity);
+                    entity.insert(SpriteSheetBundle {
+                        transform: Transform {
+                            translation,
+                            rotation,
+                            scale,
+                        },
+                        sprite: TextureAtlasSprite {
+                            index: info.index,
+                            anchor: Anchor::Custom(info.anchor),
+                            ..default()
+                        },
+                        texture_atlas: handle.clone(),
+                        ..default()
+                    });
+                }
             }
-            rotation = rotation.inverse();
-            let mut scale = object.transform.scale;
-            scale.x *= if flip_x { -1. } else { 1. };
-            scale.y *= if flip_y { -1. } else { 1. };
-            let mut entity = commands.entity(entity);
-            entity.insert(SpriteSheetBundle {
-                transform: Transform {
-                    translation,
-                    rotation,
-                    scale,
-                },
-                sprite: TextureAtlasSprite {
-                    index: info.index,
-                    anchor: Anchor::Custom(info.anchor),
-                    ..default()
-                },
-                texture_atlas: handle.clone(),
-                ..default()
-            });
-        } else {
-            info!("Cant find texture???")
         }
     }
 }
