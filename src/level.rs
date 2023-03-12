@@ -124,11 +124,12 @@ impl<'a> ParsedInnerLevel<'a> {
         commands: &mut Commands,
         low_detail: bool,
     ) -> Result<(), anyhow::Error> {
-        let mut colors: HashMap<u64, ColorChannel> = HashMap::with_capacity(75);
+        let mut colors: HashMap<u64, ColorChannel> = HashMap::new();
         let mut groups: HashMap<u64, Group> =
             HashMap::with_capacity((self.objects.len() / 500).min(500));
         if let Some(colors_string) = self.start_object.get(b"kS38".as_ref()) {
             let parsed_colors: Vec<&[u8]> = de::from_slice(colors_string, b'|')?;
+            colors.reserve(parsed_colors.len().saturating_sub(colors.capacity()));
             for color_string in parsed_colors {
                 let (index, color) = ColorChannel::parse(color_string)?;
                 colors.insert(index, color);
