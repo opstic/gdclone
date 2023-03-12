@@ -37,7 +37,7 @@ fn main() {
         },
         ..default()
     })
-    .insert_resource(Msaa::Sample8)
+    .insert_resource(Msaa::Off)
     .insert_resource(AssetsLoading::default())
     .add_plugins(
         DefaultPlugins
