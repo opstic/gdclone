@@ -4,14 +4,14 @@ pub(crate) mod easing;
 pub(crate) mod object;
 pub(crate) mod trigger;
 
-use crate::level::color::{ColorChannel, ColorChannels};
+use crate::level::color::{BaseColor, ColorChannel, ColorChannels, CopyColor, Hsv};
 use crate::level::trigger::TriggerSystems;
 use crate::utils::{decompress, decrypt, u8_to_bool};
 use crate::GameState;
 use bevy::app::{App, Plugin};
 
 use bevy::log::error;
-use bevy::prelude::{Commands, Entity, IntoSystemConfig, OnUpdate, Resource};
+use bevy::prelude::{Color, Commands, Entity, IntoSystemConfig, OnUpdate, Resource};
 use bevy::utils::HashMap;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
@@ -135,6 +135,27 @@ impl<'a> ParsedInnerLevel<'a> {
                 colors.insert(index, color);
             }
         }
+        colors.insert(
+            1007,
+            ColorChannel::CopyColor(CopyColor {
+                copied_index: 1000,
+                opacity: 1.0,
+                blending: true,
+                hsv: Hsv {
+                    s: -20.,
+                    s_absolute: true,
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+        );
+        colors.insert(
+            1010,
+            ColorChannel::BaseColor(BaseColor {
+                color: Color::BLACK,
+                blending: false,
+            }),
+        );
         commands.insert_resource(ColorChannels(colors));
         for object_data in &self.objects {
             if let Some(high_detail) = object_data.get(b"103".as_ref()) {
