@@ -5,11 +5,12 @@ use crate::level::trigger::color::ColorTrigger;
 use crate::level::trigger::r#move::MoveTrigger;
 use crate::level::trigger::rotate::RotateTrigger;
 use crate::level::trigger::toggle::ToggleTrigger;
+use crate::level::Groups;
 use crate::utils::u8_to_bool;
 use bevy::hierarchy::Parent;
 
 use bevy::prelude::{
-    Camera2d, Commands, Component, Entity, Mut, Query, ResMut, Resource, SystemSet, Transform,
+    Camera2d, Commands, Component, Entity, Mut, Query, Res, ResMut, Resource, SystemSet, Transform,
     Visibility, With, Without, World,
 };
 use bevy::utils::HashMap;
