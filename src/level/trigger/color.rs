@@ -1,8 +1,9 @@
 use crate::level::color::BaseColor;
 use crate::level::color::{ColorChannel, ColorChannels};
 use crate::level::trigger::{TriggerDuration, TriggerFunction};
-use crate::utils::lerp;
+use crate::utils::{lerp, lerp_color};
 use bevy::ecs::system::SystemState;
+use bevy::log::info;
 use bevy::prelude::{Color, Res, ResMut, World};
 use bevy::time::Time;
 
@@ -32,30 +33,12 @@ impl TriggerFunction for ColorTrigger {
                     new_color.blending = self.target_blending;
                 }
 
-                if self.duration.completed() {
+                if self.duration.completed() || self.duration.duration.is_zero() {
                     new_color.color = self.target_color;
                     new_color.blending = self.target_blending;
                 } else {
-                    new_color.color.set_r(lerp(
-                        &(self.original_color.r() as f64),
-                        &(self.target_color.r() as f64),
-                        &progress,
-                    ) as f32);
-                    new_color.color.set_g(lerp(
-                        &(self.original_color.g() as f64),
-                        &(self.target_color.g() as f64),
-                        &progress,
-                    ) as f32);
-                    new_color.color.set_b(lerp(
-                        &(self.original_color.b() as f64),
-                        &(self.target_color.b() as f64),
-                        &progress,
-                    ) as f32);
-                    new_color.color.set_a(lerp(
-                        &(self.original_color.a() as f64),
-                        &(self.target_color.a() as f64),
-                        &progress,
-                    ) as f32);
+                    new_color.color =
+                        lerp_color(&self.original_color, &self.target_color, &progress);
                 }
                 ColorChannel::BaseColor(new_color)
             }

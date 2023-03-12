@@ -1,4 +1,5 @@
 use base64::Engine;
+use bevy::prelude::Color;
 use std::io::Read;
 
 #[inline(always)]
@@ -65,6 +66,14 @@ pub fn hsv_to_rgb((h, s, v): (f32, f32, f32)) -> [f32; 3] {
     };
 
     [r + m, g + m, b + m]
+}
+
+pub(crate) fn lerp_color(start: &Color, end: &Color, x: &f64) -> Color {
+    let r = lerp(&(start.r() as f64), &(end.r() as f64), x) as f32;
+    let g = lerp(&(start.g() as f64), &(end.g() as f64), x) as f32;
+    let b = lerp(&(start.b() as f64), &(end.b() as f64), x) as f32;
+    let a = lerp(&(start.a() as f64), &(end.a() as f64), x) as f32;
+    Color::rgba(r, g, b, a)
 }
 
 pub(crate) fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, anyhow::Error> {

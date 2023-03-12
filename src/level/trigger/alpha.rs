@@ -24,7 +24,7 @@ impl TriggerFunction for AlphaTrigger {
             if !self.not_initial {
                 self.original_opacity = group.opacity;
             }
-            if self.duration.completed() {
+            if self.duration.completed() || self.duration.duration.is_zero() {
                 group.opacity = self.target_opacity;
             } else {
                 group.opacity = lerp(
