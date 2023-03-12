@@ -14,6 +14,7 @@ use bevy::ui::{
     AlignSelf, BackgroundColor, FlexDirection, JustifyContent, Node, Overflow, Size, Style, UiRect,
     Val,
 };
+use std::thread::spawn;
 
 use super::loading::GlobalAssets;
 use super::play::LevelIndex;
@@ -118,51 +119,89 @@ fn select_setup(
                                         .iter()
                                         .enumerate()
                                     {
-                                        parent.spawn((
-                                            TextBundle::from_section(
-                                                &level.name,
-                                                TextStyle {
-                                                    font: asset_server
-                                                        .load("fonts/FiraSans-Bold.ttf"),
-                                                    font_size: 50.,
-                                                    color: Color::WHITE,
-                                                },
-                                            )
-                                            .with_style(Style {
-                                                flex_shrink: 0.,
-                                                size: Size::new(Val::Undefined, Val::Percent(1.)),
-                                                ..default()
-                                            }),
-                                            Label,
-                                        ));
                                         parent
-                                            .spawn(ButtonBundle {
+                                            .spawn(NodeBundle {
                                                 style: Style {
                                                     flex_shrink: 0.,
                                                     size: Size::new(
-                                                        Val::Undefined,
-                                                        Val::Percent(0.5),
+                                                        Val::Percent(100.0),
+                                                        Val::Percent(1.0),
                                                     ),
                                                     margin: UiRect {
-                                                        top: Val::Auto,
-                                                        bottom: Val::Auto,
+                                                        left: Val::Auto,
+                                                        right: Val::Auto,
                                                         ..default()
                                                     },
                                                     ..default()
                                                 },
+                                                background_color: Color::NONE.into(),
                                                 ..default()
                                             })
-                                            .insert(OpenButton { level_index: index })
                                             .with_children(|parent| {
-                                                parent.spawn(TextBundle::from_section(
-                                                    "Open",
-                                                    TextStyle {
-                                                        font: asset_server
-                                                            .load("fonts/FiraSans-Bold.ttf"),
-                                                        font_size: 25.0,
-                                                        color: Color::rgb(0.9, 0.9, 0.9),
-                                                    },
-                                                ));
+                                                parent.spawn(
+                                                    // Create a TextBundle that has a Text with a list of sections.
+                                                    TextBundle::from_section(
+                                                        &level.name,
+                                                        TextStyle {
+                                                            font: asset_server
+                                                                .load("fonts/FiraSans-Bold.ttf"),
+                                                            font_size: 50.,
+                                                            color: Color::WHITE,
+                                                        },
+                                                    )
+                                                    .with_style(Style {
+                                                        flex_shrink: 0.,
+                                                        size: Size::new(
+                                                            Val::Percent(50.),
+                                                            Val::Px(50.),
+                                                        ),
+                                                        margin: UiRect {
+                                                            left: Val::Percent(2.5),
+                                                            right: Val::Percent(2.5),
+                                                            top: Val::Percent(2.5),
+                                                            bottom: Val::Percent(2.5),
+                                                        },
+                                                        align_self: AlignSelf::FlexStart,
+                                                        max_size: Size::new(
+                                                            Val::Percent(50.),
+                                                            Val::Px(50.),
+                                                        ),
+                                                        ..default()
+                                                    }),
+                                                );
+                                                parent
+                                                    .spawn(ButtonBundle {
+                                                        style: Style {
+                                                            flex_shrink: 0.,
+                                                            justify_content:
+                                                                JustifyContent::FlexEnd,
+                                                            size: Size::new(
+                                                                Val::Percent(10.),
+                                                                Val::Percent(50.),
+                                                            ),
+                                                            margin: UiRect {
+                                                                left: Val::Percent(2.5),
+                                                                right: Val::Percent(2.5),
+                                                                top: Val::Percent(2.5),
+                                                                bottom: Val::Percent(2.5),
+                                                            },
+                                                            ..default()
+                                                        },
+                                                        ..default()
+                                                    })
+                                                    .insert(OpenButton { level_index: index })
+                                                    .with_children(|parent| {
+                                                        parent.spawn(TextBundle::from_section(
+                                                            "Open",
+                                                            TextStyle {
+                                                                font: asset_server.load(
+                                                                    "fonts/FiraSans-Bold.ttf",
+                                                                ),
+                                                                font_size: 25.0,
+                                                                color: Color::rgb(0.9, 0.9, 0.9),
+                                                            },
+                                                        ));
+                                                    });
                                             });
                                     }
                                 });
@@ -196,7 +235,7 @@ fn mouse_scroll(
                 .map(|entity| query_item.get(*entity).unwrap().size().y)
                 .sum();
             let panel_height = uinode.size().y;
-            let max_scroll = (items_height - panel_height).max(0.);
+            let max_scroll = (items_height * 2. - panel_height).max(0.);
             let dy = match mouse_wheel_event.unit {
                 MouseScrollUnit::Line => mouse_wheel_event.y * 20.,
                 MouseScrollUnit::Pixel => mouse_wheel_event.y,
