@@ -105,7 +105,7 @@ pub(crate) fn activate_xpos_triggers(
     commands: Commands,
     entity_with_parent: Query<&Parent>,
     triggers: Query<
-        (Entity, &Transform, &Visibility, &Trigger),
+        (Entity, &Transform, &Object, &Trigger),
         (
             With<XPosActivate>,
             Without<TriggerInProgress>,
@@ -113,6 +113,7 @@ pub(crate) fn activate_xpos_triggers(
         ),
     >,
     executing_triggers: ResMut<ExecutingTriggers>,
+    groups: Res<Groups>,
     camera_transforms: Query<&Transform, (With<Camera2d>, Without<Object>, Without<XPosActivate>)>,
 ) {
     let player_x = if let Ok(transform) = camera_transforms.get_single() {
@@ -124,13 +125,16 @@ pub(crate) fn activate_xpos_triggers(
     let triggers_mutex = Arc::new(Mutex::new(executing_triggers));
     triggers
         .par_iter()
-        .for_each(|(entity, transform, visibility, trigger)| {
-            if transform.translation.x > player_x
-                || !(visibility == Visibility::Visible
-                    || (!entity_with_parent.contains(entity)
-                        && visibility == Visibility::Inherited))
-            {
+        .for_each(|(entity, transform, object, trigger)| {
+            if transform.translation.x > player_x {
                 return;
+            }
+            for group_id in &object.groups {
+                if let Some(group) = groups.0.get(group_id) {
+                    if !group.activated {
+                        return;
+                    }
+                }
             }
             if let Ok(mut executing_triggers) = triggers_mutex.lock() {
                 let executing_triggers = executing_triggers
