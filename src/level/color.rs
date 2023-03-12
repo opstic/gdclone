@@ -11,15 +11,7 @@ pub(crate) struct ColorChannels(pub(crate) HashMap<u64, ColorChannel>);
 impl ColorChannels {
     pub(crate) fn get_color(&self, index: &u64) -> (Color, bool) {
         match self.0.get(index).unwrap_or(&ColorChannel::default()) {
-            ColorChannel::BaseColor(color) => (
-                Color::rgba(
-                    color.r as f32 / u8::MAX as f32,
-                    color.g as f32 / u8::MAX as f32,
-                    color.b as f32 / u8::MAX as f32,
-                    color.opacity,
-                ),
-                color.blending,
-            ),
+            ColorChannel::BaseColor(color) => (color.color, color.blending),
             ColorChannel::CopyColor(color) => {
                 let (original_color, _) = Self::get_color(self, &color.copied_index);
                 let mut transformed_color = color.hsv.apply(original_color);
@@ -63,16 +55,24 @@ impl ColorChannel {
         } else {
             let mut temp_color = BaseColor::default();
             if let Some(r) = color_data.get(b"1".as_ref()) {
-                temp_color.r = std::str::from_utf8(r)?.parse()?;
+                temp_color
+                    .color
+                    .set_r(std::str::from_utf8(r)?.parse::<u8>()? as f32 / u8::MAX as f32);
             }
             if let Some(g) = color_data.get(b"2".as_ref()) {
-                temp_color.g = std::str::from_utf8(g)?.parse()?;
+                temp_color
+                    .color
+                    .set_g(std::str::from_utf8(g)?.parse::<u8>()? as f32 / u8::MAX as f32);
             }
             if let Some(b) = color_data.get(b"3".as_ref()) {
-                temp_color.b = std::str::from_utf8(b)?.parse()?;
+                temp_color
+                    .color
+                    .set_b(std::str::from_utf8(b)?.parse::<u8>()? as f32 / u8::MAX as f32);
             }
             if let Some(opacity) = color_data.get(b"7".as_ref()) {
-                temp_color.opacity = std::str::from_utf8(opacity)?.parse()?;
+                temp_color
+                    .color
+                    .set_a(std::str::from_utf8(opacity)?.parse()?);
             }
             if let Some(blending) = color_data.get(b"5".as_ref()) {
                 temp_color.blending = u8_to_bool(blending);
@@ -89,12 +89,9 @@ impl ColorChannel {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Default, Deserialize, Clone)]
 pub(crate) struct BaseColor {
-    pub(crate) r: u8,
-    pub(crate) g: u8,
-    pub(crate) b: u8,
-    pub(crate) opacity: f32,
+    pub(crate) color: Color,
     pub(crate) blending: bool,
 }
 
@@ -165,18 +162,6 @@ impl Default for ColorChannel {
     }
 }
 
-impl Default for BaseColor {
-    fn default() -> Self {
-        BaseColor {
-            r: 255,
-            g: 255,
-            b: 255,
-            opacity: 1.,
-            blending: false,
-        }
-    }
-}
-
 impl Default for CopyColor {
     fn default() -> Self {
         CopyColor {
@@ -185,28 +170,6 @@ impl Default for CopyColor {
             opacity: 1.,
             blending: false,
             hsv: Hsv::default(),
-        }
-    }
-}
-
-pub(crate) fn get_color(colors: &HashMap<u64, ColorChannel>, index: &u64) -> (Color, bool) {
-    match colors.get(index).unwrap_or(&ColorChannel::default()) {
-        ColorChannel::BaseColor(color) => (
-            Color::rgba(
-                color.r as f32 / u8::MAX as f32,
-                color.g as f32 / u8::MAX as f32,
-                color.b as f32 / u8::MAX as f32,
-                color.opacity,
-            ),
-            color.blending,
-        ),
-        ColorChannel::CopyColor(color) => {
-            let (original_color, _) = get_color(colors, &color.copied_index);
-            let mut transformed_color = color.hsv.apply(original_color);
-            if !color.copy_opacity {
-                transformed_color.set_a(color.opacity);
-            }
-            (transformed_color, color.blending)
         }
     }
 }

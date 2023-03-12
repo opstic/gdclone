@@ -17,7 +17,7 @@ use std::cmp::Ordering;
 
 use crate::level::color::ColorChannels;
 use crate::level::object::Object;
-use crate::loaders::cocos2d_atlas::Cocos2dAtlas;
+use crate::level::Groups;
 use bevy::core_pipeline::tonemapping::DebandDither;
 use bevy::core_pipeline::{core_2d::Transparent2d, tonemapping::Tonemapping};
 use bevy::ecs::{
@@ -408,6 +408,7 @@ fn extract_sprites(
     mut extracted_objects: ResMut<ExtractedObjects>,
     texture_atlases: Extract<Res<Assets<TextureAtlas>>>,
     color_channels: Extract<Res<ColorChannels>>,
+    groups: Extract<Res<Groups>>,
     sprite_query: Extract<
         Query<(
             Entity,
@@ -431,35 +432,42 @@ fn extract_sprites(
 ) {
     extracted_sprites.sprites.clear();
     extracted_objects.objects.clear();
-    for (entity, visibility, sprite, transform, handle, object) in sprite_query.iter() {
+    'outer: for (entity, visibility, sprite, transform, handle, object) in sprite_query.iter() {
         if !visibility.is_visible() {
             continue;
         }
         let color;
         if let Some(object) = object {
-            // let (color_got, blending) = if let Some(color_channels) = color_channels {
-            //     color_channels.get_color(&object.color_channel);
-            // } else {
-            //     (sprite.color, false)
-            // };
-            let (color_got, blending) = color_channels.get_color(&object.color_channel);
+            let mut opacity = 1.;
+            for group_id in &object.groups {
+                if let Some(group) = groups.0.get(group_id) {
+                    if !group.activated {
+                        continue 'outer;
+                    }
+                    opacity *= group.opacity;
+                }
+            }
+            let (mut color_got, blending) = color_channels.get_color(&object.color_channel);
             extracted_objects.objects.insert(
                 entity,
                 ExtractedObject {
                     rotated: object.rotated,
                     z_layer: if blending {
-                        object.z_layer + 1
+                        object.z_layer - 1
                     } else {
                         object.z_layer
                     },
                     blending,
                 },
             );
-            color = if let Some(hsv) = &object.hsv {
-                hsv.apply(color_got)
-            } else {
-                color_got
-            };
+            if let Some(hsv) = &object.hsv {
+                color_got = hsv.apply(color_got);
+            }
+            color_got.set_a((color_got.a() as f64 * opacity) as f32);
+            if blending {
+                color_got.set_a(color_got.a().powf(4.475));
+            }
+            color = color_got;
         } else {
             color = sprite.color;
         }
@@ -477,7 +485,7 @@ fn extract_sprites(
             anchor: sprite.anchor.as_vec(),
         });
     }
-    for (entity, visibility, atlas_sprite, transform, texture_atlas_handle, object) in
+    'outer: for (entity, visibility, atlas_sprite, transform, texture_atlas_handle, object) in
         atlas_query.iter()
     {
         if !visibility.is_visible() {
@@ -486,29 +494,36 @@ fn extract_sprites(
         if let Some(texture_atlas) = texture_atlases.get(texture_atlas_handle) {
             let color;
             if let Some(object) = object {
-                // let (color_got, blending) = if let Some(color_channels) = color_channels {
-                //     color_channels.get_color(&object.color_channel);
-                // } else {
-                //     (atlas_sprite.color, false)
-                // };
-                let (color_got, blending) = color_channels.get_color(&object.color_channel);
+                let mut opacity = 1.;
+                for group_id in &object.groups {
+                    if let Some(group) = groups.0.get(group_id) {
+                        if !group.activated {
+                            continue 'outer;
+                        }
+                        opacity *= group.opacity;
+                    }
+                }
+                let (mut color_got, blending) = color_channels.get_color(&object.color_channel);
                 extracted_objects.objects.insert(
                     entity,
                     ExtractedObject {
                         rotated: object.rotated,
                         z_layer: if blending {
-                            object.z_layer + 1
+                            object.z_layer - 1
                         } else {
                             object.z_layer
                         },
                         blending,
                     },
                 );
-                color = if let Some(hsv) = &object.hsv {
-                    hsv.apply(color_got)
-                } else {
-                    color_got
-                };
+                if let Some(hsv) = &object.hsv {
+                    color_got = hsv.apply(color_got);
+                }
+                color_got.set_a((color_got.a() as f64 * opacity) as f32);
+                if blending {
+                    color_got.set_a(color_got.a().powf(4.475));
+                }
+                color = color_got;
             } else {
                 color = atlas_sprite.color;
             }
@@ -754,12 +769,9 @@ pub fn queue_sprites(
                 let new_batch = SpriteBatch {
                     image_handle_id: extracted_sprite.image_handle_id,
                     colored: extracted_sprite.color != Color::WHITE,
-                    blending: if let Some(object) =
-                        extracted_objects.objects.get(&extracted_sprite.entity)
-                    {
-                        object.blending
-                    } else {
-                        false
+                    blending: match extracted_objects.objects.get(&extracted_sprite.entity) {
+                        Some(object) => object.blending,
+                        None => false,
                     },
                 };
                 if new_batch != current_batch {
@@ -835,8 +847,17 @@ pub fn queue_sprites(
                         .into()
                 });
 
+                let depth;
+
+                if let Some(object) = extracted_objects.objects.get(&extracted_sprite.entity) {
+                    depth = extracted_sprite.transform.translation().z / 16.
+                        + (object.z_layer + 4) as f32 * 1000. / 16.;
+                } else {
+                    depth = extracted_sprite.transform.translation().z / 16.;
+                }
+
                 // These items will be sorted by depth with other phase items
-                let sort_key = FloatOrd(extracted_sprite.transform.translation().z);
+                let sort_key = FloatOrd(depth);
 
                 // Store the vertex data and add the item to the render phase
                 if current_batch.colored {

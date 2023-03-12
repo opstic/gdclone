@@ -2,16 +2,19 @@ pub(crate) mod color;
 pub(crate) mod de;
 pub(crate) mod easing;
 pub(crate) mod object;
-// pub(crate) mod trigger;
+pub(crate) mod trigger;
 
 use crate::level::color::{ColorChannel, ColorChannels};
-use crate::GameState;
 // use crate::level::trigger::{finish_triggers, tick_triggers, TriggerCompleted, TriggerSystems};
+use crate::level::trigger::TriggerSystems;
 use crate::utils::{decompress, decrypt, u8_to_bool};
-use bevy::app::{App, IntoSystemAppConfig, Plugin};
+use crate::GameState;
+use bevy::app::{App, CoreSet, IntoSystemAppConfig, Plugin};
 use bevy::ecs::schedule::SystemSet;
 use bevy::log::error;
-use bevy::prelude::{Commands, Entity, IntoSystemConfig, OnUpdate};
+use bevy::prelude::{Commands, Entity, IntoSystemConfig, IntoSystemSetConfig, OnUpdate, Resource};
+use bevy::render::view::VisibilitySystems::CheckVisibility;
+use bevy::transform::TransformSystem::TransformPropagate;
 use bevy::utils::HashMap;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
@@ -24,7 +27,19 @@ pub(crate) struct LevelPlugin;
 impl Plugin for LevelPlugin {
     fn build(&self, app: &mut App) {
         app.add_system(object::create_sprite.in_set(OnUpdate(GameState::Play)))
-            .init_resource::<ColorChannels>();
+            .add_system(
+                trigger::activate_xpos_triggers
+                    .in_set(TriggerSystems::ActivateTriggers)
+                    .in_set(OnUpdate(GameState::Play)),
+            )
+            .add_system(
+                trigger::execute_triggers
+                    .in_set(TriggerSystems::ExecuteTriggers)
+                    .after(TriggerSystems::ActivateTriggers),
+            )
+            .init_resource::<ColorChannels>()
+            .init_resource::<Groups>()
+            .init_resource::<trigger::ExecutingTriggers>();
     }
 }
 
@@ -87,6 +102,25 @@ pub(crate) struct ParsedInnerLevel<'a> {
     phantom: PhantomData<&'a DecompressedInnerLevel>,
 }
 
+#[derive(Default, Resource)]
+pub(crate) struct Groups(pub(crate) HashMap<u64, Group>);
+
+pub(crate) struct Group {
+    pub(crate) entities: Vec<Entity>,
+    pub(crate) activated: bool,
+    pub(crate) opacity: f64,
+}
+
+impl Default for Group {
+    fn default() -> Self {
+        Group {
+            entities: Vec::new(),
+            activated: true,
+            opacity: 1.,
+        }
+    }
+}
+
 impl<'a> ParsedInnerLevel<'a> {
     pub(crate) fn spawn_level(
         &self,
@@ -94,7 +128,7 @@ impl<'a> ParsedInnerLevel<'a> {
         low_detail: bool,
     ) -> Result<(), anyhow::Error> {
         let mut colors: HashMap<u64, ColorChannel> = HashMap::with_capacity(75);
-        let mut groups: HashMap<u64, Vec<Entity>> =
+        let mut groups: HashMap<u64, Group> =
             HashMap::with_capacity((self.objects.len() / 500).min(500));
         if let Some(colors_string) = self.start_object.get(b"kS38".as_ref()) {
             let parsed_colors: Vec<&[u8]> = de::from_slice(colors_string, b'|')?;
@@ -110,21 +144,25 @@ impl<'a> ParsedInnerLevel<'a> {
                     continue;
                 }
             }
-            let entity = match object::spawn_object(commands, object_data) {
+            let parsed_groups: Vec<u64> =
+                if let Some(group_string) = object_data.get(b"57".as_ref()) {
+                    de::from_slice(group_string, b'.')?
+                } else {
+                    Vec::new()
+                };
+            let entity = match object::spawn_object(commands, object_data, parsed_groups.clone()) {
                 Ok(entity) => entity,
                 Err(e) => {
                     error!("Error while parsing object: {}", e);
                     continue;
                 }
             };
-            if let Some(group_string) = object_data.get(b"57".as_ref()) {
-                let parsed_groups: Vec<u64> = de::from_slice(group_string, b'.')?;
-                for group in parsed_groups {
-                    let entry = groups.entry(group);
-                    entry.or_default().push(entity);
-                }
+            for group in parsed_groups {
+                let entry = groups.entry(group).or_default();
+                entry.entities.push(entity);
             }
         }
+        commands.insert_resource(Groups(groups));
         Ok(())
     }
 }

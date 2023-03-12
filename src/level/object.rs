@@ -1,14 +1,16 @@
-use crate::level::color;
 use crate::level::color::{ColorChannels, Hsv};
+use crate::level::{color, trigger};
 use crate::loaders::cocos2d_atlas::{find_texture, Cocos2dAtlas, Cocos2dTextureInfo};
 use crate::loaders::mapping::Mapping;
 use crate::states::loading::GlobalAssets;
 use crate::utils::u8_to_bool;
 use bevy::asset::{Assets, Handle};
+use bevy::log::info;
 use bevy::math::{Quat, Vec2, Vec3Swizzles};
 use bevy::prelude::{Commands, Component, Entity, Query, Res, Transform, Without};
 use bevy::sprite::{Anchor, SpriteSheetBundle, TextureAtlas, TextureAtlasSprite};
 use bevy::utils::{default, HashMap};
+use std::process::id;
 
 #[derive(Component, Default)]
 pub(crate) struct Object {
@@ -20,11 +22,13 @@ pub(crate) struct Object {
     pub(crate) flip_x: bool,
     pub(crate) flip_y: bool,
     pub(crate) transform: Transform,
+    pub(crate) groups: Vec<u64>,
 }
 
 pub(crate) fn spawn_object(
     commands: &mut Commands,
     object_data: &HashMap<&[u8], &[u8]>,
+    groups: Vec<u64>,
 ) -> Result<Entity, anyhow::Error> {
     let mut object = Object::default();
     if let Some(id) = object_data.get(b"1".as_ref()) {
@@ -62,7 +66,16 @@ pub(crate) fn spawn_object(
     if let Some(hsv) = object_data.get(b"43".as_ref()) {
         object.hsv = Some(Hsv::parse(hsv)?);
     }
-    Ok(commands.spawn(object).id())
+    let object_id = object.id;
+    object.groups = groups;
+    let entity = commands.spawn(object).id();
+    match object_id {
+        901 | 1007 | 1346 | 1049 | 899 => {
+            trigger::setup_trigger(commands, entity, &object_id, object_data)?
+        }
+        _ => (),
+    }
+    Ok(entity)
 }
 
 pub(crate) fn create_sprite(
@@ -86,33 +99,37 @@ pub(crate) fn create_sprite(
             &atlases,
             &object.id,
         ) {
+            info!("Object id {}", object.id);
             let mut flip_x = object.flip_x;
             let mut flip_y = object.flip_y;
-            let mut translation =
-                (object.transform.translation.xy() * 4.).extend(object.transform.translation.z);
+            let translation = (object.transform.translation.xy() * 4.)
+                .extend((object.transform.translation.z + 999.) / (999. + 10000.) * 999.);
             let mut rotation = object.transform.rotation;
             if info.rotated {
                 std::mem::swap(&mut flip_x, &mut flip_y);
-                rotation *= Quat::from_rotation_z((-90 as f32).to_radians())
+                rotation *= Quat::from_rotation_z((-90_f32).to_radians())
             }
             rotation = rotation.inverse();
+            let mut scale = object.transform.scale;
+            scale.x *= if flip_x { -1. } else { 1. };
+            scale.y *= if flip_y { -1. } else { 1. };
             let mut entity = commands.entity(entity);
             entity.insert(SpriteSheetBundle {
                 transform: Transform {
                     translation,
                     rotation,
-                    scale: object.transform.scale,
+                    scale,
                 },
                 sprite: TextureAtlasSprite {
                     index: info.index,
-                    flip_x,
-                    flip_y,
                     anchor: Anchor::Custom(info.anchor),
                     ..default()
                 },
                 texture_atlas: handle.clone(),
                 ..default()
             });
+        } else {
+            info!("Cant find texture???")
         }
     }
 }

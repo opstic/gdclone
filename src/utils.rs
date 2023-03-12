@@ -7,7 +7,7 @@ pub(crate) fn u8_to_bool(byte: &[u8]) -> bool {
 }
 
 #[inline(always)]
-pub(crate) fn lerp(start: f32, end: f32, x: f32) -> f32 {
+pub(crate) fn lerp(start: &f64, end: &f64, x: &f64) -> f64 {
     start + (end - start) * x
 }
 

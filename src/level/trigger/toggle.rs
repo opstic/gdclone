@@ -1,39 +1,29 @@
-use crate::level::trigger::{TriggerCompleted, TriggerFunction};
-use crate::states::play::{ColorChannels, ObjectColor};
-use bevy::prelude::{Entity, Events, Mut, Text, TextureAtlasSprite, Transform, Visibility};
-use std::time::Duration;
+use crate::level::object::Object;
+use crate::level::trigger::TriggerFunction;
+use crate::level::Groups;
+use bevy::ecs::system::SystemState;
+use bevy::prelude::{Query, Res, ResMut, Visibility, With, World};
 
+#[derive(Clone, Default)]
 pub(crate) struct ToggleTrigger {
     pub(crate) target_group: u64,
     pub(crate) activate: bool,
 }
 
 impl TriggerFunction for ToggleTrigger {
-    fn request_entities(&self) -> Vec<u64> {
-        vec![self.target_group]
-    }
-
-    fn reset(&mut self) {}
-
-    fn tick(
-        &mut self,
-        delta: Duration,
-        entity: Entity,
-        events: &mut Mut<Events<TriggerCompleted>>,
-    ) {
-        events.send(TriggerCompleted(entity))
-    }
-
-    fn execute(
-        &mut self,
-        group: &u64,
-        transform: &mut Mut<Transform>,
-        color: Option<&mut Mut<ObjectColor>>,
-        visibility: Option<&mut Mut<Visibility>>,
-        channels: &mut Mut<ColorChannels>,
-    ) {
-        if let Some(visibility) = visibility {
-            visibility.is_visible = self.activate;
+    fn execute(&mut self, world: &mut World) {
+        let mut system_state: SystemState<ResMut<Groups>> = SystemState::new(world);
+        let mut groups = system_state.get_mut(world);
+        if let Some(group) = groups.0.get_mut(&self.target_group) {
+            group.activated = self.activate;
         }
+    }
+
+    fn get_target_group(&self) -> u64 {
+        self.target_group
+    }
+
+    fn done_executing(&self) -> bool {
+        true
     }
 }

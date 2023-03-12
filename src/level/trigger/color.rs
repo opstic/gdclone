@@ -1,75 +1,76 @@
-use crate::level::color::ColorChannel;
-use crate::level::trigger::{TriggerCompleted, TriggerDuration, TriggerFunction};
-use crate::loaders::gdlevel::GDColorChannel::BaseColor;
-use crate::loaders::gdlevel::{GDBaseColor, GDColorChannel};
-use crate::states::play::{ColorChannels, ObjectColor};
-use interpolation::lerp;
-use bevy::log::info;
-use bevy::prelude::{Color, Entity, Events, Mut, Transform, Visibility};
-use std::sync::mpsc::channel;
-use std::time::Duration;
+use crate::level::color::BaseColor;
+use crate::level::color::{ColorChannel, ColorChannels};
+use crate::level::trigger::{TriggerDuration, TriggerFunction};
+use crate::utils::lerp;
+use bevy::ecs::system::SystemState;
+use bevy::prelude::{Color, Res, ResMut, World};
+use bevy::time::Time;
 
+#[derive(Clone, Default)]
 pub(crate) struct ColorTrigger {
     pub(crate) duration: TriggerDuration,
     pub(crate) target_channel: u64,
-    pub(crate) target_r: u8,
-    pub(crate) target_g: u8,
-    pub(crate) target_b: u8,
-    pub(crate) target_opacity: f32,
+    pub(crate) target_color: Color,
     pub(crate) target_blending: bool,
+    pub(crate) original_color: Color,
+    pub(crate) not_initial: bool,
 }
 
 impl TriggerFunction for ColorTrigger {
-    fn request_entities(&self) -> Vec<u64> {
-        vec![u64::MAX]
-    }
-
-    fn reset(&mut self) {
-        self.duration.reset()
-    }
-
-    fn tick(
-        &mut self,
-        delta: Duration,
-        entity: Entity,
-        events: &mut Mut<Events<TriggerCompleted>>,
-    ) {
-        self.duration.tick(delta);
-        if self.duration.completed() {
-            events.send(TriggerCompleted(entity));
-        }
-    }
-
-    fn execute(
-        &mut self,
-        group: &u64,
-        transform: &mut Mut<Transform>,
-        color: Option<&mut Mut<ObjectColor>>,
-        visibility: Option<&mut Mut<Visibility>>,
-        channels: &mut Mut<ColorChannels>,
-    ) {
+    fn execute(&mut self, world: &mut World) {
+        let mut system_state: SystemState<(Res<Time>, ResMut<ColorChannels>)> =
+            SystemState::new(world);
+        let (time, mut color_channels) = system_state.get_mut(world);
+        self.duration.tick(time.delta());
         let progress = self.duration.fraction_progress();
-        let entry = channels.colors.entry(self.target_channel);
-        let channel = entry.or_default();
-        let out;
-        if let BaseColor(color) = channel {
-            color.index = self.target_channel;
-            color.r = lerp(&color.original_r, &self.target_r, &progress);
-            color.g = lerp(&color.original_g, &self.target_g, &progress);
-            color.b = lerp(&color.original_b, &self.target_b, &progress);
-            color.opacity = lerp(&color.original_opacity, &self.target_opacity, &progress);
-            color.blending = self.target_blending;
-            if progress == 1. {
-                color.original_r = color.r;
-                color.original_g = color.g;
-                color.original_b = color.b;
-                color.original_opacity = color.opacity;
+        let channel = color_channels.0.entry(self.target_channel).or_default();
+        *channel = match channel {
+            ColorChannel::BaseColor(color) => {
+                let mut new_color = BaseColor::default();
+                if !self.not_initial {
+                    self.original_color = color.color;
+                    new_color.blending = self.target_blending;
+                }
+
+                if self.duration.completed() {
+                    new_color.color = self.target_color;
+                    new_color.blending = self.target_blending;
+                } else {
+                    new_color.color.set_r(lerp(
+                        &(self.original_color.r() as f64),
+                        &(self.target_color.r() as f64),
+                        &progress,
+                    ) as f32);
+                    new_color.color.set_g(lerp(
+                        &(self.original_color.g() as f64),
+                        &(self.target_color.g() as f64),
+                        &progress,
+                    ) as f32);
+                    new_color.color.set_b(lerp(
+                        &(self.original_color.b() as f64),
+                        &(self.target_color.b() as f64),
+                        &progress,
+                    ) as f32);
+                    new_color.color.set_a(lerp(
+                        &(self.original_color.a() as f64),
+                        &(self.target_color.a() as f64),
+                        &progress,
+                    ) as f32);
+                }
+                ColorChannel::BaseColor(new_color)
             }
-            out = color.clone();
-        } else {
-            info!("hey what???? {}", self.target_channel);
-            return;
-        }
-        *channel = BaseColor(out);
+            ColorChannel::CopyColor(_) => {
+                return;
+            }
+        };
+        self.not_initial = true;
+    }
+
+    fn get_target_group(&self) -> u64 {
+        0
+    }
+
+    fn done_executing(&self) -> bool {
+        self.duration.completed()
     }
 }

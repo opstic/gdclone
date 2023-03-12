@@ -10,6 +10,8 @@ use crate::level::object::Object;
 //     MultiActivate, Trigger, TriggerActivated, TriggerCompleted, TriggerDuration, TriggerFunction,
 //     TriggerInProgress, TriggerSystems, XPosActivate,
 // };
+use crate::level::trigger::ExecutingTriggers;
+use crate::level::Groups;
 use crate::loaders::gdlevel::SaveFile;
 use crate::states::loading::GlobalAssets;
 use crate::utils::{hsv_to_rgb, rgb_to_hsv, u8_to_bool};
@@ -296,8 +298,17 @@ fn move_camera(
     }
 }
 
-fn exit_play(mut next_state: ResMut<NextState<GameState>>, keys: Res<Input<KeyCode>>) {
+fn exit_play(
+    mut next_state: ResMut<NextState<GameState>>,
+    keys: Res<Input<KeyCode>>,
+    mut color_channels: ResMut<ColorChannels>,
+    mut groups: ResMut<Groups>,
+    mut executing_triggers: ResMut<ExecutingTriggers>,
+) {
     if keys.pressed(KeyCode::Escape) {
+        color_channels.0.clear();
+        groups.0.clear();
+        executing_triggers.0.clear();
         next_state.set(GameState::LevelSelect);
     }
 }

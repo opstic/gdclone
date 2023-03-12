@@ -1,10 +1,13 @@
 use crate::level::easing::Easing;
-use crate::level::trigger::{TriggerCompleted, TriggerDuration, TriggerFunction};
-use crate::states::play::{ColorChannels, ObjectColor};
-use bevy::math::{Quat, Vec3};
-use bevy::prelude::{Entity, Events, Mut, Text, TextureAtlasSprite, Transform, Visibility};
-use std::time::Duration;
+use crate::level::object::Object;
+use crate::level::trigger::{Trigger, TriggerDuration, TriggerFunction};
+use crate::level::Groups;
+use bevy::ecs::system::SystemState;
+use bevy::math::{Quat, Vec3Swizzles};
+use bevy::prelude::{Query, Res, Transform, With, Without, World};
+use bevy::time::Time;
 
+#[derive(Clone, Default)]
 pub(crate) struct RotateTrigger {
     pub(crate) duration: TriggerDuration,
     pub(crate) easing: Easing,
@@ -12,57 +15,65 @@ pub(crate) struct RotateTrigger {
     pub(crate) center_group: u64,
     pub(crate) degrees: i32,
     pub(crate) times360: i32,
-    pub(crate) amount: f32,
-    pub(crate) previous_amount: f32,
-    pub(crate) center_translation: Vec3,
 }
 
 impl TriggerFunction for RotateTrigger {
-    fn request_entities(&self) -> Vec<u64> {
-        vec![self.center_group, self.target_group]
-    }
-
-    fn reset(&mut self) {
-        self.duration.reset();
-    }
-
-    fn tick(
-        &mut self,
-        delta: Duration,
-        entity: Entity,
-        events: &mut Mut<Events<TriggerCompleted>>,
-    ) {
-        self.duration.tick(delta);
-        if self.duration.completed() {
-            events.send(TriggerCompleted(entity));
-        }
-        self.amount = self.easing.sample(self.duration.fraction_progress()) - self.previous_amount;
-        self.previous_amount = self.easing.sample(self.duration.fraction_progress());
-    }
-
-    fn execute(
-        &mut self,
-        group: &u64,
-        transform: &mut Mut<Transform>,
-        color: Option<&mut Mut<ObjectColor>>,
-        visibility: Option<&mut Mut<Visibility>>,
-        channels: &mut Mut<ColorChannels>,
-    ) {
-        if group == &self.center_group {
-            self.center_translation = transform.translation;
+    fn execute(&mut self, world: &mut World) {
+        let mut system_state: SystemState<(
+            Res<Time>,
+            Res<Groups>,
+            Query<&mut Transform, (With<Object>, Without<Trigger>)>,
+        )> = SystemState::new(world);
+        let (time, groups, mut object_transform_query) = system_state.get_mut(world);
+        let mut amount = self.easing.sample(self.duration.fraction_progress());
+        self.duration.tick(time.delta());
+        if self.duration.duration.is_zero() {
+            amount = 1.;
         } else {
-            if self.center_group == 0 {
-                transform.rotate(Quat::from_rotation_z(
-                    -((360 * self.times360 + self.degrees) as f32 * self.amount).to_radians(),
-                ));
+            amount = self.easing.sample(self.duration.fraction_progress()) - amount;
+        }
+        let center_translation = if let Some(center_group) = groups.0.get(&self.center_group) {
+            if center_group.entities.len() == 1 {
+                object_transform_query
+                    .get(center_group.entities[0])
+                    .map(|transform| transform.translation.xy())
+                    .ok()
             } else {
-                transform.rotate_around(
-                    self.center_translation,
-                    Quat::from_rotation_z(
-                        -((360 * self.times360 + self.degrees) as f32 * self.amount).to_radians(),
-                    ),
-                );
+                None
+            }
+        } else {
+            None
+        };
+        if let Some(center_translation) = center_translation {
+            if let Some(group) = groups.0.get(&self.target_group) {
+                for entity in &group.entities {
+                    if let Ok(mut transform) = object_transform_query.get_mut(*entity) {
+                        transform.rotate_around(
+                            center_translation.extend(0.),
+                            Quat::from_rotation_z(
+                                -((360 * self.times360 + self.degrees) as f64 * amount).to_radians()
+                                    as f32,
+                            ),
+                        );
+                    }
+                }
+            }
+        } else if let Some(group) = groups.0.get(&self.target_group) {
+            for entity in &group.entities {
+                if let Ok(mut transform) = object_transform_query.get_mut(*entity) {
+                    transform.rotate(Quat::from_rotation_z(
+                        -((360 * self.times360 + self.degrees) as f64 * amount).to_radians() as f32,
+                    ));
+                }
             }
         }
+    }
+
+    fn get_target_group(&self) -> u64 {
+        self.target_group
+    }
+
+    fn done_executing(&self) -> bool {
+        self.duration.completed()
     }
 }

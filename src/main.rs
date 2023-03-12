@@ -76,7 +76,7 @@ struct FpsText;
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
-        .spawn(Camera2dBundle::new_with_far(1300.))
+        .spawn(Camera2dBundle::default())
         .insert(Player(Vec2::ZERO));
     commands
         .spawn(TextBundle {
