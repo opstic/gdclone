@@ -1,6 +1,5 @@
 use crate::loaders::cocos2d_atlas::Cocos2dAtlas;
 use crate::loaders::gdlevel::SaveFile;
-use crate::loaders::mapping::Mapping;
 use crate::GameState;
 use bevy::prelude::*;
 
@@ -20,13 +19,11 @@ struct LoadingText;
 #[derive(Resource)]
 pub(crate) struct GlobalAssets {
     pub(crate) save_file: Handle<SaveFile>,
-    pub(crate) mapping: Handle<Mapping>,
     pub(crate) atlas1: Handle<Cocos2dAtlas>,
     pub(crate) atlas2: Handle<Cocos2dAtlas>,
     pub(crate) atlas3: Handle<Cocos2dAtlas>,
     pub(crate) atlas4: Handle<Cocos2dAtlas>,
     pub(crate) atlas5: Handle<Cocos2dAtlas>,
-    pub(crate) font: Handle<Font>,
 }
 
 #[derive(Resource, Default)]
@@ -59,32 +56,26 @@ fn loading_setup(
         .insert(LoadingText);
 
     let save_file: Handle<SaveFile> = server.load("CCLocalLevels.dat");
-    let mapping: Handle<Mapping> = server.load("data/object.json.mapping");
     let atlas1: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet-uhd.plist");
     let atlas2: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet02-uhd.plist");
     let atlas3: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet03-uhd.plist");
     let atlas4: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet04-uhd.plist");
     let atlas5: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheetGlow-uhd.plist");
-    let font: Handle<Font> = server.load("fonts/FiraSans-Bold.ttf");
 
     loading.0.push(save_file.clone_untyped());
-    loading.0.push(mapping.clone_untyped());
     loading.0.push(atlas1.clone_untyped());
     loading.0.push(atlas2.clone_untyped());
     loading.0.push(atlas3.clone_untyped());
     loading.0.push(atlas4.clone_untyped());
     loading.0.push(atlas5.clone_untyped());
-    loading.0.push(font.clone_untyped());
 
     commands.insert_resource(GlobalAssets {
         save_file,
-        mapping,
         atlas1,
         atlas2,
         atlas3,
         atlas4,
         atlas5,
-        font,
     });
 }
 

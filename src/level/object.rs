@@ -1,12 +1,11 @@
 use crate::level::color::Hsv;
 use crate::level::trigger;
 use crate::loaders::cocos2d_atlas::{find_texture, Cocos2dAtlas};
-use crate::loaders::mapping::Mapping;
 use crate::states::loading::GlobalAssets;
 use crate::utils::u8_to_bool;
 use bevy::asset::Assets;
-use bevy::log::info;
-use bevy::math::{Quat, Vec2, Vec3Swizzles};
+use bevy::hierarchy::BuildChildren;
+use bevy::math::{Quat, Vec2, Vec3, Vec3Swizzles};
 use bevy::prelude::{Commands, Component, Entity, Query, Res, Transform, Without};
 use bevy::sprite::{Anchor, SpriteSheetBundle, TextureAtlasSprite};
 use bevy::utils::{default, HashMap};
@@ -22,7 +21,37 @@ pub(crate) struct Object {
     pub(crate) flip_y: bool,
     pub(crate) transform: Transform,
     pub(crate) groups: Vec<u64>,
+    pub(crate) texture_name: String,
 }
+
+struct ObjectDefaultData {
+    texture_name: String,
+    default_z_layer: i8,
+    default_z_order: i16,
+    childrens: Vec<Children>,
+}
+
+impl Default for ObjectDefaultData {
+    fn default() -> Self {
+        ObjectDefaultData {
+            texture_name: "emptyFrame.png".to_string(),
+            default_z_layer: 0,
+            default_z_order: 0,
+            childrens: Vec::new(),
+        }
+    }
+}
+
+#[derive(Default)]
+struct Children {
+    texture_name: String,
+    x: f32,
+    y: f32,
+    z: i16,
+    rot: f32,
+}
+
+include!(concat!(env!("OUT_DIR"), "/generated_object.rs"));
 
 pub(crate) fn spawn_object(
     commands: &mut Commands,
@@ -33,6 +62,9 @@ pub(crate) fn spawn_object(
     if let Some(id) = object_data.get(b"1".as_ref()) {
         object.id = std::str::from_utf8(id)?.parse()?;
     }
+
+    let object_default_data: ObjectDefaultData = object_handler(object.id);
+
     if let Some(x) = object_data.get(b"2".as_ref()) {
         object.transform.translation.x = std::str::from_utf8(x)?.parse()?;
     }
@@ -51,13 +83,16 @@ pub(crate) fn spawn_object(
     }
     if let Some(z_layer) = object_data.get(b"24".as_ref()) {
         object.z_layer = std::str::from_utf8(z_layer)?.parse()?;
+    } else {
+        object.z_layer = object_default_data.default_z_layer;
     }
     if let Some(z_order) = object_data.get(b"25".as_ref()) {
         object.transform.translation.z = std::str::from_utf8(z_order)?.parse()?;
+    } else {
+        object.transform.translation.z = object_default_data.default_z_order as f32;
     }
     if let Some(scale) = object_data.get(b"32".as_ref()) {
-        object.transform.scale =
-            (std::str::from_utf8(scale)?.parse::<f32>()? * Vec2::ONE).extend(0.);
+        object.transform.scale = Vec2::splat(std::str::from_utf8(scale)?.parse()?).extend(0.);
     }
     if let Some(color_channel) = object_data.get(b"21".as_ref()) {
         object.color_channel = std::str::from_utf8(color_channel)?.parse()?;
@@ -66,7 +101,11 @@ pub(crate) fn spawn_object(
         object.hsv = Some(Hsv::parse(hsv)?);
     }
     let object_id = object.id;
-    object.groups = groups;
+    let object_z_layer = object.z_layer;
+    let object_color_channel = object.color_channel;
+    let object_hsv = object.hsv.clone();
+    object.groups = groups.clone();
+    object.texture_name = object_default_data.texture_name;
     let entity = commands.spawn(object).id();
     match object_id {
         901 | 1007 | 1346 | 1049 | 899 => {
@@ -74,15 +113,39 @@ pub(crate) fn spawn_object(
         }
         _ => (),
     }
+    for child in object_default_data.childrens {
+        let mut child_object = Object {
+            texture_name: child.texture_name,
+            z_layer: object_z_layer,
+            transform: Transform {
+                translation: Vec3::new(child.x, child.y, child.z as f32),
+                rotation: Quat::from_rotation_z(child.rot.to_radians()),
+                ..default()
+            },
+            ..default()
+        };
+        if let Some(secondary_color_channel) = object_data.get(b"22".as_ref()) {
+            child_object.color_channel = std::str::from_utf8(secondary_color_channel)?.parse()?;
+        } else {
+            child_object.color_channel = object_color_channel;
+        }
+        if let Some(secondary_hsv) = object_data.get(b"44".as_ref()) {
+            child_object.hsv = Some(Hsv::parse(secondary_hsv)?);
+        } else {
+            child_object.hsv = object_hsv.clone();
+        }
+        child_object.groups = groups.clone();
+        let child_entity = commands.spawn(child_object).id();
+        commands.entity(entity).add_child(child_entity);
+    }
     Ok(entity)
 }
 
 pub(crate) fn create_sprite(
     mut commands: Commands,
     global_assets: Res<GlobalAssets>,
-    mappings: Res<Assets<Mapping>>,
     cocos2d_atlases: Res<Assets<Cocos2dAtlas>>,
-    mut object_without_cocos2d: Query<(Entity, &mut Object), Without<TextureAtlasSprite>>,
+    object_without_sprite: Query<(Entity, &Object), Without<TextureAtlasSprite>>,
 ) {
     let atlases = vec![
         &global_assets.atlas1,
@@ -91,48 +154,38 @@ pub(crate) fn create_sprite(
         &global_assets.atlas4,
         &global_assets.atlas5,
     ];
-    for (entity, mut object) in &mut object_without_cocos2d {
-        if let Some(mapping) = mappings.get(&global_assets.mapping) {
-            if let Some(metadata) = mapping.0.get(&object.id) {
-                if let Some((info, handle)) =
-                    find_texture(&cocos2d_atlases, &atlases, &metadata.texture_name)
-                {
-                    if object.z_layer == 0 {
-                        object.z_layer = metadata.default_z_layer;
-                    }
-                    if object.transform.translation.z == 0. {
-                        object.transform.translation.z = metadata.default_z_order as f32;
-                    }
-                    let mut flip_x = object.flip_x;
-                    let mut flip_y = object.flip_y;
-                    let translation = (object.transform.translation.xy() * 4.)
-                        .extend((object.transform.translation.z + 999.) / (999. + 10000.) * 999.);
-                    let mut rotation = object.transform.rotation;
-                    if info.rotated {
-                        std::mem::swap(&mut flip_x, &mut flip_y);
-                        rotation *= Quat::from_rotation_z((-90_f32).to_radians())
-                    }
-                    rotation = rotation.inverse();
-                    let mut scale = object.transform.scale;
-                    scale.x *= if flip_x { -1. } else { 1. };
-                    scale.y *= if flip_y { -1. } else { 1. };
-                    let mut entity = commands.entity(entity);
-                    entity.insert(SpriteSheetBundle {
-                        transform: Transform {
-                            translation,
-                            rotation,
-                            scale,
-                        },
-                        sprite: TextureAtlasSprite {
-                            index: info.index,
-                            anchor: Anchor::Custom(info.anchor),
-                            ..default()
-                        },
-                        texture_atlas: handle.clone(),
-                        ..default()
-                    });
-                }
+    for (entity, object) in object_without_sprite.iter() {
+        if let Some((info, atlas_handle)) =
+            find_texture(&cocos2d_atlases, &atlases, &&object.texture_name)
+        {
+            let mut flip_x = object.flip_x;
+            let mut flip_y = object.flip_y;
+            let translation = (object.transform.translation.xy() * 4.)
+                .extend((object.transform.translation.z + 999.) / (999. + 10000.) * 999.);
+            let mut rotation = object.transform.rotation;
+            if info.rotated {
+                std::mem::swap(&mut flip_x, &mut flip_y);
+                rotation *= Quat::from_rotation_z((-90_f32).to_radians())
             }
+            rotation = rotation.inverse();
+            let mut scale = object.transform.scale;
+            scale.x *= if flip_x { -1. } else { 1. };
+            scale.y *= if flip_y { -1. } else { 1. };
+            let mut entity = commands.entity(entity);
+            entity.insert(SpriteSheetBundle {
+                transform: Transform {
+                    translation,
+                    rotation,
+                    scale,
+                },
+                sprite: TextureAtlasSprite {
+                    index: info.index,
+                    anchor: Anchor::Custom(info.anchor),
+                    ..default()
+                },
+                texture_atlas: atlas_handle.clone(),
+                ..default()
+            });
         }
     }
 }

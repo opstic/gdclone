@@ -28,6 +28,6 @@ Copyright (C) 2022-2023 Opstic
 </sub>
 </br>
 <sub>
-ALL RIGHTS RESERVED. With exception of objectTexture.json.mapping by <a href="https://github.com/SMJSGaming">@SMJSGaming</a>
+ALL RIGHTS RESERVED.
 </sub>
 <br>

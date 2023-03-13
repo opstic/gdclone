@@ -39,6 +39,10 @@ fixedbitset = "0.4.2"
 bitflags = "1.3.2"
 memchr = "2.5.0"
 
+[build-dependencies]
+serde = { version = "1.0.154", features = ['derive'] }
+serde_json = "1.0.94"
+
 # Enable only a small amount of optimization in debug mode
 [profile.dev]
 opt-level = 1
