@@ -1,9 +1,8 @@
 use crate::level::color::BaseColor;
 use crate::level::color::{ColorChannel, ColorChannels};
 use crate::level::trigger::{TriggerDuration, TriggerFunction};
-use crate::utils::{lerp, lerp_color};
+use crate::utils::lerp_color;
 use bevy::ecs::system::SystemState;
-use bevy::log::info;
 use bevy::prelude::{Color, Res, ResMut, World};
 use bevy::time::Time;
 

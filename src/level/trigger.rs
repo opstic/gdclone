@@ -7,7 +7,6 @@ use crate::level::trigger::rotate::RotateTrigger;
 use crate::level::trigger::toggle::ToggleTrigger;
 use crate::level::Groups;
 use crate::utils::u8_to_bool;
-use bevy::hierarchy::Parent;
 
 use bevy::prelude::{
     Camera2d, Commands, Component, Entity, Mut, Query, Res, ResMut, Resource, SystemSet, Transform,
@@ -104,7 +103,6 @@ dyn_clone::clone_trait_object!(TriggerFunction);
 
 pub(crate) fn activate_xpos_triggers(
     commands: Commands,
-    entity_with_parent: Query<&Parent>,
     triggers: Query<
         (Entity, &Transform, &Object, &Trigger),
         (
