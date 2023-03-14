@@ -182,9 +182,10 @@ pub(crate) fn setup_trigger(
         899 => {
             let mut trigger = ColorTrigger::default();
             if let Some(duration) = object_data.get(b"10".as_ref()) {
-                trigger.duration = TriggerDuration::new(Duration::from_secs_f32(
-                    std::str::from_utf8(duration)?.parse()?,
-                ))
+                trigger.duration = TriggerDuration::new(
+                    Duration::try_from_secs_f32(std::str::from_utf8(duration)?.parse()?)
+                        .unwrap_or(Duration::ZERO),
+                )
             }
             if let Some(target_channel) = object_data.get(b"23".as_ref()) {
                 trigger.target_channel = std::str::from_utf8(target_channel)?.parse()?;
@@ -219,9 +220,10 @@ pub(crate) fn setup_trigger(
         901 => {
             let mut trigger = MoveTrigger::default();
             if let Some(duration) = object_data.get(b"10".as_ref()) {
-                trigger.duration = TriggerDuration::new(Duration::from_secs_f32(
-                    std::str::from_utf8(duration)?.parse()?,
-                ))
+                trigger.duration = TriggerDuration::new(
+                    Duration::try_from_secs_f32(std::str::from_utf8(duration)?.parse()?)
+                        .unwrap_or(Duration::ZERO),
+                )
             }
             if let Some(easing) = object_data.get(b"30".as_ref()) {
                 let id = std::str::from_utf8(easing)?.parse()?;
@@ -250,9 +252,10 @@ pub(crate) fn setup_trigger(
         1007 => {
             let mut trigger = AlphaTrigger::default();
             if let Some(duration) = object_data.get(b"10".as_ref()) {
-                trigger.duration = TriggerDuration::new(Duration::from_secs_f32(
-                    std::str::from_utf8(duration)?.parse()?,
-                ))
+                trigger.duration = TriggerDuration::new(
+                    Duration::try_from_secs_f32(std::str::from_utf8(duration)?.parse()?)
+                        .unwrap_or(Duration::ZERO),
+                )
             }
             if let Some(target_group) = object_data.get(b"51".as_ref()) {
                 trigger.target_group = std::str::from_utf8(target_group)?.parse()?;
@@ -277,9 +280,10 @@ pub(crate) fn setup_trigger(
         1346 => {
             let mut trigger = RotateTrigger::default();
             if let Some(duration) = object_data.get(b"10".as_ref()) {
-                trigger.duration = TriggerDuration::new(Duration::from_secs_f32(
-                    std::str::from_utf8(duration)?.parse()?,
-                ))
+                trigger.duration = TriggerDuration::new(
+                    Duration::try_from_secs_f32(std::str::from_utf8(duration)?.parse()?)
+                        .unwrap_or(Duration::ZERO),
+                )
             }
             if let Some(easing) = object_data.get(b"30".as_ref()) {
                 let id = std::str::from_utf8(easing)?.parse()?;
