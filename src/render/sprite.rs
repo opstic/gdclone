@@ -12,11 +12,13 @@ use bevy::sprite::{
     TextureAtlas, TextureAtlasSprite,
 };
 use bevy::utils::{FloatOrd, HashMap};
+use std::cell::Cell;
 
 use std::cmp::Ordering;
 
 use crate::level::color::ColorChannels;
-use crate::level::object::Object;
+use crate::level::object::{Object, ObjectVisibility};
+use crate::level::trigger::Trigger;
 use crate::level::Groups;
 use bevy::core_pipeline::tonemapping::DebandDither;
 use bevy::core_pipeline::{core_2d::Transparent2d, tonemapping::Tonemapping};
@@ -45,6 +47,7 @@ use bevy::render::{
 use bevy::transform::components::GlobalTransform;
 use bytemuck::{Pod, Zeroable};
 use fixedbitset::FixedBitSet;
+use thread_local::ThreadLocal;
 
 #[derive(Default)]
 pub struct CustomSpritePlugin;
@@ -404,107 +407,70 @@ pub fn extract_sprite_events(
 }
 
 fn extract_sprites(
+    mut object_thread_queues: Local<ThreadLocal<Cell<Vec<(Entity, ExtractedObject)>>>>,
+    mut sprite_thread_queues: Local<ThreadLocal<Cell<Vec<ExtractedSprite>>>>,
     mut extracted_sprites: ResMut<ExtractedSprites>,
     mut extracted_objects: ResMut<ExtractedObjects>,
     texture_atlases: Extract<Res<Assets<TextureAtlas>>>,
     color_channels: Extract<Res<ColorChannels>>,
     groups: Extract<Res<Groups>>,
     sprite_query: Extract<
-        Query<(
-            Entity,
-            &ComputedVisibility,
-            &Sprite,
-            &GlobalTransform,
-            &Handle<Image>,
-            Option<&Object>,
-        )>,
+        Query<
+            (
+                Entity,
+                Option<&ComputedVisibility>,
+                Option<&ObjectVisibility>,
+                &Sprite,
+                &GlobalTransform,
+                &Handle<Image>,
+                Option<&Object>,
+            ),
+            Without<Trigger>,
+        >,
     >,
     atlas_query: Extract<
-        Query<(
-            Entity,
-            &ComputedVisibility,
-            &TextureAtlasSprite,
-            &GlobalTransform,
-            &Handle<TextureAtlas>,
-            Option<&Object>,
-        )>,
+        Query<
+            (
+                Entity,
+                Option<&ComputedVisibility>,
+                Option<&ObjectVisibility>,
+                &TextureAtlasSprite,
+                &GlobalTransform,
+                &Handle<TextureAtlas>,
+                Option<&Object>,
+            ),
+            Without<Trigger>,
+        >,
     >,
 ) {
     extracted_sprites.sprites.clear();
     extracted_objects.objects.clear();
-    'outer: for (entity, visibility, sprite, transform, handle, object) in sprite_query.iter() {
-        if !visibility.is_visible() {
-            continue;
-        }
-        let color;
-        if let Some(object) = object {
-            let mut opacity = 1.;
-            for group_id in &object.groups {
-                if let Some(group) = groups.0.get(group_id) {
-                    if !group.activated {
-                        continue 'outer;
-                    }
-                    opacity *= group.opacity;
+    sprite_query.par_iter().for_each_mut(
+        |(entity, visibility, object_visibility, sprite, transform, handle, object)| {
+            if let Some(visibility) = visibility {
+                if !visibility.is_visible() {
+                    return;
                 }
             }
-            let (mut color_got, blending) = color_channels.get_color(&object.color_channel);
-            extracted_objects.objects.insert(
-                entity,
-                ExtractedObject {
-                    rotated: object.rotated,
-                    z_layer: if blending {
-                        object.z_layer - 1
-                    } else {
-                        object.z_layer
-                    },
-                    blending,
-                },
-            );
-            if let Some(hsv) = &object.hsv {
-                color_got = hsv.apply(color_got);
+            if let Some(object_visibility) = object_visibility {
+                if !object_visibility.visible {
+                    return;
+                }
             }
-            color_got.set_a((color_got.a() as f64 * opacity) as f32);
-            if blending {
-                color_got.set_a(color_got.a().powf(4.475));
-            }
-            color = color_got;
-        } else {
-            color = sprite.color;
-        }
-        // PERF: we don't check in this function that the `Image` asset is ready, since it should be in most cases and hashing the handle is expensive
-        extracted_sprites.sprites.push(ExtractedSprite {
-            entity,
-            color,
-            transform: *transform,
-            rect: sprite.rect,
-            // Pass the custom size
-            custom_size: sprite.custom_size,
-            flip_x: sprite.flip_x,
-            flip_y: sprite.flip_y,
-            image_handle_id: handle.id(),
-            anchor: sprite.anchor.as_vec(),
-        });
-    }
-    'outer: for (entity, visibility, atlas_sprite, transform, texture_atlas_handle, object) in
-        atlas_query.iter()
-    {
-        if !visibility.is_visible() {
-            continue;
-        }
-        if let Some(texture_atlas) = texture_atlases.get(texture_atlas_handle) {
-            let color;
-            if let Some(object) = object {
+            let color = if let Some(object) = object {
                 let mut opacity = 1.;
                 for group_id in &object.groups {
                     if let Some(group) = groups.0.get(group_id) {
                         if !group.activated {
-                            continue 'outer;
+                            return;
                         }
                         opacity *= group.opacity;
                     }
                 }
                 let (mut color_got, blending) = color_channels.get_color(&object.color_channel);
-                extracted_objects.objects.insert(
+                let cell = object_thread_queues.get_or_default();
+                let mut queue = cell.take();
+                queue.push((
                     entity,
                     ExtractedObject {
                         rotated: object.rotated,
@@ -515,7 +481,8 @@ fn extract_sprites(
                         },
                         blending,
                     },
-                );
+                ));
+                cell.set(queue);
                 if let Some(hsv) = &object.hsv {
                     color_got = hsv.apply(color_got);
                 }
@@ -523,25 +490,109 @@ fn extract_sprites(
                 if blending {
                     color_got.set_a(color_got.a().powf(4.475));
                 }
-                color = color_got;
+                color_got
             } else {
-                color = atlas_sprite.color;
-            }
-            let rect = Some(texture_atlas.textures[atlas_sprite.index]);
-            extracted_sprites.sprites.push(ExtractedSprite {
+                sprite.color
+            };
+            let cell = sprite_thread_queues.get_or_default();
+            let mut queue = cell.take();
+            queue.push(ExtractedSprite {
                 entity,
                 color,
                 transform: *transform,
-                // Select the area in the texture atlas
-                rect,
+                rect: sprite.rect,
                 // Pass the custom size
-                custom_size: atlas_sprite.custom_size,
-                flip_x: atlas_sprite.flip_x,
-                flip_y: atlas_sprite.flip_y,
-                image_handle_id: texture_atlas.texture.id(),
-                anchor: atlas_sprite.anchor.as_vec(),
+                custom_size: sprite.custom_size,
+                flip_x: sprite.flip_x,
+                flip_y: sprite.flip_y,
+                image_handle_id: handle.id(),
+                anchor: sprite.anchor.as_vec(),
             });
-        }
+            cell.set(queue);
+        },
+    );
+    atlas_query.par_iter().for_each_mut(
+        |(
+            entity,
+            visibility,
+            object_visibility,
+            atlas_sprite,
+            transform,
+            texture_atlas_handle,
+            object,
+        )| {
+            if let Some(visibility) = visibility {
+                if !visibility.is_visible() {
+                    return;
+                }
+            }
+            if let Some(object_visibility) = object_visibility {
+                if !object_visibility.visible {
+                    return;
+                }
+            }
+            if let Some(texture_atlas) = texture_atlases.get(texture_atlas_handle) {
+                let color = if let Some(object) = object {
+                    let mut opacity = 1.;
+                    for group_id in &object.groups {
+                        if let Some(group) = groups.0.get(group_id) {
+                            if !group.activated {
+                                return;
+                            }
+                            opacity *= group.opacity;
+                        }
+                    }
+                    let (mut color_got, blending) = color_channels.get_color(&object.color_channel);
+                    let cell = object_thread_queues.get_or_default();
+                    let mut queue = cell.take();
+                    queue.push((
+                        entity,
+                        ExtractedObject {
+                            rotated: object.rotated,
+                            z_layer: if blending {
+                                object.z_layer - 1
+                            } else {
+                                object.z_layer
+                            },
+                            blending,
+                        },
+                    ));
+                    cell.set(queue);
+                    if let Some(hsv) = &object.hsv {
+                        color_got = hsv.apply(color_got);
+                    }
+                    color_got.set_a((color_got.a() as f64 * opacity) as f32);
+                    if blending {
+                        color_got.set_a(color_got.a().powf(4.475));
+                    }
+                    color_got
+                } else {
+                    atlas_sprite.color
+                };
+                let rect = Some(texture_atlas.textures[atlas_sprite.index]);
+                let cell = sprite_thread_queues.get_or_default();
+                let mut queue = cell.take();
+                queue.push(ExtractedSprite {
+                    entity,
+                    color,
+                    transform: *transform,
+                    rect,
+                    // Pass the custom size
+                    custom_size: atlas_sprite.custom_size,
+                    flip_x: atlas_sprite.flip_x,
+                    flip_y: atlas_sprite.flip_y,
+                    image_handle_id: texture_atlas.texture.id(),
+                    anchor: atlas_sprite.anchor.as_vec(),
+                });
+                cell.set(queue);
+            }
+        },
+    );
+    for cell in sprite_thread_queues.iter_mut() {
+        extracted_sprites.sprites.append(cell.get_mut());
+    }
+    for cell in object_thread_queues.iter_mut() {
+        extracted_objects.objects.extend(cell.take());
     }
 }
 
@@ -768,7 +819,8 @@ pub fn queue_sprites(
                 }
                 let new_batch = SpriteBatch {
                     image_handle_id: extracted_sprite.image_handle_id,
-                    colored: extracted_sprite.color != Color::WHITE,
+                    // colored: extracted_sprite.color != Color::WHITE,
+                    colored: true,
                     blending: match extracted_objects.objects.get(&extracted_sprite.entity) {
                         Some(object) => object.blending,
                         None => false,

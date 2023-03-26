@@ -16,6 +16,8 @@ use bevy::utils::HashMap;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
+use bevy::render::view;
+use bevy::render::view::VisibilitySystems;
 use std::marker::PhantomData;
 
 #[derive(Default)]
@@ -33,6 +35,11 @@ impl Plugin for LevelPlugin {
                 trigger::execute_triggers
                     .in_set(TriggerSystems::ExecuteTriggers)
                     .after(TriggerSystems::ActivateTriggers),
+            )
+            .add_system(
+                object::update_visibility
+                    .in_set(VisibilitySystems::CheckVisibility)
+                    .after(view::check_visibility),
             )
             .init_resource::<ColorChannels>()
             .init_resource::<Groups>()

@@ -16,6 +16,7 @@ mod render;
 mod states;
 mod utils;
 
+use crate::level::object::ObjectVisibility;
 use crate::states::play::Player;
 use level::LevelPlugin;
 use loaders::AssetLoaderPlugin;
@@ -131,7 +132,7 @@ fn update_fps(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<Fp
 //     }
 // }
 
-pub fn calculate_bounds(
+pub(crate) fn calculate_bounds(
     mut commands: Commands,
     meshes: Res<Assets<Mesh>>,
     images: Res<Assets<Image>>,
@@ -143,7 +144,10 @@ pub fn calculate_bounds(
     >,
     atlases_without_aabb: Query<
         (Entity, &TextureAtlasSprite, &Handle<TextureAtlas>),
-        (Without<Aabb>, Without<NoFrustumCulling>),
+        (
+            Without<Aabb>,
+            Or<(Without<NoFrustumCulling>, With<ObjectVisibility>)>,
+        ),
     >,
 ) {
     for (entity, mesh_handle) in meshes_without_aabb.iter() {

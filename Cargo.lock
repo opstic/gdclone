@@ -1471,7 +1471,6 @@ dependencies = [
 name = "gdclone"
 version = "0.1.0"
 dependencies = [
- "aho-corasick",
  "anyhow",
  "base64 0.21.0",
  "bevy",
@@ -1485,6 +1484,7 @@ dependencies = [
  "quick-xml",
  "serde",
  "serde_json",
+ "thread_local",
 ]
 
 [[package]]
