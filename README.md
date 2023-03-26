@@ -1,4 +1,4 @@
-<img src="https://github.com/opstic/gdclone/raw/main/assets/icon.png" align="right" alt="Logo" width="256" height="256">
+<img src="https://github.com/opstic/gdclone/raw/main/assets/icon.png" align="right" alt="Logo" width="192" height="192">
 
 # GDClone
 
