@@ -1,5 +1,5 @@
 <h1 align="center">
-    <img src="https://github.com/opstic/gdclone/raw/main/assets/logo.png" alt="Logo" width="128" height="128">
+    <img src="https://github.com/opstic/gdclone/raw/main/assets/icon.png" alt="Logo" width="128" height="128">
 </h1>
 
 <br />
