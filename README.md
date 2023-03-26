@@ -1,3 +1,9 @@
+<h1 align="center">
+    <img src="https://github.com/opstic/gdclone/raw/main/assets/logo.png" alt="Logo" width="128" height="128">
+</h1>
+
+<br />
+
 # GDClone
 
 An attempt at a alternative GD client.
