@@ -1,4 +1,5 @@
 // #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![allow(clippy::type_complexity)]
 
 use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
