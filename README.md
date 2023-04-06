@@ -25,13 +25,16 @@ You'll also have to copy your `CCLocalLevels.dat` to the `assets` folder.
 Controls are WASD to move, use arrow keys to move slower, hold left-shift to move faster.
 
 Q and E to zoom in and out.
-<br>
+
+### Credits
+
+Thanks to [@maxnut](https://github.com/maxnut) for providing code to extract `object.json`.
+
 #### License
 <sub>
 Copyright (C) 2022-2023 Opstic
 </sub>
-</br>
+<br />
 <sub>
 ALL RIGHTS RESERVED.
 </sub>
-<br>
