@@ -8,7 +8,7 @@ pub(crate) fn u8_to_bool(byte: &[u8]) -> bool {
 }
 
 #[inline(always)]
-pub(crate) fn lerp(start: &f64, end: &f64, x: &f64) -> f64 {
+pub(crate) fn lerp(start: &f32, end: &f32, x: &f32) -> f32 {
     start + (end - start) * x
 }
 
@@ -68,11 +68,12 @@ pub fn hsv_to_rgb((h, s, v): (f32, f32, f32)) -> [f32; 3] {
     [r + m, g + m, b + m]
 }
 
-pub(crate) fn lerp_color(start: &Color, end: &Color, x: &f64) -> Color {
-    let r = lerp(&(start.r() as f64), &(end.r() as f64), x) as f32;
-    let g = lerp(&(start.g() as f64), &(end.g() as f64), x) as f32;
-    let b = lerp(&(start.b() as f64), &(end.b() as f64), x) as f32;
-    let a = lerp(&(start.a() as f64), &(end.a() as f64), x) as f32;
+#[inline(always)]
+pub(crate) fn lerp_color(start: &Color, end: &Color, x: &f32) -> Color {
+    let r = lerp(&start.r(), &end.r(), x);
+    let g = lerp(&start.g(), &end.g(), x);
+    let b = lerp(&start.b(), &end.b(), x);
+    let a = lerp(&start.a(), &end.a(), x);
     Color::rgba(r, g, b, a)
 }
 

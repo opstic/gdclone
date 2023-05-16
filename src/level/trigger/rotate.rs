@@ -11,8 +11,8 @@ use bevy::time::Time;
 pub(crate) struct RotateTrigger {
     pub(crate) duration: TriggerDuration,
     pub(crate) easing: Easing,
-    pub(crate) target_group: u64,
-    pub(crate) center_group: u64,
+    pub(crate) target_group: u32,
+    pub(crate) center_group: u32,
     pub(crate) degrees: i32,
     pub(crate) times360: i32,
 }
@@ -69,7 +69,7 @@ impl TriggerFunction for RotateTrigger {
         }
     }
 
-    fn get_target_group(&self) -> u64 {
+    fn get_target_group(&self) -> u32 {
         self.target_group
     }
 

@@ -5,7 +5,7 @@ use bevy::prelude::{ResMut, World};
 
 #[derive(Clone, Default)]
 pub(crate) struct ToggleTrigger {
-    pub(crate) target_group: u64,
+    pub(crate) target_group: u32,
     pub(crate) activate: bool,
 }
 
@@ -18,7 +18,7 @@ impl TriggerFunction for ToggleTrigger {
         }
     }
 
-    fn get_target_group(&self) -> u64 {
+    fn get_target_group(&self) -> u32 {
         self.target_group
     }
 

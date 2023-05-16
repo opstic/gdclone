@@ -9,7 +9,8 @@ use bevy::time::Time;
 #[derive(Clone, Default)]
 pub(crate) struct ColorTrigger {
     pub(crate) duration: TriggerDuration,
-    pub(crate) target_channel: u64,
+    pub(crate) target_channel: u32,
+    pub(crate) copied_channel: u32,
     pub(crate) target_color: Color,
     pub(crate) target_blending: bool,
     pub(crate) original_color: Color,
@@ -48,8 +49,8 @@ impl TriggerFunction for ColorTrigger {
         self.not_initial = true;
     }
 
-    fn get_target_group(&self) -> u64 {
-        0
+    fn get_target_group(&self) -> u32 {
+        self.target_channel
     }
 
     fn done_executing(&self) -> bool {

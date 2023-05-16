@@ -6,10 +6,10 @@ use bevy::utils::HashMap;
 use serde::Deserialize;
 
 #[derive(Default, Resource)]
-pub(crate) struct ColorChannels(pub(crate) HashMap<u64, ColorChannel>);
+pub(crate) struct ColorChannels(pub(crate) HashMap<u32, ColorChannel>);
 
 impl ColorChannels {
-    pub(crate) fn get_color(&self, index: &u64) -> (Color, bool) {
+    pub(crate) fn get_color(&self, index: &u32) -> (Color, bool) {
         match self.0.get(index).unwrap_or(&ColorChannel::default()) {
             ColorChannel::BaseColor(color) => (color.color, color.blending),
             ColorChannel::CopyColor(color) => {
@@ -31,7 +31,7 @@ pub(crate) enum ColorChannel {
 }
 
 impl ColorChannel {
-    pub(crate) fn parse(color_string: &[u8]) -> Result<(u64, ColorChannel), anyhow::Error> {
+    pub(crate) fn parse(color_string: &[u8]) -> Result<(u32, ColorChannel), anyhow::Error> {
         let color_data: HashMap<&[u8], &[u8]> = de::from_slice(color_string, b'_')?;
         let color;
         if color_data.contains_key(b"9".as_ref()) {
@@ -97,7 +97,7 @@ pub(crate) struct BaseColor {
 
 #[derive(Debug, Deserialize, Clone)]
 pub(crate) struct CopyColor {
-    pub(crate) copied_index: u64,
+    pub(crate) copied_index: u32,
     pub(crate) copy_opacity: bool,
     pub(crate) opacity: f32,
     pub(crate) blending: bool,

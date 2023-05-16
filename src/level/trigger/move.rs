@@ -12,7 +12,7 @@ use bevy::time::Time;
 pub(crate) struct MoveTrigger {
     pub(crate) duration: TriggerDuration,
     pub(crate) easing: Easing,
-    pub(crate) target_group: u64,
+    pub(crate) target_group: u32,
     pub(crate) x_offset: f32,
     pub(crate) y_offset: f32,
     pub(crate) lock_x: bool,
@@ -72,7 +72,7 @@ impl TriggerFunction for MoveTrigger {
         self.player_previous_translation = player_translation;
     }
 
-    fn get_target_group(&self) -> u64 {
+    fn get_target_group(&self) -> u32 {
         self.target_group
     }
 

@@ -23,15 +23,15 @@ use thread_local::ThreadLocal;
 
 #[derive(Component, Default)]
 pub(crate) struct Object {
-    pub(crate) id: u64,
+    pub(crate) id: u32,
     pub(crate) z_layer: i8,
-    pub(crate) color_channel: u64,
+    pub(crate) color_channel: u32,
     pub(crate) hsv: Option<Hsv>,
     pub(crate) rotated: bool,
     pub(crate) flip_x: bool,
     pub(crate) flip_y: bool,
     pub(crate) transform: Transform,
-    pub(crate) groups: Vec<u64>,
+    pub(crate) groups: Vec<u32>,
     pub(crate) texture_name: String,
     pub(crate) additional_anchor: Vec2,
 }
@@ -112,7 +112,7 @@ include!(concat!(env!("OUT_DIR"), "/generated_object.rs"));
 pub(crate) fn spawn_object(
     commands: &mut Commands,
     object_data: &HashMap<&[u8], &[u8]>,
-    groups: Vec<u64>,
+    groups: Vec<u32>,
 ) -> Result<Entity, anyhow::Error> {
     let mut object = Object::default();
     if let Some(id) = object_data.get(b"1".as_ref()) {

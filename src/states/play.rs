@@ -44,7 +44,7 @@ pub(crate) struct LevelIndex {
 
 // #[derive(Default, Resource)]
 // pub(crate) struct Groups {
-//     pub(crate) groups: HashMap<u64, Vec<Entity>>,
+//     pub(crate) groups: HashMap<u32, Vec<Entity>>,
 // }
 
 fn play_setup(
@@ -78,7 +78,7 @@ fn play_setup(
 
 // #[derive(Component)]
 // pub(crate) struct ObjectColor(
-//     pub(crate) u64,
+//     pub(crate) u32,
 //     pub(crate) GDHSV,
 //     pub(crate) f32,
 //     pub(crate) f32,
@@ -88,11 +88,11 @@ fn play_setup(
 pub(crate) struct Player(pub Vec2);
 
 // fn get_texture(
-//     mapping: &HashMap<u64, String>,
+//     mapping: &HashMap<u32, String>,
 //     atlases: &Vec<&Cocos2dAtlas>,
 //     id: &u16,
 // ) -> Option<(Handle<TextureAtlas>, usize, Vec2, bool)> {
-//     let texture_name = mapping.get(&(*id as u64));
+//     let texture_name = mapping.get(&(*id as u32));
 //     if let Some(name) = texture_name {
 //         let mut atlas_handle: Handle<TextureAtlas> = Default::default();
 //         let mut atlas_mapping = 0;
@@ -116,7 +116,7 @@ pub(crate) struct Player(pub Vec2);
 //     }
 // }
 //
-// fn get_color(colors: &HashMap<u64, GDColorChannel>, index: &u64) -> (Color, bool) {
+// fn get_color(colors: &HashMap<u32, GDColorChannel>, index: &u32) -> (Color, bool) {
 //     match colors
 //         .get(index)
 //         .unwrap_or(&BaseColor(GDBaseColor::default()))

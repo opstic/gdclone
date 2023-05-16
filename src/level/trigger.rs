@@ -45,7 +45,7 @@ pub(crate) struct TriggerInProgress;
 
 #[derive(Default, Resource)]
 pub(crate) struct ExecutingTriggers(
-    pub(crate) HashMap<u64, Vec<(Entity, Box<dyn TriggerFunction>)>>,
+    pub(crate) HashMap<u32, Vec<(Entity, Box<dyn TriggerFunction>)>>,
 );
 
 #[derive(Component)]
@@ -79,11 +79,11 @@ impl TriggerDuration {
         self.elapsed
     }
 
-    fn fraction_progress(&self) -> f64 {
+    fn fraction_progress(&self) -> f32 {
         if self.elapsed() >= self.duration {
             return 1.;
         }
-        (self.elapsed.as_secs_f64() / self.duration.as_secs_f64()).fract()
+        (self.elapsed.as_secs_f64() / self.duration.as_secs_f64()).fract() as f32
     }
 
     fn completed(&self) -> bool {
@@ -94,7 +94,7 @@ impl TriggerDuration {
 pub(crate) trait TriggerFunction: Send + Sync + DynClone {
     fn execute(&mut self, world: &mut World);
 
-    fn get_target_group(&self) -> u64;
+    fn get_target_group(&self) -> u32;
 
     fn done_executing(&self) -> bool;
 }
@@ -174,7 +174,7 @@ pub(crate) fn execute_triggers(world: &mut World) {
 pub(crate) fn setup_trigger(
     commands: &mut Commands,
     entity: Entity,
-    object_id: &u64,
+    object_id: &u32,
     object_data: &HashMap<&[u8], &[u8]>,
 ) -> Result<(), anyhow::Error> {
     let mut entity = commands.entity(entity);
