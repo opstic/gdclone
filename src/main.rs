@@ -18,7 +18,6 @@ mod render;
 mod states;
 mod utils;
 
-use crate::level::object::ObjectVisibility;
 use crate::states::play::Player;
 use level::LevelPlugin;
 use loaders::AssetLoaderPlugin;
@@ -146,10 +145,7 @@ pub(crate) fn calculate_bounds(
     >,
     atlases_without_aabb: Query<
         (Entity, &TextureAtlasSprite, &Handle<TextureAtlas>),
-        (
-            Without<Aabb>,
-            Or<(Without<NoFrustumCulling>, With<ObjectVisibility>)>,
-        ),
+        (Without<Aabb>, Without<NoFrustumCulling>),
     >,
 ) {
     for (entity, mesh_handle) in meshes_without_aabb.iter() {
