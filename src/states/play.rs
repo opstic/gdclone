@@ -1,4 +1,5 @@
 use crate::level::color::ColorChannels;
+use std::time::Instant;
 
 use crate::level::object::Object;
 use crate::level::trigger::ExecutingTriggers;
@@ -69,9 +70,18 @@ fn play_setup(
         .levels
         .get(level_index.index)
         .unwrap();
+    info!("Loading {}", level.name);
+    let total_time = Instant::now();
+    let decompress_time = Instant::now();
     if let Some(Ok(decompressed_level)) = level.decompress_inner_level() {
+        info!("Decompressing took {:?}", decompress_time.elapsed());
+        let parse_time = Instant::now();
         if let Ok(parsed_level) = decompressed_level.parse() {
+            info!("Parsing took {:?}", parse_time.elapsed());
+            let spawn_time = Instant::now();
             parsed_level.spawn_level(&mut commands, false).unwrap();
+            info!("Spawning took {:?}", spawn_time.elapsed());
+            info!("Total loading time is {:?}", total_time.elapsed());
         }
     }
 }
