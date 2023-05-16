@@ -143,6 +143,10 @@ impl Sections {
 }
 
 impl<'a> ParsedInnerLevel<'a> {
+    pub(crate) fn objects(&self) -> usize {
+        self.objects.len()
+    }
+
     pub(crate) fn spawn_level(
         &self,
         commands: &mut Commands,

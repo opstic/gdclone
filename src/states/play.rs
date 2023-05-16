@@ -80,6 +80,7 @@ fn play_setup(
             info!("Parsing took {:?}", parse_time.elapsed());
             let spawn_time = Instant::now();
             parsed_level.spawn_level(&mut commands, false).unwrap();
+            info!("Spawned {:?} objects", parsed_level.objects());
             info!("Spawning took {:?}", spawn_time.elapsed());
             info!("Total loading time is {:?}", total_time.elapsed());
         }
