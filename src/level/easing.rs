@@ -57,6 +57,9 @@ impl Easing {
     }
 
     pub(crate) fn sample(self, x: f32) -> f32 {
+        if x == 0. || x == 1. {
+            return x;
+        }
         match self {
             Easing::None => x,
             Easing::EaseInOut(rate) => Self::ease_in_out(x, rate),
@@ -98,40 +101,28 @@ impl Easing {
     }
 
     fn elastic_in_out(x: f32, period: f32) -> f32 {
-        if x == 0. || x == 1. {
-            x
+        let mut period = period;
+        if period == 0. {
+            period = 0.3 * 1.5;
+        }
+        let s = period / 4.;
+        let x = x - 1.;
+        if x < 0. {
+            -0.5 * f32::powf(2., 10. * x) * f32::sin((x - s) * TAU / period)
         } else {
-            let mut period = period;
-            if period == 0. {
-                period = 0.3 * 1.5;
-            }
-            let s = period / 4.;
-            let x = x - 1.;
-            if x < 0. {
-                -0.5 * f32::powf(2., 10. * x) * f32::sin((x - s) * TAU / period)
-            } else {
-                f32::powf(2., -10. * x) * f32::sin((x - s) * TAU / period) * 0.5 + 1.
-            }
+            f32::powf(2., -10. * x) * f32::sin((x - s) * TAU / period) * 0.5 + 1.
         }
     }
 
     fn elastic_in(x: f32, period: f32) -> f32 {
-        if x == 0. || x == 1. {
-            x
-        } else {
-            let s = period / 4.;
-            let x = x - 1.;
-            -f32::powf(2., 10. * x) * f32::sin((x - s) * TAU / period)
-        }
+        let s = period / 4.;
+        let x = x - 1.;
+        -f32::powf(2., 10. * x) * f32::sin((x - s) * TAU / period)
     }
 
     fn elastic_out(x: f32, period: f32) -> f32 {
-        if x == 0. || x == 1. {
-            x
-        } else {
-            let s = period / 4.;
-            f32::powf(2., -10. * x) * f32::sin((x - s) * TAU / period) + 1.
-        }
+        let s = period / 4.;
+        f32::powf(2., -10. * x) * f32::sin((x - s) * TAU / period) + 1.
     }
 
     fn bounce_time(x: f32) -> f32 {
@@ -166,9 +157,7 @@ impl Easing {
     }
 
     fn exponential_in_out(x: f32) -> f32 {
-        if x == 0. || x == 1. {
-            x
-        } else if x < 0.5 {
+        if x < 0.5 {
             0.5 * f32::powf(2., 10. * (x * 2. - 1.))
         } else {
             0.5 * (-f32::powf(2., -10. * (x * 2. - 1.)) + 2.)
@@ -176,19 +165,11 @@ impl Easing {
     }
 
     fn exponential_in(x: f32) -> f32 {
-        if x == 0. {
-            x
-        } else {
-            f32::powf(2., 10. * (x / 1. - 1.)) - 1. * 0.001
-        }
+        f32::powf(2., 10. * (x / 1. - 1.)) - 1. * 0.001
     }
 
     fn exponential_out(x: f32) -> f32 {
-        if x == 1. {
-            x
-        } else {
-            -f32::powf(2., -10. * x / 1.) + 1.
-        }
+        -f32::powf(2., -10. * x / 1.) + 1.
     }
 
     // cocos sine easings weren't working, so i just took the version https://easings.net provided
