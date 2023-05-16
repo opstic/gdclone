@@ -1,5 +1,6 @@
 use crate::level::de;
 use crate::utils::{hsv_to_rgb, rgb_to_hsv, u8_to_bool};
+use bevy::log::warn;
 use bevy::prelude::{Color, Resource};
 use bevy::reflect::Reflect;
 use bevy::utils::HashMap;
@@ -13,6 +14,10 @@ impl ColorChannels {
         match self.0.get(index).unwrap_or(&ColorChannel::default()) {
             ColorChannel::BaseColor(color) => (color.color, color.blending),
             ColorChannel::CopyColor(color) => {
+                if *index == color.copied_index {
+                    warn!("Recursing color, ID {}", index);
+                    return (color.hsv.apply(Color::WHITE), color.blending);
+                }
                 let (original_color, _) = Self::get_color(self, &color.copied_index);
                 let mut transformed_color = color.hsv.apply(original_color);
                 if !color.copy_opacity {
