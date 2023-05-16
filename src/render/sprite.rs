@@ -799,14 +799,13 @@ pub fn queue_sprites(
                         .into()
                 });
 
-                let depth;
-
-                if let Some(object) = extracted_objects.objects.get(&extracted_sprite.entity) {
-                    depth = extracted_sprite.transform.translation().z / 16.
-                        + (object.z_layer + 4) as f32 * 1000. / 16.;
-                } else {
-                    depth = extracted_sprite.transform.translation().z / 16.;
-                }
+                let depth =
+                    if let Some(object) = extracted_objects.objects.get(&extracted_sprite.entity) {
+                        extracted_sprite.transform.translation().z / 16.
+                            + (object.z_layer + 4) as f32 * 1000. / 16.
+                    } else {
+                        extracted_sprite.transform.translation().z / 16.
+                    };
 
                 // These items will be sorted by depth with other phase items
                 let sort_key = FloatOrd(depth);
