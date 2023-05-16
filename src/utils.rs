@@ -77,6 +77,7 @@ pub(crate) fn lerp_color(start: &Color, end: &Color, x: &f32) -> Color {
     Color::rgba(r, g, b, a)
 }
 
+#[inline(always)]
 pub(crate) fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, anyhow::Error> {
     let mut xored = Vec::with_capacity(bytes.len());
     let null_byte_start = bytes
@@ -95,6 +96,7 @@ pub(crate) fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, anyhow::
     Ok(decoded)
 }
 
+#[inline(always)]
 pub(crate) fn decompress(bytes: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
     let mut decompressed = Vec::with_capacity(bytes.len() + bytes.len() / 2);
     match flate2::read::GzDecoder::new(bytes).read_to_end(&mut decompressed) {
