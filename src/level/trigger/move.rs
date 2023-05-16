@@ -1,11 +1,12 @@
 use crate::level::easing::Easing;
 use crate::level::object::Object;
 use crate::level::trigger::{Trigger, TriggerDuration, TriggerFunction};
-use crate::level::Groups;
+use crate::level::{Groups, Sections};
 use crate::states::play::Player;
+use crate::utils::section_from_pos;
 use bevy::ecs::system::SystemState;
 use bevy::math::{Vec2, Vec3Swizzles};
-use bevy::prelude::{Query, Res, Transform, With, Without, World};
+use bevy::prelude::{Query, Res, ResMut, Transform, With, Without, World};
 use bevy::time::Time;
 
 #[derive(Clone, Default)]
@@ -25,10 +26,11 @@ impl TriggerFunction for MoveTrigger {
         let mut system_state: SystemState<(
             Res<Time>,
             Res<Groups>,
+            ResMut<Sections>,
             Query<&mut Transform, (With<Object>, Without<Trigger>)>,
             Query<&mut Transform, (With<Player>, Without<Object>)>,
         )> = SystemState::new(world);
-        let (time, groups, mut object_transform_query, player_transform_query) =
+        let (time, groups, mut sections, mut object_transform_query, player_transform_query) =
             system_state.get_mut(world);
 
         let mut player_translation = Vec2::default();
@@ -53,18 +55,19 @@ impl TriggerFunction for MoveTrigger {
         if let Some(group) = groups.0.get(&self.target_group) {
             for entity in &group.entities {
                 if let Ok(mut transform) = object_transform_query.get_mut(*entity) {
-                    transform.translation += Vec2::new(
-                        (amount * self.x_offset as f64 * 4.) as f32,
-                        (amount * self.y_offset as f64 * 4.) as f32,
-                    )
-                    .extend(0.);
+                    let initial_section = section_from_pos(transform.translation.xy());
+                    let mut delta = Vec2::new(self.x_offset, self.y_offset) * amount;
                     if self.lock_x {
-                        transform.translation.x +=
-                            player_translation.x - self.player_previous_translation.x;
+                        delta.x += player_translation.x - self.player_previous_translation.x;
                     }
                     if self.lock_y {
-                        transform.translation.y +=
-                            player_translation.y - self.player_previous_translation.y;
+                        delta.y += player_translation.y - self.player_previous_translation.y;
+                    }
+                    transform.translation += delta.extend(0.);
+                    let after_section = section_from_pos(transform.translation.xy());
+                    if initial_section != after_section {
+                        sections.get_section_mut(&initial_section).remove(entity);
+                        sections.get_section_mut(&after_section).insert(*entity);
                     }
                 }
             }

@@ -1,4 +1,6 @@
+use crate::level::SECTION_SIZE;
 use base64::Engine;
+use bevy::math::{IVec2, Vec2};
 use bevy::prelude::Color;
 use std::io::Read;
 
@@ -109,6 +111,11 @@ pub(crate) fn decompress(bytes: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
         }
     }
     Ok(decompressed)
+}
+
+#[inline(always)]
+pub(crate) fn section_from_pos(pos: Vec2) -> IVec2 {
+    IVec2::new((pos.x / SECTION_SIZE) as i32, (pos.y / SECTION_SIZE) as i32)
 }
 
 const BASE64_URL_SAFE: base64::engine::GeneralPurpose = base64::engine::general_purpose::URL_SAFE;

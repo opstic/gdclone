@@ -12,10 +12,11 @@ use bevy::app::{App, Plugin};
 
 use bevy::log::error;
 use bevy::prelude::{Color, Commands, Entity, IntoSystemConfig, OnUpdate, Resource};
-use bevy::utils::HashMap;
+use bevy::utils::{HashMap, HashSet};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
+use bevy::math::IVec2;
 use bevy::render::view;
 use bevy::render::view::VisibilitySystems;
 use std::marker::PhantomData;
@@ -43,6 +44,7 @@ impl Plugin for LevelPlugin {
             )
             .init_resource::<ColorChannels>()
             .init_resource::<Groups>()
+            .init_resource::<Sections>()
             .init_resource::<trigger::ExecutingTriggers>();
     }
 }
@@ -125,6 +127,21 @@ impl Default for Group {
     }
 }
 
+pub(crate) const SECTION_SIZE: f32 = 100.;
+
+#[derive(Default, Resource)]
+pub(crate) struct Sections(pub(crate) HashMap<IVec2, HashSet<Entity>>);
+
+impl Sections {
+    pub(crate) fn get_section(&self, index: &IVec2) -> Option<&HashSet<Entity>> {
+        self.0.get(index)
+    }
+
+    pub(crate) fn get_section_mut(&mut self, index: &IVec2) -> &mut HashSet<Entity> {
+        self.0.entry(*index).or_default()
+    }
+}
+
 impl<'a> ParsedInnerLevel<'a> {
     pub(crate) fn spawn_level(
         &self,
@@ -189,6 +206,7 @@ impl<'a> ParsedInnerLevel<'a> {
             }
         }
         commands.insert_resource(Groups(groups));
+        commands.insert_resource(Sections::default());
         Ok(())
     }
 }

@@ -1,10 +1,11 @@
 use crate::level::easing::Easing;
 use crate::level::object::Object;
 use crate::level::trigger::{Trigger, TriggerDuration, TriggerFunction};
-use crate::level::Groups;
+use crate::level::{Groups, Sections};
+use crate::utils::section_from_pos;
 use bevy::ecs::system::SystemState;
 use bevy::math::{Quat, Vec3Swizzles};
-use bevy::prelude::{Query, Res, Transform, With, Without, World};
+use bevy::prelude::{Query, Res, ResMut, Transform, With, Without, World};
 use bevy::time::Time;
 
 #[derive(Clone, Default)]
@@ -22,9 +23,10 @@ impl TriggerFunction for RotateTrigger {
         let mut system_state: SystemState<(
             Res<Time>,
             Res<Groups>,
+            ResMut<Sections>,
             Query<&mut Transform, (With<Object>, Without<Trigger>)>,
         )> = SystemState::new(world);
-        let (time, groups, mut object_transform_query) = system_state.get_mut(world);
+        let (time, groups, mut sections, mut object_transform_query) = system_state.get_mut(world);
         let mut amount = self.easing.sample(self.duration.fraction_progress());
         self.duration.tick(time.delta());
         if self.duration.duration.is_zero() {
@@ -44,26 +46,24 @@ impl TriggerFunction for RotateTrigger {
         } else {
             None
         };
-        if let Some(center_translation) = center_translation {
-            if let Some(group) = groups.0.get(&self.target_group) {
-                for entity in &group.entities {
-                    if let Ok(mut transform) = object_transform_query.get_mut(*entity) {
-                        transform.rotate_around(
-                            center_translation.extend(0.),
-                            Quat::from_rotation_z(
-                                -((360 * self.times360 + self.degrees) as f64 * amount).to_radians()
-                                    as f32,
-                            ),
-                        );
-                    }
-                }
-            }
-        } else if let Some(group) = groups.0.get(&self.target_group) {
+        let rotation_amount = Quat::from_rotation_z(
+            -((360 * self.times360 + self.degrees) as f32 * amount).to_radians(),
+        );
+        if let Some(group) = groups.0.get(&self.target_group) {
             for entity in &group.entities {
                 if let Ok(mut transform) = object_transform_query.get_mut(*entity) {
-                    transform.rotate(Quat::from_rotation_z(
-                        -((360 * self.times360 + self.degrees) as f64 * amount).to_radians() as f32,
-                    ));
+                    let initial_section = section_from_pos(transform.translation.xy());
+                    if let Some(center_translation) = center_translation {
+                        transform.rotate_around(center_translation.extend(0.), rotation_amount);
+                    } else {
+                        transform.rotate(rotation_amount);
+                    }
+                    let after_section =
+                        section_from_pos(transform.translation.xy());
+                    if initial_section != after_section {
+                        sections.get_section_mut(&initial_section).remove(entity);
+                        sections.get_section_mut(&after_section).insert(*entity);
+                    }
                 }
             }
         }

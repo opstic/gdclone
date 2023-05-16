@@ -42,40 +42,28 @@ pub(crate) struct ObjectVisibility {
 }
 
 pub(crate) fn update_visibility(
-    mut thread_queues: Local<ThreadLocal<Cell<Vec<Entity>>>>,
-    mut projection_query: Query<(
+    mut camera_query: Query<(
         &mut VisibleEntities,
         &OrthographicProjection,
         &GlobalTransform,
     )>,
-    mut objects: Query<(Entity, &mut ObjectVisibility, &Aabb, &GlobalTransform)>,
+    sections: Res<Sections>,
 ) {
-    for (mut visible_entities, projection, camera_transform) in &mut projection_query {
-        let camera_min = camera_transform.transform_point(projection.area.min.extend(0.));
-        let camera_max = camera_transform.transform_point(projection.area.max.extend(0.));
-        let camera_bounds = Vec4::new(camera_min.x, camera_min.y, -camera_max.x, -camera_max.y);
-        objects
-            .par_iter_mut()
-            .for_each_mut(|(entity, mut visibility, aabb, transform)| {
-                let min = transform.transform_point(aabb.min().into()).xy();
-                let max = transform.transform_point(aabb.max().into()).xy();
-                let object_bounds = Vec4::new(max.x, max.y, -min.x, -min.y);
-                // let compare_results = camera_bounds.cmple(object_bounds);
-                // info!("{:?}", compare_results);
-                // let compare_results = compare_results.bitmask();
-                // if compare_results == 0x00ff || compare_results == 0xff00 {
-                if !camera_bounds.cmple(object_bounds).all() {
-                    visibility.visible = false;
-                    return;
+    for (mut visible_entities, projection, camera_transform) in &mut camera_query {
+        let camera_min = projection.area.min + camera_transform.translation().xy();
+        let camera_max = projection.area.max + camera_transform.translation().xy();
+        let min_section = section_from_pos(camera_min);
+        let max_section = section_from_pos(camera_max);
+
+        let x_range = min_section.x - 1..max_section.x + 2;
+        let y_range = min_section.y - 1..max_section.y + 2;
+
+        for section_x in x_range {
+            for section_y in y_range.clone() {
+                if let Some(section) = sections.get_section(&IVec2::new(section_x, section_y)) {
+                    visible_entities.entities.extend(section);
                 }
-                visibility.visible = true;
-                let cell = thread_queues.get_or_default();
-                let mut queue = cell.take();
-                queue.push(entity);
-                cell.set(queue);
-            });
-        for cell in thread_queues.iter_mut() {
-            visible_entities.entities.append(cell.get_mut());
+            }
         }
     }
 }
@@ -200,11 +188,22 @@ pub(crate) fn spawn_object(
     Ok(entity)
 }
 
+#[derive(Component)]
+pub(crate) struct NoTexture;
+
 pub(crate) fn create_sprite(
     mut commands: Commands,
     global_assets: Res<GlobalAssets>,
     cocos2d_atlases: Res<Assets<Cocos2dAtlas>>,
-    object_without_sprite: Query<(Entity, &Object), (Without<TextureAtlasSprite>, Without<Parent>)>,
+    object_without_sprite: Query<
+        (Entity, &Object),
+        (
+            Without<TextureAtlasSprite>,
+            Without<Parent>,
+            Without<NoTexture>,
+        ),
+    >,
+    mut sections: ResMut<Sections>,
 ) {
     let atlases = vec![
         &global_assets.atlas1,
@@ -217,6 +216,7 @@ pub(crate) fn create_sprite(
     //     .par_iter()
     //     .for_each_mut(|(entity, object)| {});
     for (entity, object) in object_without_sprite.iter() {
+        let mut entity_commands = commands.entity(entity);
         if let Some((info, atlas_handle)) =
             find_texture(&cocos2d_atlases, &atlases, &object.texture_name)
         {
@@ -224,6 +224,8 @@ pub(crate) fn create_sprite(
             let mut flip_y = object.flip_y;
             let translation = (object.transform.translation.xy() * 4.)
                 .extend((object.transform.translation.z + 999.) / (999. + 10000.) * 999.);
+            let section_index = section_from_pos(translation.xy());
+            sections.get_section_mut(&section_index).insert(entity);
             let mut rotation = object.transform.rotation;
             if info.rotated {
                 std::mem::swap(&mut flip_x, &mut flip_y);
@@ -233,8 +235,7 @@ pub(crate) fn create_sprite(
             let mut scale = object.transform.scale;
             scale.x *= if flip_x { -1. } else { 1. };
             scale.y *= if flip_y { -1. } else { 1. };
-            let mut entity = commands.entity(entity);
-            entity.insert(SpriteSheetBundle {
+            entity_commands.insert(SpriteSheetBundle {
                 transform: Transform {
                     translation,
                     rotation,
@@ -248,9 +249,14 @@ pub(crate) fn create_sprite(
                 texture_atlas: atlas_handle.clone(),
                 ..default()
             });
-            entity.remove::<Visibility>();
-            entity.remove::<ComputedVisibility>();
-            entity.insert(ObjectVisibility { visible: false });
+            entity_commands.remove::<Visibility>();
+            entity_commands.remove::<ComputedVisibility>();
+        } else {
+            warn!(
+                "Cannot find atlas for texture {}, object id {}",
+                object.texture_name, object.id
+            );
+            entity_commands.insert(NoTexture);
         }
     }
 }
@@ -258,25 +264,3 @@ pub(crate) fn create_sprite(
 // pub(crate) fn create_child_sprite(mut commands: Commands, global_assets: Res<GlobalAssets>,
 //                                   cocos2d_atlases: Res<Assets<Cocos2dAtlas>>,
 //                                   object_without_sprite: Query<(Entity, &Object, &Visibility), (Without<TextureAtlasSprite>, With<Parent>)>)
-
-pub(crate) fn check_visible(
-    mut objects: Query<(&Transform, &Object, &mut Visibility)>,
-    camera_transforms: Query<&Transform, (With<Camera2d>, Without<Object>)>,
-) {
-    let player_x = camera_transforms
-        .get_single()
-        .unwrap_or(&Transform::default())
-        .translation
-        .x;
-    objects
-        .par_iter_mut()
-        .for_each_mut(|(transform, _, mut visibility)| {
-            if transform.translation.x < player_x - 100.
-                || transform.translation.x > player_x + 100.
-            {
-                *visibility = Visibility::Hidden;
-            } else {
-                *visibility = Visibility::Inherited;
-            }
-        })
-}
