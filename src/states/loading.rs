@@ -9,12 +9,16 @@ impl Plugin for LoadingStatePlugin {
     fn build(&self, app: &mut App) {
         app.add_system(loading_setup.in_schedule(OnEnter(GameState::Loading)))
             .add_system(loading_cleanup.in_schedule(OnExit(GameState::Loading)))
-            .add_system(check_assets_ready.in_set(OnUpdate(GameState::Loading)));
+            .add_system(check_assets_ready.in_set(OnUpdate(GameState::Loading)))
+            .add_system(update_asset_text.in_set(OnUpdate(GameState::Loading)));
     }
 }
 
 #[derive(Component)]
 struct LoadingText;
+
+#[derive(Component)]
+struct ListText;
 
 #[derive(Resource)]
 pub(crate) struct GlobalAssets {
@@ -42,10 +46,10 @@ fn loading_setup(
             },
             text: Text {
                 sections: vec![TextSection {
-                    value: "Loading...".to_string(),
+                    value: "".to_string(),
                     style: TextStyle {
-                        font: server.load("fonts/FiraSans-Bold.ttf"),
-                        font_size: 50.,
+                        font: server.load("fonts/FiraMono-Medium.ttf"),
+                        font_size: 20.,
                         color: Color::WHITE,
                     },
                 }],
@@ -53,14 +57,15 @@ fn loading_setup(
             },
             ..default()
         })
+        .insert(ListText)
         .insert(LoadingText);
 
     let save_file: Handle<SaveFile> = server.load("CCLocalLevels.dat");
-    let atlas1: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet-uhd.plist");
-    let atlas2: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet02-uhd.plist");
-    let atlas3: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet03-uhd.plist");
-    let atlas4: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet04-uhd.plist");
-    let atlas5: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheetGlow-uhd.plist");
+    let atlas1: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet.plist");
+    let atlas2: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet02.plist");
+    let atlas3: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet03.plist");
+    let atlas4: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet04.plist");
+    let atlas5: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheetGlow.plist");
 
     loading.0.push(save_file.clone_untyped());
     loading.0.push(atlas1.clone_untyped());
@@ -82,21 +87,47 @@ fn loading_setup(
 fn check_assets_ready(
     mut commands: Commands,
     server: Res<AssetServer>,
-    loading: Res<AssetsLoading>,
+    mut loading: ResMut<AssetsLoading>,
     mut state: ResMut<NextState<GameState>>,
 ) {
     use bevy::asset::LoadState;
 
-    match server.get_group_load_state(loading.0.iter().map(|h| h.id())) {
-        LoadState::Failed => {}
-        LoadState::Loaded => {
-            info!("Everything loaded");
-            commands.remove_resource::<AssetsLoading>();
-            state.set(GameState::LevelSelect);
-        }
-        _ => {
-            // NotLoaded/Loading: not fully ready yet
-        }
+    loading
+        .0
+        .retain(|h| server.get_load_state(h) != LoadState::Loaded);
+
+    if loading.0.is_empty() {
+        info!("Everything loaded");
+        commands.remove_resource::<AssetsLoading>();
+        state.set(GameState::LevelSelect);
+    }
+}
+
+fn update_asset_text(
+    server: Res<AssetServer>,
+    loading: Res<AssetsLoading>,
+    mut query: Query<&mut Text, With<ListText>>,
+) {
+    for mut text in query.iter_mut() {
+        let names: String = loading
+            .0
+            .iter()
+            .map(|h| {
+                server
+                    .get_handle_path(h)
+                    .unwrap()
+                    .path()
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string()
+                    + ": "
+                    + &*format!("{:?}", server.get_load_state(h))
+            })
+            .collect::<Vec<String>>()
+            .join("\n");
+        text.sections[0].value = names;
     }
 }
 
