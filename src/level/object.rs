@@ -211,7 +211,7 @@ pub(crate) fn create_sprite(
         {
             let mut flip_x = object.flip_x;
             let mut flip_y = object.flip_y;
-            let translation = (object.transform.translation.xy() * 4.)
+            let translation = (object.transform.translation.xy())
                 .extend((object.transform.translation.z + 999.) / (999. + 10000.) * 999.);
             let section_index = section_from_pos(translation.xy());
             sections.get_section_mut(&section_index).insert(entity);
