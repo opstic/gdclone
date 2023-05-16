@@ -260,6 +260,7 @@ fn button_system(
         match *interaction {
             Interaction::Clicked => {
                 *color = PRESSED_BUTTON.into();
+                info!("Selected button {}", button.level_index);
                 commands.insert_resource(LevelIndex {
                     index: button.level_index,
                 });
