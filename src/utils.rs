@@ -79,16 +79,16 @@ pub(crate) fn lerp_color(start: &Color, end: &Color, x: &f32) -> Color {
 
 pub(crate) fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, anyhow::Error> {
     let mut xored = Vec::with_capacity(bytes.len());
-    let nul_byte_start = bytes
+    let null_byte_start = bytes
         .iter()
         .rposition(|byte| *byte != key.unwrap_or_default())
         .unwrap_or(bytes.len() - 1);
     xored.extend(match key {
-        Some(key) => bytes[..nul_byte_start + 1]
+        Some(key) => bytes[..null_byte_start + 1]
             .iter()
             .map(|byte| *byte ^ key)
             .collect::<Vec<u8>>(),
-        None => bytes[..nul_byte_start + 1].to_vec(),
+        None => bytes[..null_byte_start].to_vec(),
     });
     let mut decoded = Vec::new();
     BASE64_URL_SAFE.decode_vec(xored, &mut decoded)?;
