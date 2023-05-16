@@ -79,13 +79,14 @@ pub(crate) fn lerp_color(start: &Color, end: &Color, x: &f32) -> Color {
 
 #[inline(always)]
 pub(crate) fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, anyhow::Error> {
-    let mut xored = Vec::with_capacity(bytes.len());
     let null_byte_start = bytes
         .iter()
         .rposition(|byte| *byte != key.unwrap_or_default())
-        .unwrap_or(bytes.len() - 1);
+        .unwrap_or(bytes.len() - 1)
+        + 1;
+    let mut xored = Vec::with_capacity(bytes.len());
     xored.extend(match key {
-        Some(key) => bytes[..null_byte_start + 1]
+        Some(key) => bytes[..null_byte_start]
             .iter()
             .map(|byte| *byte ^ key)
             .collect::<Vec<u8>>(),
