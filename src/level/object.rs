@@ -1,25 +1,19 @@
 use crate::level::color::Hsv;
-use crate::level::trigger;
-use crate::level::trigger::XPosActivate;
+use crate::level::{trigger, Sections};
 use crate::loaders::cocos2d_atlas::{find_texture, Cocos2dAtlas};
 use crate::states::loading::GlobalAssets;
-use crate::utils::u8_to_bool;
+use crate::utils::{section_from_pos, u8_to_bool};
 use bevy::asset::Assets;
-use bevy::hierarchy::{BuildChildren, Parent};
-use bevy::log::info;
-use bevy::math::{Quat, Rect, Vec2, Vec3, Vec3Swizzles, Vec4};
+use bevy::hierarchy::Parent;
+use bevy::log::warn;
+use bevy::math::{IVec2, Quat, Vec2, Vec3, Vec3Swizzles};
 use bevy::prelude::{
-    Camera, Camera2d, Commands, Component, ComputedVisibility, Entity, GlobalTransform, Local,
-    OrthographicProjection, Query, Res, Transform, Visibility, With, Without,
+    Commands, Component, ComputedVisibility, Entity, GlobalTransform, OrthographicProjection,
+    Query, Res, ResMut, Transform, Visibility, Without,
 };
-use bevy::render::primitives::{Aabb, Frustum};
-use bevy::render::view::{NoFrustumCulling, RenderLayers, VisibleEntities};
+use bevy::render::view::VisibleEntities;
 use bevy::sprite::{Anchor, SpriteSheetBundle, TextureAtlasSprite};
 use bevy::utils::{default, HashMap};
-use std::cell::Cell;
-use std::cmp::{max, min};
-use std::ops::Index;
-use thread_local::ThreadLocal;
 
 #[derive(Component, Default)]
 pub(crate) struct Object {
@@ -34,11 +28,6 @@ pub(crate) struct Object {
     pub(crate) groups: Vec<u32>,
     pub(crate) texture_name: String,
     pub(crate) additional_anchor: Vec2,
-}
-
-#[derive(Component)]
-pub(crate) struct ObjectVisibility {
-    pub(crate) visible: bool,
 }
 
 pub(crate) fn update_visibility(

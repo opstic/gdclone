@@ -523,9 +523,6 @@ fn extract_sprites(
             });
         }
     }
-    for cell in object_thread_queues.iter_mut() {
-        extracted_objects.objects.extend(cell.take());
-    }
 }
 
 #[repr(C)]
