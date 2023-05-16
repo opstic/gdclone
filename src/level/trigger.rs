@@ -8,6 +8,7 @@ use crate::level::trigger::toggle::ToggleTrigger;
 use crate::level::Groups;
 use crate::utils::u8_to_bool;
 
+use crate::level::color::Hsv;
 use bevy::prelude::{
     Camera2d, Commands, Component, Entity, Mut, Query, Res, ResMut, Resource, SystemSet, Transform,
     With, Without, World,
@@ -143,6 +144,9 @@ pub(crate) fn activate_xpos_triggers(
                 if trigger.0.type_id() == TypeId::of::<RotateTrigger>() {
                     executing_triggers.retain(|t| t.type_id() != TypeId::of::<RotateTrigger>());
                 }
+                if trigger.0.type_id() == TypeId::of::<ColorTrigger>() {
+                    executing_triggers.retain(|t| t.type_id() != TypeId::of::<ColorTrigger>());
+                }
                 executing_triggers.push((entity, trigger.0.clone()));
             }
             if let Ok(mut commands) = commands_mutex.lock() {
@@ -214,6 +218,17 @@ pub(crate) fn setup_trigger(
             }
             if let Some(blending) = object_data.get(b"17".as_ref()) {
                 trigger.target_blending = u8_to_bool(blending);
+            }
+            if let Some(copied_hsv) = object_data.get(b"49".as_ref()) {
+                trigger.copied_hsv = Hsv::parse(copied_hsv)?;
+            }
+            if let Some(copied_channel) = object_data.get(b"50".as_ref()) {
+                trigger.copied_channel = std::str::from_utf8(copied_channel)?.parse()?;
+            } else {
+                trigger.copied_channel = 0;
+            }
+            if let Some(copy_opacity) = object_data.get(b"60".as_ref()) {
+                trigger.copy_opacity = u8_to_bool(copy_opacity);
             }
             entity.insert(Trigger(Box::new(trigger)));
         }

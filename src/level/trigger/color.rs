@@ -1,5 +1,4 @@
-use crate::level::color::BaseColor;
-use crate::level::color::{ColorChannel, ColorChannels};
+use crate::level::color::{BaseColor, ColorChannel, ColorChannels, CopyColor, Hsv};
 use crate::level::trigger::{TriggerDuration, TriggerFunction};
 use crate::utils::lerp_color;
 use bevy::ecs::system::SystemState;
@@ -12,6 +11,8 @@ pub(crate) struct ColorTrigger {
     pub(crate) target_channel: u32,
     pub(crate) copied_channel: u32,
     pub(crate) target_color: Color,
+    pub(crate) copied_hsv: Hsv,
+    pub(crate) copy_opacity: bool,
     pub(crate) target_blending: bool,
     pub(crate) original_color: Color,
     pub(crate) not_initial: bool,
@@ -23,28 +24,44 @@ impl TriggerFunction for ColorTrigger {
             SystemState::new(world);
         let (time, mut color_channels) = system_state.get_mut(world);
         self.duration.tick(time.delta());
-        let progress = self.duration.fraction_progress();
+        if !self.not_initial {
+            let (channel_color, _) = color_channels.get_color(&self.target_channel);
+            self.original_color = channel_color;
+        }
+        let (copied_channel_color, _) = color_channels.get_color(&self.copied_channel);
         let channel = color_channels.0.entry(self.target_channel).or_default();
-        *channel = match channel {
-            ColorChannel::BaseColor(color) => {
-                let mut new_color = BaseColor::default();
-                if !self.not_initial {
-                    self.original_color = color.color;
-                    new_color.blending = self.target_blending;
-                }
-
-                if self.duration.completed() || self.duration.duration.is_zero() {
-                    new_color.color = self.target_color;
-                    new_color.blending = self.target_blending;
-                } else {
-                    new_color.color =
-                        lerp_color(&self.original_color, &self.target_color, &progress);
-                }
-                ColorChannel::BaseColor(new_color)
+        if self.duration.completed() || self.duration.duration.is_zero() {
+            if self.copied_channel != 0 {
+                *channel = ColorChannel::CopyColor(CopyColor {
+                    copied_index: self.copied_channel,
+                    copy_opacity: self.copy_opacity,
+                    opacity: self.target_color.a(),
+                    blending: self.target_blending,
+                    hsv: self.copied_hsv.clone(),
+                })
+            } else {
+                *channel = ColorChannel::BaseColor(BaseColor {
+                    color: self.target_color,
+                    blending: self.target_blending,
+                })
             }
-            ColorChannel::CopyColor(_) => {
-                return;
-            }
+            return;
+        }
+        let progress = self.duration.fraction_progress();
+        *channel = if self.copied_channel != 0 {
+            ColorChannel::BaseColor(BaseColor {
+                color: self.copied_hsv.apply(lerp_color(
+                    &self.original_color,
+                    &copied_channel_color,
+                    &progress,
+                )),
+                blending: self.target_blending,
+            })
+        } else {
+            ColorChannel::BaseColor(BaseColor {
+                color: lerp_color(&self.original_color, &self.target_color, &progress),
+                blending: self.target_blending,
+            })
         };
         self.not_initial = true;
     }
