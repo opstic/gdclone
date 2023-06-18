@@ -11,7 +11,7 @@ use bevy::sprite::{
     ExtractedSprites, Mesh2dHandle, Mesh2dRenderPlugin, Sprite, SpriteAssetEvents, SpriteSystem,
     TextureAtlas, TextureAtlasSprite,
 };
-use bevy::utils::{FloatOrd, HashMap};
+use bevy::utils::{FloatOrd, HashMap, HashSet};
 use std::cmp::Ordering;
 
 use crate::level::color::ColorChannels;
@@ -23,7 +23,8 @@ use bevy::ecs::{
     prelude::*,
     system::{lifetimeless::*, SystemParamItem, SystemState},
 };
-use bevy::math::{Vec2, Vec4, Vec4Swizzles};
+use bevy::log::info;
+use bevy::math::{Vec2, Vec3, Vec4, Vec4Swizzles};
 use bevy::render::{
     render_asset::RenderAssets,
     render_phase::{
@@ -72,6 +73,7 @@ impl Plugin for CustomSpritePlugin {
                 .init_resource::<ExtractedSprites>()
                 .init_resource::<ExtractedObjects>()
                 .init_resource::<SpriteAssetEvents>()
+                .init_resource::<PremultipliedImages>()
                 .add_render_command::<Transparent2d, DrawSprite>()
                 .add_systems(
                     (
@@ -80,6 +82,7 @@ impl Plugin for CustomSpritePlugin {
                     )
                         .in_schedule(ExtractSchedule),
                 )
+                .add_system(prepare_premultiplied_images.in_set(RenderSet::Prepare))
                 .add_system(
                     queue_sprites
                         .in_set(RenderSet::Queue)
@@ -202,7 +205,6 @@ bitflags::bitflags! {
         const HDR                               = (1 << 1);
         const TONEMAP_IN_SHADER                 = (1 << 2);
         const DEBAND_DITHER                     = (1 << 3);
-        const BLENDING                          = (1 << 4);
         const MSAA_RESERVED_BITS                = Self::MSAA_MASK_BITS << Self::MSAA_SHIFT_BITS;
         const TONEMAP_METHOD_RESERVED_BITS      = Self::TONEMAP_METHOD_MASK_BITS << Self::TONEMAP_METHOD_SHIFT_BITS;
         const TONEMAP_METHOD_NONE               = 0 << Self::TONEMAP_METHOD_SHIFT_BITS;
@@ -308,22 +310,6 @@ impl SpecializedRenderPipeline for SpritePipeline {
             false => TextureFormat::bevy_default(),
         };
 
-        let blend_state = match key.contains(SpritePipelineKey::BLENDING) {
-            true => BlendState {
-                color: BlendComponent {
-                    src_factor: BlendFactor::SrcAlpha,
-                    dst_factor: BlendFactor::One,
-                    operation: BlendOperation::Add,
-                },
-                alpha: BlendComponent {
-                    src_factor: BlendFactor::SrcAlpha,
-                    dst_factor: BlendFactor::One,
-                    operation: BlendOperation::Add,
-                },
-            },
-            false => BlendState::ALPHA_BLENDING,
-        };
-
         RenderPipelineDescriptor {
             vertex: VertexState {
                 shader: SPRITE_SHADER_HANDLE.typed::<Shader>(),
@@ -337,7 +323,7 @@ impl SpecializedRenderPipeline for SpritePipeline {
                 entry_point: "fragment".into(),
                 targets: vec![Some(ColorTargetState {
                     format,
-                    blend: Some(blend_state),
+                    blend: Some(BlendState::PREMULTIPLIED_ALPHA_BLENDING),
                     write_mask: ColorWrites::ALL,
                 })],
             }),
@@ -363,6 +349,62 @@ impl SpecializedRenderPipeline for SpritePipeline {
     }
 }
 
+#[derive(Resource)]
+pub struct ExtractedSpriteImages {
+    extracted: Vec<(Handle<Image>, Image)>,
+    removed: Vec<Handle<Image>>,
+}
+
+pub fn extract_sprite_events(
+    mut commands: Commands,
+    mut events: ResMut<SpriteAssetEvents>,
+    mut image_events: Extract<EventReader<AssetEvent<Image>>>,
+    asset_images: Extract<Res<Assets<Image>>>,
+) {
+    let SpriteAssetEvents { ref mut images } = *events;
+    images.clear();
+
+    let mut changed_images = HashSet::default();
+    let mut removed = Vec::new();
+
+    for image in image_events.iter() {
+        // AssetEvent: !Clone
+        match image {
+            AssetEvent::Created { handle } => {
+                images.push(AssetEvent::Created {
+                    handle: handle.clone_weak(),
+                });
+                changed_images.insert(handle.clone_weak());
+            }
+            AssetEvent::Modified { handle } => {
+                images.push(AssetEvent::Modified {
+                    handle: handle.clone_weak(),
+                });
+                changed_images.insert(handle.clone_weak());
+            }
+            AssetEvent::Removed { handle } => {
+                images.push(AssetEvent::Removed {
+                    handle: handle.clone_weak(),
+                });
+                changed_images.remove(handle);
+                removed.push(handle.clone_weak());
+            }
+        }
+    }
+
+    let mut extracted_images = Vec::new();
+    for handle in changed_images.drain() {
+        if let Some(image) = asset_images.get(&handle) {
+            extracted_images.push((handle, image.clone()));
+        }
+    }
+
+    commands.insert_resource(ExtractedSpriteImages {
+        extracted: extracted_images,
+        removed,
+    })
+}
+
 #[derive(Resource, Default)]
 pub struct ExtractedObjects {
     objects: HashMap<Entity, ExtractedObject>,
@@ -372,29 +414,6 @@ pub struct ExtractedObject {
     rotated: bool,
     z_layer: i8,
     blending: bool,
-}
-
-pub fn extract_sprite_events(
-    mut events: ResMut<SpriteAssetEvents>,
-    mut image_events: Extract<EventReader<AssetEvent<Image>>>,
-) {
-    let SpriteAssetEvents { ref mut images } = *events;
-    images.clear();
-
-    for image in image_events.iter() {
-        // AssetEvent: !Clone
-        images.push(match image {
-            AssetEvent::Created { handle } => AssetEvent::Created {
-                handle: handle.clone_weak(),
-            },
-            AssetEvent::Modified { handle } => AssetEvent::Modified {
-                handle: handle.clone_weak(),
-            },
-            AssetEvent::Removed { handle } => AssetEvent::Removed {
-                handle: handle.clone_weak(),
-            },
-        });
-    }
 }
 
 fn extract_sprites(
@@ -567,12 +586,80 @@ impl Default for SpriteMeta {
 #[derive(Component, Eq, PartialEq, Copy, Clone)]
 pub struct SpriteBatch {
     image_handle_id: HandleId,
-    blending: bool,
 }
 
 #[derive(Resource, Default)]
 pub struct ImageBindGroups {
     values: HashMap<Handle<Image>, BindGroup>,
+}
+
+#[derive(Resource, Default)]
+pub struct PremultipliedImages {
+    values: HashMap<Handle<Image>, GpuImage>,
+}
+
+pub fn prepare_premultiplied_images(
+    mut extracted_images: ResMut<ExtractedSpriteImages>,
+    mut premultiplied_images: ResMut<PremultipliedImages>,
+    render_device: Res<RenderDevice>,
+    render_queue: Res<RenderQueue>,
+    default_sampler: Res<DefaultImageSampler>,
+) {
+    for removed in std::mem::take(&mut extracted_images.removed) {
+        premultiplied_images.values.remove(&removed);
+    }
+
+    for (handle, image) in std::mem::take(&mut extracted_images.extracted) {
+        let premultiplied_data = image
+            .data
+            .chunks_exact(4)
+            .map(|pixel| {
+                let alpha = pixel[3] as f32 / u8::MAX as f32;
+                // Premultiply
+                [
+                    (pixel[0] as f32 * alpha) as u8,
+                    (pixel[1] as f32 * alpha) as u8,
+                    (pixel[2] as f32 * alpha) as u8,
+                    pixel[3],
+                ]
+            })
+            .collect::<Vec<[u8; 4]>>()
+            .concat();
+
+        let texture = render_device.create_texture_with_data(
+            &render_queue,
+            &image.texture_descriptor,
+            &premultiplied_data,
+        );
+
+        let texture_view = texture.create_view(
+            image
+                .texture_view_descriptor
+                .or_else(|| Some(TextureViewDescriptor::default()))
+                .as_ref()
+                .unwrap(),
+        );
+        let size = Vec2::new(
+            image.texture_descriptor.size.width as f32,
+            image.texture_descriptor.size.height as f32,
+        );
+        let sampler = match image.sampler_descriptor {
+            ImageSampler::Default => (**default_sampler).clone(),
+            ImageSampler::Descriptor(descriptor) => render_device.create_sampler(&descriptor),
+        };
+
+        premultiplied_images.values.insert(
+            handle,
+            GpuImage {
+                texture,
+                texture_view,
+                texture_format: image.texture_descriptor.format,
+                sampler,
+                size,
+                mip_level_count: image.texture_descriptor.mip_level_count,
+            },
+        );
+    }
 }
 
 const QUAD_UV: Vec4 = Vec4::new(1., 0., -1., 1.);
@@ -590,7 +677,7 @@ pub fn queue_sprites(
     mut pipelines: ResMut<SpecializedRenderPipelines<SpritePipeline>>,
     pipeline_cache: Res<PipelineCache>,
     mut image_bind_groups: ResMut<ImageBindGroups>,
-    gpu_images: Res<RenderAssets<Image>>,
+    premultiplied_images: Res<PremultipliedImages>,
     msaa: Res<Msaa>,
     extracted: (ResMut<ExtractedSprites>, Res<ExtractedObjects>),
     mut views: Query<(
@@ -695,11 +782,6 @@ pub fn queue_sprites(
             }
 
             let pipeline = pipelines.specialize(&pipeline_cache, &sprite_pipeline, view_key);
-            let blending_pipeline = pipelines.specialize(
-                &pipeline_cache,
-                &sprite_pipeline,
-                view_key | SpritePipelineKey::BLENDING,
-            );
 
             view_entities.clear();
             view_entities.extend(visible_entities.entities.iter().map(|e| e.index() as usize));
@@ -708,7 +790,6 @@ pub fn queue_sprites(
             // Impossible starting values that will be replaced on the first iteration
             let mut current_batch = SpriteBatch {
                 image_handle_id: HandleId::Id(Uuid::nil(), u64::MAX),
-                blending: false,
             };
             let mut current_batch_entity = Entity::PLACEHOLDER;
             let mut current_image_size = Vec2::ZERO;
@@ -723,18 +804,16 @@ pub fn queue_sprites(
                 }
                 let new_batch = SpriteBatch {
                     image_handle_id: extracted_sprite.image_handle_id,
-                    blending: match extracted_objects.objects.get(&extracted_sprite.entity) {
-                        Some(object) => object.blending,
-                        None => false,
-                    },
                 };
                 if new_batch != current_batch {
                     // Set-up a new possible batch
-                    if let Some(gpu_image) =
-                        gpu_images.get(&Handle::weak(new_batch.image_handle_id))
+                    if let Some(premultiplied_image) = premultiplied_images
+                        .values
+                        .get(&Handle::weak(new_batch.image_handle_id))
                     {
                         current_batch = new_batch;
-                        current_image_size = Vec2::new(gpu_image.size.x, gpu_image.size.y);
+                        current_image_size =
+                            Vec2::new(premultiplied_image.size.x, premultiplied_image.size.y);
                         current_batch_entity = commands.spawn(current_batch).id();
 
                         image_bind_groups
@@ -746,12 +825,14 @@ pub fn queue_sprites(
                                         BindGroupEntry {
                                             binding: 0,
                                             resource: BindingResource::TextureView(
-                                                &gpu_image.texture_view,
+                                                &premultiplied_image.texture_view,
                                             ),
                                         },
                                         BindGroupEntry {
                                             binding: 1,
-                                            resource: BindingResource::Sampler(&gpu_image.sampler),
+                                            resource: BindingResource::Sampler(
+                                                &premultiplied_image.sampler,
+                                            ),
                                         },
                                     ],
                                     label: Some("sprite_material_bind_group"),
@@ -810,7 +891,24 @@ pub fn queue_sprites(
                 let transform_matrix = extracted_sprite.transform.compute_matrix();
 
                 // Store the vertex data and add the item to the render phase
-                let instance_color = extracted_sprite.color.as_linear_rgba_f32();
+                let mut instance_color = extracted_sprite.color.as_linear_rgba_f32();
+
+                // Premultiply color
+                instance_color = [
+                    instance_color[0] * instance_color[3],
+                    instance_color[1] * instance_color[3],
+                    instance_color[2] * instance_color[3],
+                    instance_color[3],
+                ];
+
+                // Additive blending
+                if let Some(extracted_object) =
+                    extracted_objects.objects.get(&extracted_sprite.entity)
+                {
+                    if extracted_object.blending {
+                        instance_color[3] = 0.;
+                    }
+                }
 
                 sprite_meta.instances.push(SpriteInstance {
                     anchor: extracted_sprite.anchor.to_array(),
@@ -827,23 +925,13 @@ pub fn queue_sprites(
                 index += 1;
                 let item_end = index;
 
-                if current_batch.blending {
-                    transparent_phase.add(Transparent2d {
-                        draw_function: draw_sprite_function,
-                        pipeline: blending_pipeline,
-                        entity: current_batch_entity,
-                        sort_key,
-                        batch_range: Some(item_start..item_end),
-                    });
-                } else {
-                    transparent_phase.add(Transparent2d {
-                        draw_function: draw_sprite_function,
-                        pipeline,
-                        entity: current_batch_entity,
-                        sort_key,
-                        batch_range: Some(item_start..item_end),
-                    });
-                }
+                transparent_phase.add(Transparent2d {
+                    draw_function: draw_sprite_function,
+                    pipeline,
+                    entity: current_batch_entity,
+                    sort_key,
+                    batch_range: Some(item_start..item_end),
+                });
             }
         }
         sprite_meta
