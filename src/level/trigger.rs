@@ -178,7 +178,7 @@ pub(crate) fn execute_triggers(world: &mut World) {
 pub(crate) fn setup_trigger(
     commands: &mut Commands,
     entity: Entity,
-    object_id: &u32,
+    object_id: &u64,
     object_data: &HashMap<&[u8], &[u8]>,
 ) -> Result<(), anyhow::Error> {
     let mut entity = commands.entity(entity);

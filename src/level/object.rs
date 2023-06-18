@@ -17,7 +17,7 @@ use bevy::utils::{default, HashMap};
 
 #[derive(Component, Default)]
 pub(crate) struct Object {
-    pub(crate) id: u32,
+    pub(crate) id: u64,
     pub(crate) z_layer: i8,
     pub(crate) color_channel: u32,
     pub(crate) hsv: Option<Hsv>,
