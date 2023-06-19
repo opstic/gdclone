@@ -13,6 +13,9 @@ use bevy::sprite::{
 };
 use bevy::utils::{FloatOrd, HashMap, HashSet};
 use std::cmp::Ordering;
+use std::collections::BTreeMap;
+use std::num::NonZeroU32;
+use std::ops::Index;
 
 use crate::level::color::ColorChannels;
 use crate::level::object::Object;
@@ -132,13 +135,14 @@ impl FromWorld for SpritePipeline {
                         sample_type: TextureSampleType::Float { filterable: true },
                         view_dimension: TextureViewDimension::D2,
                     },
-                    count: None,
+                    // TODO: Detect amount of texture binds available at once
+                    count: NonZeroU32::new(16),
                 },
                 BindGroupLayoutEntry {
                     binding: 1,
                     visibility: ShaderStages::FRAGMENT,
                     ty: BindingType::Sampler(SamplerBindingType::Filtering),
-                    count: None,
+                    count: NonZeroU32::new(16),
                 },
             ],
             label: Some("sprite_material_layout"),
@@ -268,6 +272,8 @@ impl SpecializedRenderPipeline for SpritePipeline {
             VertexFormat::Float32x3,
             // color
             VertexFormat::Float32x4,
+            // texture_index
+            VertexFormat::Uint32,
         ];
 
         let vertex_layout =
@@ -566,6 +572,7 @@ struct SpriteInstance {
     pub transform_3: [f32; 3],
     pub transform_4: [f32; 3],
     pub color: [f32; 4],
+    pub texture_index: u32,
 }
 
 #[derive(Resource)]
@@ -585,12 +592,12 @@ impl Default for SpriteMeta {
 
 #[derive(Component, Eq, PartialEq, Copy, Clone)]
 pub struct SpriteBatch {
-    image_handle_id: HandleId,
+    image_group_index: usize,
 }
 
 #[derive(Resource, Default)]
 pub struct ImageBindGroups {
-    values: HashMap<Handle<Image>, BindGroup>,
+    values: Vec<BindGroup>,
 }
 
 #[derive(Resource, Default)]
@@ -691,15 +698,7 @@ pub fn queue_sprites(
 ) {
     let (mut extracted_sprites, extracted_objects) = extracted;
 
-    // If an image has changed, the GpuImage has (probably) changed
-    for event in &events.images {
-        match event {
-            AssetEvent::Created { .. } => None,
-            AssetEvent::Modified { handle } | AssetEvent::Removed { handle } => {
-                image_bind_groups.values.remove(handle)
-            }
-        };
-    }
+    image_bind_groups.values.clear();
 
     let msaa_key = SpritePipelineKey::from_msaa_samples(msaa.samples());
 
@@ -789,61 +788,56 @@ pub fn queue_sprites(
 
             // Impossible starting values that will be replaced on the first iteration
             let mut current_batch = SpriteBatch {
-                image_handle_id: HandleId::Id(Uuid::nil(), u64::MAX),
+                image_group_index: 0,
             };
-            let mut current_batch_entity = Entity::PLACEHOLDER;
-            let mut current_image_size = Vec2::ZERO;
+            let mut current_batch_entity = commands.spawn(current_batch).id();
             // Add a phase item for each sprite, and detect when successive items can be batched.
             // Spawn an entity with a `SpriteBatch` component for each possible batch.
             // Compatible items share the same entity.
             // Batches are merged later (in `batch_phase_system()`), so that they can be interrupted
             // by any other phase item (and they can interrupt other items from batching).
+            let mut image_group = HashMap::new();
             for extracted_sprite in extracted_sprites.iter() {
                 if !view_entities.contains(extracted_sprite.entity.index() as usize) {
                     continue;
                 }
-                let new_batch = SpriteBatch {
-                    image_handle_id: extracted_sprite.image_handle_id,
-                };
-                if new_batch != current_batch {
-                    // Set-up a new possible batch
-                    if let Some(premultiplied_image) = premultiplied_images
-                        .values
-                        .get(&Handle::weak(new_batch.image_handle_id))
-                    {
-                        current_batch = new_batch;
-                        current_image_size =
-                            Vec2::new(premultiplied_image.size.x, premultiplied_image.size.y);
-                        current_batch_entity = commands.spawn(current_batch).id();
 
-                        image_bind_groups
-                            .values
-                            .entry(Handle::weak(current_batch.image_handle_id))
-                            .or_insert_with(|| {
-                                render_device.create_bind_group(&BindGroupDescriptor {
-                                    entries: &[
-                                        BindGroupEntry {
-                                            binding: 0,
-                                            resource: BindingResource::TextureView(
-                                                &premultiplied_image.texture_view,
-                                            ),
-                                        },
-                                        BindGroupEntry {
-                                            binding: 1,
-                                            resource: BindingResource::Sampler(
-                                                &premultiplied_image.sampler,
-                                            ),
-                                        },
-                                    ],
-                                    label: Some("sprite_material_bind_group"),
-                                    layout: &sprite_pipeline.material_layout,
-                                })
-                            });
-                    } else {
-                        // Skip this item if the texture is not ready
-                        continue;
+                let item_image_handle = Handle::weak(extracted_sprite.image_handle_id);
+                let (texture_index, current_image_size) = match image_group.get(&item_image_handle)
+                {
+                    Some(image_info) => *image_info,
+                    None => {
+                        if image_group.len() >= 16 {
+                            // This image group is full, create a bind group for it and set-up a new batch
+                            image_bind_groups.values.push(create_image_bind_group(
+                                std::mem::take(&mut image_group)
+                                    .iter()
+                                    .map(|(handle, (index, _))| (index, handle))
+                                    .collect(),
+                                &premultiplied_images,
+                                &sprite_pipeline,
+                                &render_device,
+                            ));
+                            current_batch = SpriteBatch {
+                                image_group_index: image_bind_groups.values.len(),
+                            };
+                            current_batch_entity = commands.spawn(current_batch).id();
+                        }
+                        let image_group_len = image_group.len();
+                        if let Some(premultiplied_image) =
+                            premultiplied_images.values.get(&item_image_handle)
+                        {
+                            let current_image_size =
+                                Vec2::new(premultiplied_image.size.x, premultiplied_image.size.y);
+                            image_group
+                                .insert(item_image_handle, (image_group_len, current_image_size));
+                            (image_group_len, current_image_size)
+                        } else {
+                            // Skip this item if the texture is not ready
+                            continue;
+                        }
                     }
-                }
+                };
 
                 // Calculate vertex data for this item
 
@@ -919,6 +913,7 @@ pub fn queue_sprites(
                     transform_3: transform_matrix.z_axis.xyz().to_array(),
                     transform_4: transform_matrix.w_axis.xyz().to_array(),
                     color: instance_color,
+                    texture_index: texture_index as u32,
                 });
 
                 let item_start = index;
@@ -933,11 +928,58 @@ pub fn queue_sprites(
                     batch_range: Some(item_start..item_end),
                 });
             }
+            // Finish the last batch
+            image_bind_groups.values.push(create_image_bind_group(
+                std::mem::take(&mut image_group)
+                    .iter()
+                    .map(|(handle, (index, _))| (index, handle))
+                    .collect(),
+                &premultiplied_images,
+                &sprite_pipeline,
+                &render_device,
+            ));
         }
         sprite_meta
             .instances
             .write_buffer(&render_device, &render_queue);
     }
+}
+
+fn create_image_bind_group(
+    mut image_handles: Vec<(&usize, &Handle<Image>)>,
+    premultiplied_images: &PremultipliedImages,
+    sprite_pipeline: &SpritePipeline,
+    render_device: &RenderDevice,
+) -> BindGroup {
+    let mut texture_views = Vec::with_capacity(16);
+    let mut samplers = Vec::with_capacity(16);
+    image_handles.sort_unstable_by(|(a_index, _), (b_index, _)| a_index.cmp(b_index));
+    for (_, handle) in image_handles {
+        if let Some(premultiplied_image) = premultiplied_images.values.get(handle) {
+            texture_views.push(&*premultiplied_image.texture_view);
+            samplers.push(&*premultiplied_image.sampler);
+        }
+    }
+    while texture_views.len() < 16 {
+        texture_views.push(&*sprite_pipeline.dummy_white_gpu_image.texture_view);
+    }
+    while samplers.len() < 16 {
+        samplers.push(&*sprite_pipeline.dummy_white_gpu_image.sampler);
+    }
+    render_device.create_bind_group(&BindGroupDescriptor {
+        entries: &[
+            BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::TextureViewArray(&texture_views),
+            },
+            BindGroupEntry {
+                binding: 1,
+                resource: BindingResource::SamplerArray(&samplers),
+            },
+        ],
+        label: Some("sprite_material_bind_group"),
+        layout: &sprite_pipeline.material_layout,
+    })
 }
 
 pub type DrawSprite = (
@@ -985,10 +1027,7 @@ impl<P: PhaseItem, const I: usize> RenderCommand<P> for SetSpriteTextureBindGrou
 
         pass.set_bind_group(
             I,
-            image_bind_groups
-                .values
-                .get(&Handle::weak(sprite_batch.image_handle_id))
-                .unwrap(),
+            &image_bind_groups.values[sprite_batch.image_group_index],
             &[],
         );
         RenderCommandResult::Success

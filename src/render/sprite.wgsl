@@ -16,12 +16,14 @@ struct VertexInput {
     @location(5) transform_z: vec3<f32>,
     @location(6) transform_w: vec3<f32>,
     @location(7) color: vec4<f32>,
+    @location(8) texture_index: u32,
     @builtin(vertex_index) index: u32,
 }
 
 struct VertexOutput {
     @location(0) uv: vec2<f32>,
     @location(1) color: vec4<f32>,
+    @location(2) texture_index: u32,
     @builtin(position) position: vec4<f32>,
 };
 
@@ -39,17 +41,18 @@ fn vertex(in: VertexInput) -> VertexOutput {
     out.uv = in.uv.xy + in.uv.zw * (1.0 - xy);
     out.position = view.view_proj * transform_matrix * vec4<f32>(position, 0.0, 1.0);
     out.color = in.color;
+    out.texture_index = in.texture_index;
     return out;
 }
 
 @group(1) @binding(0)
-var sprite_texture: texture_2d<f32>;
+var sprite_textures: binding_array<texture_2d<f32>, 16>;
 @group(1) @binding(1)
-var sprite_sampler: sampler;
+var sprite_samplers: binding_array<sampler, 16>;
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
-    var color = textureSample(sprite_texture, sprite_sampler, in.uv);
+    var color = textureSample(sprite_textures[in.texture_index], sprite_samplers[in.texture_index], in.uv);
     color = in.color * color;
 
 #ifdef TONEMAP_IN_SHADER
