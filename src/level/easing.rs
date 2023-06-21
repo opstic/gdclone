@@ -34,12 +34,12 @@ impl Easing {
     pub(crate) fn from_id(id: u8, rate: Option<f32>) -> Easing {
         match id {
             0 => Easing::None,
-            1 => Easing::EaseInOut(rate.unwrap()),
-            2 => Easing::EaseIn(rate.unwrap()),
-            3 => Easing::EaseOut(rate.unwrap()),
-            4 => Easing::ElasticInOut(rate.unwrap()),
-            5 => Easing::ElasticIn(rate.unwrap()),
-            6 => Easing::ElasticOut(rate.unwrap()),
+            1 => Easing::EaseInOut(rate.unwrap_or(2.)),
+            2 => Easing::EaseIn(rate.unwrap_or(2.)),
+            3 => Easing::EaseOut(rate.unwrap_or(2.)),
+            4 => Easing::ElasticInOut(rate.unwrap_or(2.)),
+            5 => Easing::ElasticIn(rate.unwrap_or(2.)),
+            6 => Easing::ElasticOut(rate.unwrap_or(2.)),
             7 => Easing::BounceInOut,
             8 => Easing::BounceIn,
             9 => Easing::BounceOut,
