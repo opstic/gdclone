@@ -6,8 +6,8 @@ use bevy::asset::Assets;
 use bevy::hierarchy::{BuildChildren, Children, Parent};
 use bevy::math::{IVec2, Quat, Vec2, Vec3, Vec3Swizzles};
 use bevy::prelude::{
-    Commands, Component, Entity, GlobalTransform, OrthographicProjection, Query, Res,
-    Transform, With, Without,
+    Commands, Component, Entity, GlobalTransform, OrthographicProjection, Query, Res, Transform,
+    With, Without,
 };
 use bevy::reflect::Reflect;
 use bevy::render::view::VisibleEntities;
@@ -255,15 +255,13 @@ fn recursive_spawn_child(
     });
     entity.insert(GlobalTransform::default());
     let flip = Vec2::new(
-                if child.flip_x { -1. } else { 1. },
-                if child.flip_y { -1. } else { 1. },
-            );
+        if child.flip_x { -1. } else { 1. },
+        if child.flip_y { -1. } else { 1. },
+    );
     entity.insert(Transform {
         translation: child.offset.xy().extend(child.offset.z / 999.),
         rotation: Quat::from_rotation_z(child.rotation.to_radians()),
-        scale: (child.scale
-            * flip)
-        .extend(0.),
+        scale: (child.scale * flip).extend(0.),
     });
     entity.insert(Cocos2dAtlasSprite {
         texture: child.texture.clone(),

@@ -11,9 +11,7 @@ use crate::GameState;
 use bevy::app::{App, Plugin};
 
 use bevy::log::error;
-use bevy::prelude::{
-    Color, Commands, Entity, IntoSystemConfig, OnUpdate, Resource,
-};
+use bevy::prelude::{Color, Commands, Entity, IntoSystemConfig, OnUpdate, Resource};
 use bevy::utils::{HashMap, HashSet};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};

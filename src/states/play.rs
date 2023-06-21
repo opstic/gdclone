@@ -32,7 +32,9 @@ impl Plugin for PlayStatePlugin {
             //                 .after(TriggerSystems::ActivateTriggers),
             //         ),
             // )
-            .add_systems((move_camera, update_background_color, exit_play).in_set(OnUpdate(GameState::Play)));
+            .add_systems(
+                (move_camera, update_background_color, exit_play).in_set(OnUpdate(GameState::Play)),
+            );
         // .init_resource::<Groups>()
         // .init_resource::<ColorChannels>()
         // .register_type::<LevelObject>();
@@ -299,7 +301,10 @@ fn move_camera(
     }
 }
 
-fn update_background_color(color_channels: Res<ColorChannels>, mut clear_color: ResMut<ClearColor>) {
+fn update_background_color(
+    color_channels: Res<ColorChannels>,
+    mut clear_color: ResMut<ClearColor>,
+) {
     let (color, _) = color_channels.get_color(&1000);
     clear_color.0 = color;
 }
@@ -310,7 +315,7 @@ fn exit_play(
     mut color_channels: ResMut<ColorChannels>,
     mut groups: ResMut<Groups>,
     mut executing_triggers: ResMut<ExecutingTriggers>,
-    mut clear_color: ResMut<ClearColor>
+    mut clear_color: ResMut<ClearColor>,
 ) {
     if keys.pressed(KeyCode::Escape) {
         color_channels.0.clear();

@@ -58,8 +58,7 @@ impl TriggerFunction for RotateTrigger {
                     } else {
                         transform.rotate(rotation_amount);
                     }
-                    let after_section =
-                        section_from_pos(transform.translation.xy());
+                    let after_section = section_from_pos(transform.translation.xy());
                     if initial_section != after_section {
                         sections.get_section_mut(&initial_section).remove(entity);
                         sections.get_section_mut(&after_section).insert(*entity);

@@ -10,7 +10,6 @@ use bevy::sprite::{Mesh2dHandle, SpritePlugin};
 use bevy::window::{PresentMode, WindowResizeConstraints};
 use bevy::winit::WinitSettings;
 
-use bevy_editor_pls::EditorPlugin;
 use std::time::Duration;
 
 mod level;

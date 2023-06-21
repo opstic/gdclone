@@ -634,7 +634,7 @@ pub fn prepare_premultiplied_images(
             .data
             .chunks_exact(4)
             .map(|pixel| {
-                let alpha = (pixel[3] as f32 / u8::MAX as f32);
+                let alpha = pixel[3] as f32 / u8::MAX as f32;
                 // Premultiply
                 [
                     (pixel[0] as f32 * alpha).round() as u8,
