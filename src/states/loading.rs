@@ -61,11 +61,11 @@ fn loading_setup(
         .insert(LoadingText);
 
     let save_file: Handle<SaveFile> = server.load("CCLocalLevels.dat");
-    let atlas1: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet.plist");
-    let atlas2: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet02.plist");
-    let atlas3: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet03.plist");
-    let atlas4: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet04.plist");
-    let atlas5: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheetGlow.plist");
+    let atlas1: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet-uhd.plist");
+    let atlas2: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet02-uhd.plist");
+    let atlas3: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet03-uhd.plist");
+    let atlas4: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheet04-uhd.plist");
+    let atlas5: Handle<Cocos2dAtlas> = server.load("Resources/GJ_GameSheetGlow-uhd.plist");
 
     loading.0.push(save_file.clone_untyped());
     loading.0.push(atlas1.clone_untyped());

@@ -1,9 +1,11 @@
-use bevy::asset::{AssetLoader, Assets, BoxedFuture, Handle, LoadContext, LoadedAsset};
+use bevy::asset::{AssetEvent, AssetLoader, Assets, BoxedFuture, Handle, LoadContext, LoadedAsset};
 use bevy::math::Rect;
-use bevy::prelude::{FromWorld, Image, Res, TextureAtlas, Vec2, World};
+use bevy::prelude::{Component, EventReader, FromWorld, Image, Res, ResMut, Resource, Vec2, World};
+use bevy::reflect::Reflect;
 use bevy::reflect::TypeUuid;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::texture::{CompressedImageFormats, ImageType};
+use bevy::sprite::Anchor;
 use bevy::utils::HashMap;
 use serde::{Deserialize, Deserializer};
 use std::path::Path;
@@ -11,13 +13,13 @@ use std::path::Path;
 #[derive(Debug, TypeUuid)]
 #[uuid = "f2c8ed94-b8c8-4d9e-99e9-7ba9b7e8603b"]
 pub(crate) struct Cocos2dAtlas {
-    pub(crate) index: HashMap<String, Cocos2dTextureInfo>,
-    pub(crate) texture_atlas: Handle<TextureAtlas>,
+    pub(crate) texture: Handle<Image>,
+    pub(crate) frames: HashMap<String, Cocos2dFrame>,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Cocos2dTextureInfo {
-    pub(crate) index: usize,
+pub(crate) struct Cocos2dFrame {
+    pub(crate) rect: Rect,
     pub(crate) anchor: Vec2,
     pub(crate) rotated: bool,
 }
@@ -52,6 +54,47 @@ struct Frame {
     texture_rotated: bool,
 }
 
+#[derive(Component, Default, Reflect)]
+pub(crate) struct Cocos2dAtlasSprite {
+    pub(crate) texture: String,
+    pub(crate) flip_x: bool,
+    pub(crate) flip_y: bool,
+    pub(crate) custom_size: Option<Vec2>,
+    pub(crate) anchor: Anchor,
+}
+
+#[derive(Resource, Default)]
+pub(crate) struct Cocos2dFrames {
+    pub(crate) frames: HashMap<String, (Cocos2dFrame, Handle<Cocos2dAtlas>)>,
+}
+
+pub(crate) fn add_frames_to_resource(
+    mut frames: ResMut<Cocos2dFrames>,
+    mut atlas_events: EventReader<AssetEvent<Cocos2dAtlas>>,
+    atlases: Res<Assets<Cocos2dAtlas>>,
+) {
+    for atlas_event in atlas_events.iter() {
+        match atlas_event {
+            AssetEvent::Created { handle } | AssetEvent::Modified { handle } => {
+                if let Some(atlas) = atlases.get(handle) {
+                    frames.frames.extend(
+                        atlas
+                            .frames
+                            .clone()
+                            .into_iter()
+                            .map(|(texture, frame_info)| {
+                                (texture, (frame_info, handle.clone_weak()))
+                            }),
+                    );
+                }
+            }
+            AssetEvent::Removed { .. } => {
+                // TODO: Remove the frames
+            }
+        }
+    }
+}
+
 pub struct Cocos2dAtlasLoader {
     supported_compressed_formats: CompressedImageFormats,
 }
@@ -84,20 +127,19 @@ impl AssetLoader for Cocos2dAtlasLoader {
             .await?;
             let texture_handle =
                 load_context.set_labeled_asset("texture", LoadedAsset::new(texture));
-            let mut texture_atlas = TextureAtlas::new_empty(texture_handle, manifest.metadata.size);
-            let mut index = HashMap::new();
+            let mut frames = HashMap::with_capacity(manifest.frames.len());
             for (frame_name, frame) in manifest.frames {
-                let texture_index = if frame.texture_rotated {
-                    texture_atlas.add_texture(Rect {
+                let frame_rect = if frame.texture_rotated {
+                    Rect {
                         min: frame.texture_rect.min,
                         // WTF why does cocos need this i was stuck on this for WEEKS
                         max: Vec2 {
                             x: frame.texture_rect.min.x + frame.sprite_size.y,
                             y: frame.texture_rect.min.y + frame.sprite_size.x,
                         },
-                    })
+                    }
                 } else {
-                    texture_atlas.add_texture(frame.texture_rect)
+                    frame.texture_rect
                 };
 
                 // Also WTF is this offset calculation
@@ -109,20 +151,18 @@ impl AssetLoader for Cocos2dAtlasLoader {
                     };
                 }
 
-                index.insert(
-                    frame_name.clone(),
-                    Cocos2dTextureInfo {
-                        index: texture_index,
-                        anchor,
+                frames.insert(
+                    frame_name,
+                    Cocos2dFrame {
+                        rect: frame_rect,
+                        anchor: anchor * 2.,
                         rotated: frame.texture_rotated,
                     },
                 );
             }
-            let texture_atlas_handle =
-                load_context.set_labeled_asset("texture_atlas", LoadedAsset::new(texture_atlas));
             load_context.set_default_asset(LoadedAsset::new(Cocos2dAtlas {
-                index,
-                texture_atlas: texture_atlas_handle,
+                frames,
+                texture: texture_handle,
             }));
             Ok(())
         })
@@ -176,20 +216,4 @@ async fn load_texture<'a>(
     let extension = Path::new(filename).extension().unwrap().to_str().unwrap();
     let image_type = ImageType::Extension(extension);
     Ok(Image::from_buffer(&bytes, image_type, supported_compressed_formats, true).unwrap())
-}
-
-#[inline(always)]
-pub(crate) fn find_texture(
-    cocos2d_atlases: &Res<Assets<Cocos2dAtlas>>,
-    atlases: &Vec<&Handle<Cocos2dAtlas>>,
-    name: &String,
-) -> Option<(Cocos2dTextureInfo, Handle<TextureAtlas>)> {
-    for atlas_handle in atlases {
-        if let Some(atlas) = cocos2d_atlases.get(atlas_handle) {
-            if let Some(info) = atlas.index.get(name) {
-                return Some(((*info).clone(), atlas.texture_atlas.clone()));
-            }
-        }
-    }
-    None
 }

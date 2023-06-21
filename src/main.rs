@@ -10,6 +10,7 @@ use bevy::sprite::{Mesh2dHandle, SpritePlugin};
 use bevy::window::{PresentMode, WindowResizeConstraints};
 use bevy::winit::WinitSettings;
 
+use bevy_editor_pls::EditorPlugin;
 use std::time::Duration;
 
 mod level;
@@ -52,9 +53,9 @@ fn main() {
                 ..default()
             })
             .disable::<SpritePlugin>()
-            .add_before::<SpritePlugin, CustomSpritePlugin>(CustomSpritePlugin::default()),
+            .add_before::<SpritePlugin, CustomSpritePlugin>(CustomSpritePlugin),
     )
-    // .add_plugin(EditorPlugin)
+    // .add_plugin(EditorPlugin::default())
     .add_plugin(FrameTimeDiagnosticsPlugin)
     .add_plugin(AssetLoaderPlugin)
     .add_plugin(LevelPlugin)

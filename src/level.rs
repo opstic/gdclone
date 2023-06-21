@@ -11,11 +11,16 @@ use crate::GameState;
 use bevy::app::{App, Plugin};
 
 use bevy::log::error;
-use bevy::prelude::{Color, Commands, Entity, IntoSystemConfig, OnUpdate, Resource};
+use bevy::prelude::{
+    Color, Commands, Entity, IntoSystemConfig, OnUpdate, Resource,
+};
 use bevy::utils::{HashMap, HashSet};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
+use crate::level::object::Object;
+use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dFrames};
+use bevy::asset::Assets;
 use bevy::math::IVec2;
 use bevy::render::view;
 use bevy::render::view::VisibilitySystems;
@@ -26,26 +31,31 @@ pub(crate) struct LevelPlugin;
 
 impl Plugin for LevelPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(object::create_sprite.in_set(OnUpdate(GameState::Play)))
-            .add_system(
-                trigger::activate_xpos_triggers
-                    .in_set(TriggerSystems::ActivateTriggers)
-                    .in_set(OnUpdate(GameState::Play)),
-            )
-            .add_system(
-                trigger::execute_triggers
-                    .in_set(TriggerSystems::ExecuteTriggers)
-                    .after(TriggerSystems::ActivateTriggers),
-            )
-            .add_system(
-                object::update_visibility
-                    .in_set(VisibilitySystems::CheckVisibility)
-                    .after(view::check_visibility),
-            )
-            .init_resource::<ColorChannels>()
-            .init_resource::<Groups>()
-            .init_resource::<Sections>()
-            .init_resource::<trigger::ExecutingTriggers>();
+        app.add_system(
+            trigger::activate_xpos_triggers
+                .in_set(TriggerSystems::ActivateTriggers)
+                .in_set(OnUpdate(GameState::Play)),
+        )
+        .add_system(
+            trigger::execute_triggers
+                .in_set(TriggerSystems::ExecuteTriggers)
+                .after(TriggerSystems::ActivateTriggers),
+        )
+        .add_system(
+            object::update_visibility
+                .in_set(VisibilitySystems::CheckVisibility)
+                .after(view::check_visibility),
+        )
+        .add_system(
+            object::propagate_visibility
+                .after(object::update_visibility)
+                .in_set(VisibilitySystems::CheckVisibility),
+        )
+        .register_type::<Object>()
+        .init_resource::<ColorChannels>()
+        .init_resource::<Groups>()
+        .init_resource::<Sections>()
+        .init_resource::<trigger::ExecutingTriggers>();
     }
 }
 
@@ -150,8 +160,12 @@ impl<'a> ParsedInnerLevel<'a> {
     pub(crate) fn spawn_level(
         &self,
         commands: &mut Commands,
+        sections: &mut Sections,
+        cocos2d_frames: &Cocos2dFrames,
+        cocos2d_atlases: &Assets<Cocos2dAtlas>,
         low_detail: bool,
     ) -> Result<(), anyhow::Error> {
+        sections.0.clear();
         let mut colors: HashMap<u32, ColorChannel> = HashMap::new();
         let mut groups: HashMap<u32, Group> =
             HashMap::with_capacity((self.objects.len() / 500).min(500));
@@ -197,7 +211,14 @@ impl<'a> ParsedInnerLevel<'a> {
                 } else {
                     Vec::new()
                 };
-            let entity = match object::spawn_object(commands, object_data, parsed_groups.clone()) {
+            let entity = match object::spawn_object(
+                commands,
+                object_data,
+                parsed_groups.clone(),
+                sections,
+                cocos2d_frames,
+                cocos2d_atlases,
+            ) {
                 Ok(entity) => entity,
                 Err(e) => {
                     error!("Error while parsing object: {}", e);
@@ -210,7 +231,6 @@ impl<'a> ParsedInnerLevel<'a> {
             }
         }
         commands.insert_resource(Groups(groups));
-        commands.insert_resource(Sections::default());
         Ok(())
     }
 }

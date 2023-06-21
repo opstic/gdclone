@@ -1,25 +1,33 @@
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::env;
+use std::fmt::Display;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
 
 #[derive(Deserialize)]
 struct ObjectData {
-    texture_name: Option<String>,
+    texture: Option<String>,
     default_z_layer: Option<i8>,
     default_z_order: Option<i16>,
-    childrens: Option<Vec<Children>>,
+    children: Option<Vec<Child>>,
 }
 
 #[derive(Deserialize)]
-struct Children {
-    texture_name: String,
+struct Child {
+    texture: String,
     x: f32,
     y: f32,
     z: i16,
     rot: f32,
+    anchor_x: f32,
+    anchor_y: f32,
+    scale_x: f32,
+    scale_y: f32,
+    flip_x: bool,
+    flip_y: bool,
+    children: Option<Vec<Child>>,
 }
 
 fn main() {
@@ -36,81 +44,182 @@ fn main() {
     dest_file
         .write_all(
             "fn object_handler(object_id: u64) -> ObjectDefaultData {
-    let mut data = ObjectDefaultData::default();
     match object_id {\n"
                 .as_bytes(),
         )
         .unwrap();
     for (k, v) in hashmap {
-        dest_file
-            .write_all(format!("        {} => {{\n", k).as_bytes())
-            .unwrap();
-        if let Some(texture_name) = v.texture_name {
-            dest_file
-                .write_all(
-                    format!(
-                        "            data.texture_name = \"{}\".to_string();\n",
-                        texture_name
-                    )
-                    .as_bytes(),
-                )
-                .unwrap();
-        }
-        if let Some(default_z_layer) = v.default_z_layer {
-            dest_file
-                .write_all(
-                    format!("            data.default_z_layer = {};\n", default_z_layer).as_bytes(),
-                )
-                .unwrap();
-        }
-        if let Some(default_z_order) = v.default_z_order {
-            dest_file
-                .write_all(
-                    format!("            data.default_z_order = {};\n", default_z_order).as_bytes(),
-                )
-                .unwrap();
-        }
-        if let Some(childrens) = v.childrens {
-            dest_file
-                .write_all("            data.childrens = vec![\n".as_bytes())
-                .unwrap();
-            for child in childrens {
-                dest_file
-                    .write_all("                Children {\n".as_bytes())
-                    .unwrap();
-                dest_file
-                    .write_all(
-                        format!(
-                            "                    texture_name: \"{}\".to_string(),\n",
-                            child.texture_name
-                        )
-                        .as_bytes(),
-                    )
-                    .unwrap();
-                dest_file
-                    .write_all(format!("                    x: {} as f32,\n", child.x).as_bytes())
-                    .unwrap();
-                dest_file
-                    .write_all(format!("                    y: {} as f32,\n", child.y).as_bytes())
-                    .unwrap();
-                dest_file
-                    .write_all(format!("                    z: {},\n", child.z).as_bytes())
-                    .unwrap();
-                dest_file
-                    .write_all(
-                        format!("                    rot: {} as f32,\n", child.rot).as_bytes(),
-                    )
-                    .unwrap();
-                dest_file
-                    .write_all("                },\n".as_bytes())
-                    .unwrap();
-            }
-            dest_file.write_all("            ];\n".as_bytes()).unwrap();
-        }
-        dest_file.write_all("        }\n".as_bytes()).unwrap();
+        write_object(k, v, 2, &mut dest_file);
     }
-    dest_file.write_all("        _ => {}\n".as_bytes()).unwrap();
-    dest_file.write_all("    }\n".as_bytes()).unwrap();
-    dest_file.write_all("    data\n".as_bytes()).unwrap();
+    dest_file
+        .write_all("        _ => ObjectDefaultData::default(),\n".as_bytes())
+        .unwrap();
+    dest_file.write_all("    }".as_bytes()).unwrap();
     dest_file.write_all("}".as_bytes()).unwrap();
+}
+
+fn write_object(id: u64, object_data: ObjectData, indent_len: usize, file: &mut File) {
+    let indent = "    ".repeat(indent_len);
+    file.write_all(
+        (indent.clone() + format!("{} => ObjectDefaultData {{\n", id).as_str()).as_bytes(),
+    )
+    .unwrap();
+
+    let mut has_values = [false, false, false, false];
+    if let Some(texture) = object_data.texture {
+        write_value_string("texture", texture.as_str(), indent_len + 1, file);
+        has_values[0] = true;
+    }
+    if let Some(default_z_layer) = object_data.default_z_layer {
+        write_value("default_z_layer", default_z_layer, indent_len + 1, file);
+        has_values[1] = true;
+    }
+    if let Some(default_z_order) = object_data.default_z_order {
+        write_value("default_z_order", default_z_order, indent_len + 1, file);
+        has_values[2] = true;
+    }
+    if let Some(children) = object_data.children {
+        file.write_all(("    ".repeat(indent_len + 1) + "children: vec![\n").as_bytes())
+            .unwrap();
+        for child in children {
+            write_child(child, indent_len + 2, file);
+        }
+        file.write_all(("    ".repeat(indent_len + 1) + "],\n").as_bytes())
+            .unwrap();
+        has_values[3] = true;
+    }
+    if has_values != [true, true, true, true] {
+        file.write_all(("    ".repeat(indent_len + 1) + "..default()\n").as_bytes())
+            .unwrap();
+    }
+    file.write_all((indent + "},\n").as_bytes()).unwrap();
+}
+
+fn write_child(child: Child, indent_len: usize, file: &mut File) {
+    let indent = "    ".repeat(indent_len);
+    file.write_all((indent.clone() + "ObjectChild {\n").as_bytes())
+        .unwrap();
+    write_value_string("texture", child.texture.as_str(), indent_len + 1, file);
+    let mut has_values = [false, false, false, false, false, false, false];
+    if child.x != 0. || child.y != 0. || child.z != 0 {
+        write_value_vec3(
+            "offset",
+            child.x,
+            child.y,
+            child.z as f32,
+            indent_len + 1,
+            file,
+        );
+        has_values[0] = true;
+    }
+    if child.rot != 0. {
+        write_value_f32("rotation", child.rot, indent_len + 1, file);
+        has_values[1] = true;
+    }
+    if child.anchor_x != 0. || child.anchor_y != 0. {
+        write_value_vec2(
+            "anchor",
+            child.anchor_x,
+            child.anchor_y,
+            indent_len + 1,
+            file,
+        );
+        has_values[2] = true;
+    }
+    if child.scale_x != 1. || child.scale_y != 1. {
+        write_value_vec2("scale", child.scale_x, child.scale_y, indent_len + 1, file);
+        has_values[3] = true;
+    }
+    if child.flip_x {
+        write_value_bool("flip_x", child.flip_x, indent_len + 1, file);
+        has_values[4] = true;
+    }
+    if child.flip_y {
+        write_value_bool("flip_y", child.flip_y, indent_len + 1, file);
+        has_values[5] = true;
+    }
+    if let Some(children) = child.children {
+        file.write_all(("    ".repeat(indent_len + 1) + "children: vec![\n").as_bytes())
+            .unwrap();
+        for child in children {
+            write_child(child, indent_len + 2, file);
+        }
+        file.write_all(("    ".repeat(indent_len + 1) + "],\n").as_bytes())
+            .unwrap();
+        has_values[6] = true;
+    }
+    if has_values != [true, true, true, true, true, true, true] {
+        file.write_all(("    ".repeat(indent_len + 1) + "..default()\n").as_bytes())
+            .unwrap();
+    }
+    file.write_all((indent + "},\n").as_bytes()).unwrap();
+}
+
+fn write_value_string(name: &str, value: &str, indent_len: usize, file: &mut File) {
+    let indent = "    ".repeat(indent_len);
+    file.write_all(
+        (indent + format!("{}: \"{}\".to_string(),\n", name, value).as_str()).as_bytes(),
+    )
+    .unwrap();
+}
+
+fn write_value_vec2(name: &str, x: f32, y: f32, indent_len: usize, file: &mut File) {
+    let indent = "    ".repeat(indent_len);
+    file.write_all(
+        (indent
+            + format!(
+                "{}: Vec2::new({}, {}),\n",
+                name,
+                f32_writable(x),
+                f32_writable(y)
+            )
+            .as_str())
+        .as_bytes(),
+    )
+    .unwrap();
+}
+
+fn write_value_vec3(name: &str, x: f32, y: f32, z: f32, indent_len: usize, file: &mut File) {
+    let indent = "    ".repeat(indent_len);
+    file.write_all(
+        (indent
+            + format!(
+                "{}: Vec3::new({}, {}, {}),\n",
+                name,
+                f32_writable(x),
+                f32_writable(y),
+                f32_writable(z)
+            )
+            .as_str())
+        .as_bytes(),
+    )
+    .unwrap();
+}
+
+fn write_value_bool(name: &str, value: bool, indent_len: usize, file: &mut File) {
+    let indent = "    ".repeat(indent_len);
+    file.write_all((indent + format!("{}: {},\n", name, value).as_str()).as_bytes())
+        .unwrap();
+}
+
+fn write_value_f32(name: &str, value: f32, indent_len: usize, file: &mut File) {
+    let indent = "    ".repeat(indent_len);
+    file.write_all((indent + format!("{}: {},\n", name, f32_writable(value)).as_str()).as_bytes())
+        .unwrap();
+}
+
+fn f32_writable(value: f32) -> String {
+    if value.fract() == 0. {
+        return format!("{}.", value);
+    }
+    format!("{}", value)
+}
+
+fn write_value<T>(name: &str, value: T, indent_len: usize, file: &mut File)
+where
+    T: Display,
+{
+    let indent = "    ".repeat(indent_len);
+    file.write_all((indent + format!("{}: {},\n", name, value).as_str()).as_bytes())
+        .unwrap();
 }

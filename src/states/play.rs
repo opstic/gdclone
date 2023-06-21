@@ -3,12 +3,13 @@ use std::time::Instant;
 
 use crate::level::object::Object;
 use crate::level::trigger::ExecutingTriggers;
-use crate::level::Groups;
+use crate::level::{Groups, Sections};
 use crate::loaders::gdlevel::SaveFile;
 use crate::states::loading::GlobalAssets;
 
 use crate::GameState;
 
+use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dFrames};
 use bevy::prelude::*;
 
 pub(crate) struct PlayStatePlugin;
@@ -31,7 +32,7 @@ impl Plugin for PlayStatePlugin {
             //                 .after(TriggerSystems::ActivateTriggers),
             //         ),
             // )
-            .add_systems((move_camera, exit_play).in_set(OnUpdate(GameState::Play)));
+            .add_systems((move_camera, update_background_color, exit_play).in_set(OnUpdate(GameState::Play)));
         // .init_resource::<Groups>()
         // .init_resource::<ColorChannels>()
         // .register_type::<LevelObject>();
@@ -52,6 +53,9 @@ fn play_setup(
     mut camera_transforms: Query<&mut Transform, With<Camera>>,
     mut projections: Query<&mut OrthographicProjection, With<Camera>>,
     mut commands: Commands,
+    cocos2d_frames: Res<Cocos2dFrames>,
+    cocos2d_atlases: Res<Assets<Cocos2dAtlas>>,
+    mut sections: ResMut<Sections>,
     global_assets: Res<GlobalAssets>,
     save_file: Res<Assets<SaveFile>>,
     level_index: Res<LevelIndex>,
@@ -79,7 +83,15 @@ fn play_setup(
         if let Ok(parsed_level) = decompressed_level.parse() {
             info!("Parsing took {:?}", parse_time.elapsed());
             let spawn_time = Instant::now();
-            parsed_level.spawn_level(&mut commands, false).unwrap();
+            parsed_level
+                .spawn_level(
+                    &mut commands,
+                    &mut sections,
+                    &cocos2d_frames,
+                    &cocos2d_atlases,
+                    false,
+                )
+                .unwrap();
             info!("Spawned {:?} objects", parsed_level.objects());
             info!("Spawning took {:?}", spawn_time.elapsed());
             info!("Total loading time is {:?}", total_time.elapsed());
@@ -287,17 +299,24 @@ fn move_camera(
     }
 }
 
+fn update_background_color(color_channels: Res<ColorChannels>, mut clear_color: ResMut<ClearColor>) {
+    let (color, _) = color_channels.get_color(&1000);
+    clear_color.0 = color;
+}
+
 fn exit_play(
     mut next_state: ResMut<NextState<GameState>>,
     keys: Res<Input<KeyCode>>,
     mut color_channels: ResMut<ColorChannels>,
     mut groups: ResMut<Groups>,
     mut executing_triggers: ResMut<ExecutingTriggers>,
+    mut clear_color: ResMut<ClearColor>
 ) {
     if keys.pressed(KeyCode::Escape) {
         color_channels.0.clear();
         groups.0.clear();
         executing_triggers.0.clear();
+        clear_color.0 = Color::GRAY;
         next_state.set(GameState::LevelSelect);
     }
 }
@@ -308,7 +327,7 @@ fn exit_play(
 
 fn play_cleanup(
     mut commands: Commands,
-    query: Query<Entity, With<Object>>,
+    query: Query<Entity, (With<Object>, Without<Parent>)>,
     // mut groups: ResMut<Groups>,
 ) {
     // groups.groups.clear();

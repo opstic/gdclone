@@ -1,33 +1,27 @@
 use crate::level::color::Hsv;
 use crate::level::{trigger, Sections};
-use crate::loaders::cocos2d_atlas::{find_texture, Cocos2dAtlas};
-use crate::states::loading::GlobalAssets;
+use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasSprite, Cocos2dFrames};
 use crate::utils::{section_from_pos, u8_to_bool};
 use bevy::asset::Assets;
-use bevy::hierarchy::Parent;
-use bevy::log::warn;
+use bevy::hierarchy::{BuildChildren, Children, Parent};
 use bevy::math::{IVec2, Quat, Vec2, Vec3, Vec3Swizzles};
 use bevy::prelude::{
-    Commands, Component, ComputedVisibility, Entity, GlobalTransform, OrthographicProjection,
-    Query, Res, ResMut, Transform, Visibility, Without,
+    Commands, Component, Entity, GlobalTransform, OrthographicProjection, Query, Res,
+    Transform, With, Without,
 };
+use bevy::reflect::Reflect;
 use bevy::render::view::VisibleEntities;
-use bevy::sprite::{Anchor, SpriteSheetBundle, TextureAtlasSprite};
-use bevy::utils::{default, HashMap};
+use bevy::sprite::Anchor;
+use bevy::utils::{default, HashMap, HashSet};
 
-#[derive(Component, Default)]
+#[derive(Component, Default, Reflect)]
 pub(crate) struct Object {
     pub(crate) id: u64,
     pub(crate) z_layer: i8,
     pub(crate) color_channel: u32,
+    #[reflect(ignore)]
     pub(crate) hsv: Option<Hsv>,
-    pub(crate) rotated: bool,
-    pub(crate) flip_x: bool,
-    pub(crate) flip_y: bool,
-    pub(crate) transform: Transform,
     pub(crate) groups: Vec<u32>,
-    pub(crate) texture_name: String,
-    pub(crate) additional_anchor: Vec2,
 }
 
 pub(crate) fn update_visibility(
@@ -57,31 +51,80 @@ pub(crate) fn update_visibility(
     }
 }
 
+pub(crate) fn propagate_visibility(
+    root_query: Query<&Children, (With<Cocos2dAtlasSprite>, Without<Parent>)>,
+    children_query: Query<&Children, With<Cocos2dAtlasSprite>>,
+    mut visible_entities_query: Query<&mut VisibleEntities>,
+) {
+    let mut children_of_child = HashSet::new();
+    for mut visible_entities in &mut visible_entities_query {
+        for children in root_query.iter_many(&visible_entities.entities) {
+            for child in children {
+                children_of_child.extend(recursive_get_child(child, &children_query));
+            }
+        }
+        visible_entities
+            .entities
+            .extend(std::mem::take(&mut children_of_child));
+    }
+}
+
+fn recursive_get_child(
+    child: &Entity,
+    children_query: &Query<&Children, With<Cocos2dAtlasSprite>>,
+) -> HashSet<Entity> {
+    let mut children_of_child = HashSet::new();
+    if let Ok(children) = children_query.get(*child) {
+        for child in children {
+            children_of_child.extend(recursive_get_child(child, children_query));
+        }
+    }
+    children_of_child.insert(*child);
+    children_of_child
+}
+
 struct ObjectDefaultData {
-    texture_name: String,
+    texture: String,
     default_z_layer: i8,
     default_z_order: i16,
-    childrens: Vec<Children>,
+    children: Vec<ObjectChild>,
 }
 
 impl Default for ObjectDefaultData {
     fn default() -> Self {
         ObjectDefaultData {
-            texture_name: "emptyFrame.png".to_string(),
+            texture: "emptyFrame.png".to_string(),
             default_z_layer: 0,
             default_z_order: 0,
-            childrens: Vec::new(),
+            children: Vec::new(),
         }
     }
 }
 
-#[derive(Default)]
-struct Children {
-    texture_name: String,
-    x: f32,
-    y: f32,
-    z: i16,
-    rot: f32,
+struct ObjectChild {
+    texture: String,
+    offset: Vec3,
+    rotation: f32,
+    anchor: Vec2,
+    scale: Vec2,
+    flip_x: bool,
+    flip_y: bool,
+    children: Vec<ObjectChild>,
+}
+
+impl Default for ObjectChild {
+    fn default() -> Self {
+        ObjectChild {
+            texture: "emptyFrame.png".to_string(),
+            offset: Vec3::ZERO,
+            rotation: 0.,
+            anchor: Vec2::ZERO,
+            scale: Vec2::ONE,
+            flip_x: false,
+            flip_y: false,
+            children: Vec::new(),
+        }
+    }
 }
 
 include!(concat!(env!("OUT_DIR"), "/generated_object.rs"));
@@ -90,29 +133,31 @@ pub(crate) fn spawn_object(
     commands: &mut Commands,
     object_data: &HashMap<&[u8], &[u8]>,
     groups: Vec<u32>,
+    sections: &mut Sections,
+    cocos2d_frames: &Cocos2dFrames,
+    cocos2d_atlases: &Assets<Cocos2dAtlas>,
 ) -> Result<Entity, anyhow::Error> {
     let mut object = Object::default();
+    let mut transform = Transform::default();
+    let mut sprite = Cocos2dAtlasSprite::default();
+
     if let Some(id) = object_data.get(b"1".as_ref()) {
         object.id = std::str::from_utf8(id)?.parse()?;
     }
 
     let object_default_data: ObjectDefaultData = object_handler(object.id);
 
+    sprite.texture = object_default_data.texture.clone();
+
     if let Some(x) = object_data.get(b"2".as_ref()) {
-        object.transform.translation.x = std::str::from_utf8(x)?.parse()?;
+        transform.translation.x = std::str::from_utf8(x)?.parse()?;
     }
     if let Some(y) = object_data.get(b"3".as_ref()) {
-        object.transform.translation.y = std::str::from_utf8(y)?.parse()?;
-    }
-    if let Some(flip_x) = object_data.get(b"4".as_ref()) {
-        object.flip_x = u8_to_bool(flip_x);
-    }
-    if let Some(flip_y) = object_data.get(b"5".as_ref()) {
-        object.flip_y = u8_to_bool(flip_y);
+        transform.translation.y = std::str::from_utf8(y)?.parse()?;
     }
     if let Some(rotation) = object_data.get(b"6".as_ref()) {
-        object.transform.rotation =
-            Quat::from_rotation_z(std::str::from_utf8(rotation)?.parse::<f32>()?.to_radians());
+        transform.rotation =
+            Quat::from_rotation_z(-std::str::from_utf8(rotation)?.parse::<f32>()?.to_radians());
     }
     if let Some(z_layer) = object_data.get(b"24".as_ref()) {
         object.z_layer = std::str::from_utf8(z_layer)?.parse()?;
@@ -120,12 +165,19 @@ pub(crate) fn spawn_object(
         object.z_layer = object_default_data.default_z_layer;
     }
     if let Some(z_order) = object_data.get(b"25".as_ref()) {
-        object.transform.translation.z = std::str::from_utf8(z_order)?.parse()?;
+        transform.translation.z = std::str::from_utf8(z_order)?.parse()?;
     } else {
-        object.transform.translation.z = object_default_data.default_z_order as f32;
+        transform.translation.z = object_default_data.default_z_order as f32;
     }
+    transform.translation.z = (transform.translation.z + 999.) / (999. + 10000.) * 999.;
     if let Some(scale) = object_data.get(b"32".as_ref()) {
-        object.transform.scale = Vec2::splat(std::str::from_utf8(scale)?.parse()?).extend(0.);
+        transform.scale = Vec2::splat(std::str::from_utf8(scale)?.parse()?).extend(0.);
+    }
+    if let Some(flip_x) = object_data.get(b"4".as_ref()) {
+        transform.scale.x *= if u8_to_bool(flip_x) { -1. } else { 1. };
+    }
+    if let Some(flip_y) = object_data.get(b"5".as_ref()) {
+        transform.scale.y *= if u8_to_bool(flip_y) { -1. } else { 1. };
     }
     if let Some(color_channel) = object_data.get(b"21".as_ref()) {
         object.color_channel = std::str::from_utf8(color_channel)?.parse()?;
@@ -138,118 +190,104 @@ pub(crate) fn spawn_object(
     let object_color_channel = object.color_channel;
     let object_hsv = object.hsv.clone();
     object.groups = groups.clone();
-    object.texture_name = object_default_data.texture_name;
-    let entity = commands.spawn(object).id();
+    let mut entity = commands.spawn(object);
+
+    entity.insert(transform);
+    entity.insert(GlobalTransform::default());
+    entity.insert(sprite);
+    if let Some((_, handle)) = cocos2d_frames.frames.get(&object_default_data.texture) {
+        let mut handle = handle.clone();
+        handle.make_strong(cocos2d_atlases);
+        entity.insert(handle);
+    }
+    let entity = entity.id();
+    let section = section_from_pos(transform.translation.xy());
+    sections.get_section_mut(&section).insert(entity);
     match object_id {
         901 | 1007 | 1346 | 1049 | 899 => {
             trigger::setup_trigger(commands, entity, &object_id, object_data)?
         }
         _ => (),
     }
-    // for child in object_default_data.childrens {
-    //     let mut child_object = Object {
-    //         texture_name: child.texture_name,
-    //         z_layer: object_z_layer,
-    //         transform: Transform {
-    //             translation: child.offset,
-    //             rotation: Quat::from_rotation_z(child.rot.to_radians()),
-    //             ..default()
-    //         },
-    //         ..default()
-    //     };
-    //     if let Some(secondary_color_channel) = object_data.get(b"22".as_ref()) {
-    //         child_object.color_channel = std::str::from_utf8(secondary_color_channel)?.parse()?;
-    //     } else {
-    //         child_object.color_channel = object_color_channel;
-    //     }
-    //     if let Some(secondary_hsv) = object_data.get(b"44".as_ref()) {
-    //         child_object.hsv = Some(Hsv::parse(secondary_hsv)?);
-    //     } else {
-    //         child_object.hsv = object_hsv.clone();
-    //     }
-    //     child_object.groups = groups.clone();
-    //     child_object.additional_anchor = child.anchor;
-    //     child_object.flip_x = child.flip_x;
-    //     child_object.flip_y = child.flip_y;
-    //     let child_entity = commands.spawn(child_object).id();
-    //     commands.entity(entity).add_child(child_entity);
-    // }
+    let child_color_channel = if let Some(secondary_color_channel) = object_data.get(b"22".as_ref())
+    {
+        std::str::from_utf8(secondary_color_channel)?.parse()?
+    } else {
+        object_color_channel
+    };
+    let child_hsv = if let Some(secondary_hsv) = object_data.get(b"44".as_ref()) {
+        Some(Hsv::parse(secondary_hsv)?)
+    } else {
+        object_hsv
+    };
+    for child in object_default_data.children {
+        let child_entity = recursive_spawn_child(
+            commands,
+            child,
+            child_color_channel,
+            child_hsv.clone(),
+            object_z_layer,
+            groups.clone(),
+            cocos2d_frames,
+            cocos2d_atlases,
+        );
+        commands.entity(entity).add_child(child_entity);
+    }
     Ok(entity)
 }
 
-#[derive(Component)]
-pub(crate) struct NoTexture;
-
-pub(crate) fn create_sprite(
-    mut commands: Commands,
-    global_assets: Res<GlobalAssets>,
-    cocos2d_atlases: Res<Assets<Cocos2dAtlas>>,
-    object_without_sprite: Query<
-        (Entity, &Object),
-        (
-            Without<TextureAtlasSprite>,
-            Without<Parent>,
-            Without<NoTexture>,
-        ),
-    >,
-    mut sections: ResMut<Sections>,
-) {
-    let atlases = vec![
-        &global_assets.atlas1,
-        &global_assets.atlas2,
-        &global_assets.atlas3,
-        &global_assets.atlas4,
-        &global_assets.atlas5,
-    ];
-    // object_without_sprite
-    //     .par_iter()
-    //     .for_each_mut(|(entity, object)| {});
-    for (entity, object) in object_without_sprite.iter() {
-        let mut entity_commands = commands.entity(entity);
-        if let Some((info, atlas_handle)) =
-            find_texture(&cocos2d_atlases, &atlases, &object.texture_name)
-        {
-            let mut flip_x = object.flip_x;
-            let mut flip_y = object.flip_y;
-            let translation = (object.transform.translation.xy())
-                .extend((object.transform.translation.z + 999.) / (999. + 10000.) * 999.);
-            let section_index = section_from_pos(translation.xy());
-            sections.get_section_mut(&section_index).insert(entity);
-            let mut rotation = object.transform.rotation;
-            if info.rotated {
-                std::mem::swap(&mut flip_x, &mut flip_y);
-                rotation *= Quat::from_rotation_z((-90_f32).to_radians())
-            }
-            rotation = rotation.inverse();
-            let mut scale = object.transform.scale;
-            scale.x *= if flip_x { -1. } else { 1. };
-            scale.y *= if flip_y { -1. } else { 1. };
-            entity_commands.insert(SpriteSheetBundle {
-                transform: Transform {
-                    translation,
-                    rotation,
-                    scale,
-                },
-                sprite: TextureAtlasSprite {
-                    index: info.index,
-                    anchor: Anchor::Custom(info.anchor + object.additional_anchor),
-                    ..default()
-                },
-                texture_atlas: atlas_handle.clone(),
-                ..default()
-            });
-            entity_commands.remove::<Visibility>();
-            entity_commands.remove::<ComputedVisibility>();
-        } else {
-            warn!(
-                "Cannot find atlas for texture {}, object id {}",
-                object.texture_name, object.id
+fn recursive_spawn_child(
+    commands: &mut Commands,
+    child: ObjectChild,
+    color_channel: u32,
+    hsv: Option<Hsv>,
+    z_layer: i8,
+    groups: Vec<u32>,
+    cocos2d_frames: &Cocos2dFrames,
+    cocos2d_atlases: &Assets<Cocos2dAtlas>,
+) -> Entity {
+    let mut entity = commands.spawn(Object {
+        color_channel,
+        hsv: hsv.clone(),
+        groups: groups.clone(),
+        z_layer,
+        ..default()
+    });
+    entity.insert(GlobalTransform::default());
+    let flip = Vec2::new(
+                if child.flip_x { -1. } else { 1. },
+                if child.flip_y { -1. } else { 1. },
             );
-            entity_commands.insert(NoTexture);
-        }
+    entity.insert(Transform {
+        translation: child.offset.xy().extend(child.offset.z / 999.),
+        rotation: Quat::from_rotation_z(child.rotation.to_radians()),
+        scale: (child.scale
+            * flip)
+        .extend(0.),
+    });
+    entity.insert(Cocos2dAtlasSprite {
+        texture: child.texture.clone(),
+        anchor: Anchor::Custom(child.anchor * 2. * flip),
+        ..default()
+    });
+    if let Some((_, handle)) = cocos2d_frames.frames.get(&child.texture) {
+        let mut handle = handle.clone();
+        handle.make_strong(cocos2d_atlases);
+        entity.insert(handle);
     }
+    let entity = entity.id();
+    for child in child.children {
+        let child_entity = recursive_spawn_child(
+            commands,
+            child,
+            color_channel,
+            hsv.clone(),
+            z_layer,
+            groups.clone(),
+            cocos2d_frames,
+            cocos2d_atlases,
+        );
+        commands.entity(entity).add_child(child_entity);
+    }
+    entity
 }
-
-// pub(crate) fn create_child_sprite(mut commands: Commands, global_assets: Res<GlobalAssets>,
-//                                   cocos2d_atlases: Res<Assets<Cocos2dAtlas>>,
-//                                   object_without_sprite: Query<(Entity, &Object, &Visibility), (Without<TextureAtlasSprite>, With<Parent>)>)
