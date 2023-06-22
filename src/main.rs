@@ -7,7 +7,7 @@ use bevy::prelude::*;
 use bevy::render::primitives::Aabb;
 use bevy::render::view::{NoFrustumCulling, VisibilitySystems};
 use bevy::sprite::{Mesh2dHandle, SpritePlugin};
-use bevy::window::{PresentMode, WindowResizeConstraints};
+use bevy::window::{PresentMode, WindowMode, WindowResizeConstraints};
 use bevy::winit::WinitSettings;
 
 use std::time::Duration;
@@ -62,6 +62,7 @@ fn main() {
     .add_plugins(StatePlugins)
     .add_startup_system(setup)
     .add_system(update_fps)
+    .add_system(toggle_fullscreen)
     // .add_system(handle_resize)
     .add_system(calculate_bounds.in_set(VisibilitySystems::CalculateBounds))
     .run();
@@ -113,6 +114,21 @@ fn update_fps(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<Fp
                 text.sections[1].value = average.trunc().to_string();
             }
         }
+    }
+}
+
+fn toggle_fullscreen(input: Res<Input<KeyCode>>, mut windows: Query<&mut Window>) {
+    if input.just_pressed(KeyCode::F11) {
+        let mut window = windows.single_mut();
+
+        window.mode = match window.mode {
+            WindowMode::Windowed => WindowMode::Fullscreen,
+            WindowMode::Fullscreen => WindowMode::BorderlessFullscreen,
+            WindowMode::BorderlessFullscreen => WindowMode::SizedFullscreen,
+            WindowMode::SizedFullscreen => WindowMode::Windowed,
+        };
+
+        info!("Switching window mode to {:?}", window.mode);
     }
 }
 
