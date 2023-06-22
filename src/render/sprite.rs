@@ -464,7 +464,7 @@ fn extract_cocos2d_sprites(
                         }
                         color.set_a(color.a() * opacity);
                         if blending {
-                            color.set_a(color.a().powf(4.475));
+                            color.set_a(color.a().powf(3.75));
                         }
 
                         if color.a() < 0.02 {
