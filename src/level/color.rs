@@ -1,5 +1,5 @@
 use crate::level::de;
-use crate::utils::{hsv_to_rgb, rgb_to_hsv, u8_to_bool};
+use crate::utils::{hsv_to_rgb, rgb_to_hsv, u8_to_bool, PassHashMap};
 use bevy::log::warn;
 use bevy::prelude::{Color, Resource};
 use bevy::reflect::Reflect;
@@ -7,7 +7,7 @@ use bevy::utils::HashMap;
 use serde::Deserialize;
 
 #[derive(Default, Resource)]
-pub(crate) struct ColorChannels(pub(crate) HashMap<u64, ColorChannel>);
+pub(crate) struct ColorChannels(pub(crate) PassHashMap<ColorChannel>);
 
 impl ColorChannels {
     pub(crate) fn get_color(&self, index: &u64) -> (Color, bool) {
@@ -109,7 +109,7 @@ pub(crate) struct CopyColor {
     pub(crate) hsv: Hsv,
 }
 
-#[derive(Debug, Deserialize, Clone, Reflect)]
+#[derive(Debug, Deserialize, Copy, Clone, Reflect)]
 pub(crate) struct Hsv {
     pub(crate) h: f32,
     pub(crate) s: f32,

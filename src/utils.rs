@@ -2,7 +2,10 @@ use crate::level::SECTION_SIZE;
 use base64::Engine;
 use bevy::math::{IVec2, Vec2};
 use bevy::prelude::Color;
+use bevy::utils::{hashbrown, PassHash};
 use std::io::Read;
+
+pub type PassHashMap<V> = hashbrown::HashMap<u64, V, PassHash>;
 
 #[inline(always)]
 pub(crate) fn u8_to_bool(byte: &[u8]) -> bool {

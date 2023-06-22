@@ -11,6 +11,9 @@ struct ObjectData {
     texture: Option<String>,
     default_z_layer: Option<i8>,
     default_z_order: Option<i16>,
+    default_base_color_channel: Option<u64>,
+    default_detail_color_channel: Option<u64>,
+    color_type: Option<String>,
     children: Option<Vec<Child>>,
 }
 
@@ -27,6 +30,7 @@ struct Child {
     scale_y: f32,
     flip_x: bool,
     flip_y: bool,
+    color_type: Option<String>,
     children: Option<Vec<Child>>,
 }
 
@@ -65,7 +69,7 @@ fn write_object(id: u64, object_data: ObjectData, indent_len: usize, file: &mut 
     )
     .unwrap();
 
-    let mut has_values = [false, false, false, false];
+    let mut has_values = [false, false, false, false, false, false, false];
     if let Some(texture) = object_data.texture {
         write_value_string("texture", texture.as_str(), indent_len + 1, file);
         has_values[0] = true;
@@ -78,6 +82,28 @@ fn write_object(id: u64, object_data: ObjectData, indent_len: usize, file: &mut 
         write_value("default_z_order", default_z_order, indent_len + 1, file);
         has_values[2] = true;
     }
+    if let Some(default_base_color_channel) = object_data.default_base_color_channel {
+        write_value(
+            "default_base_color_channel",
+            default_base_color_channel,
+            indent_len + 1,
+            file,
+        );
+        has_values[3] = true;
+    }
+    if let Some(default_detail_color_channel) = object_data.default_detail_color_channel {
+        write_value(
+            "default_detail_color_channel",
+            default_detail_color_channel,
+            indent_len + 1,
+            file,
+        );
+        has_values[4] = true;
+    }
+    if let Some(color_type) = object_data.color_type {
+        write_value_color_type("color_type", color_type, indent_len + 1, file);
+        has_values[5] = true;
+    }
     if let Some(children) = object_data.children {
         file.write_all(("    ".repeat(indent_len + 1) + "children: vec![\n").as_bytes())
             .unwrap();
@@ -86,9 +112,9 @@ fn write_object(id: u64, object_data: ObjectData, indent_len: usize, file: &mut 
         }
         file.write_all(("    ".repeat(indent_len + 1) + "],\n").as_bytes())
             .unwrap();
-        has_values[3] = true;
+        has_values[6] = true;
     }
-    if has_values != [true, true, true, true] {
+    if has_values != [true, true, true, true, true, true, true] {
         file.write_all(("    ".repeat(indent_len + 1) + "..default()\n").as_bytes())
             .unwrap();
     }
@@ -100,7 +126,7 @@ fn write_child(child: Child, indent_len: usize, file: &mut File) {
     file.write_all((indent.clone() + "ObjectChild {\n").as_bytes())
         .unwrap();
     write_value_string("texture", child.texture.as_str(), indent_len + 1, file);
-    let mut has_values = [false, false, false, false, false, false, false];
+    let mut has_values = [false, false, false, false, false, false, false, false];
     if child.x != 0. || child.y != 0. || child.z != 0 {
         write_value_vec3(
             "offset",
@@ -138,6 +164,10 @@ fn write_child(child: Child, indent_len: usize, file: &mut File) {
         write_value_bool("flip_y", child.flip_y, indent_len + 1, file);
         has_values[5] = true;
     }
+    if let Some(color_type) = child.color_type {
+        write_value_color_type("color_type", color_type, indent_len + 1, file);
+        has_values[6] = true;
+    }
     if let Some(children) = child.children {
         file.write_all(("    ".repeat(indent_len + 1) + "children: vec![\n").as_bytes())
             .unwrap();
@@ -146,9 +176,9 @@ fn write_child(child: Child, indent_len: usize, file: &mut File) {
         }
         file.write_all(("    ".repeat(indent_len + 1) + "],\n").as_bytes())
             .unwrap();
-        has_values[6] = true;
+        has_values[7] = true;
     }
-    if has_values != [true, true, true, true, true, true, true] {
+    if has_values != [true, true, true, true, true, true, true, true] {
         file.write_all(("    ".repeat(indent_len + 1) + "..default()\n").as_bytes())
             .unwrap();
     }
@@ -159,6 +189,14 @@ fn write_value_string(name: &str, value: &str, indent_len: usize, file: &mut Fil
     let indent = "    ".repeat(indent_len);
     file.write_all(
         (indent + format!("{}: \"{}\".to_string(),\n", name, value).as_str()).as_bytes(),
+    )
+    .unwrap();
+}
+
+fn write_value_color_type(name: &str, value: String, indent_len: usize, file: &mut File) {
+    let indent = "    ".repeat(indent_len);
+    file.write_all(
+        (indent + format!("{}: ObjectColorType::{},\n", name, value).as_str()).as_bytes(),
     )
     .unwrap();
 }

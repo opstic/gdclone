@@ -4,6 +4,7 @@ use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasSprite, Cocos2dFra
 use crate::utils::{section_from_pos, u8_to_bool};
 use bevy::asset::Assets;
 use bevy::hierarchy::{BuildChildren, Children, Parent};
+use bevy::log::info;
 use bevy::math::{IVec2, Quat, Vec2, Vec3, Vec3Swizzles};
 use bevy::prelude::{
     Commands, Component, Entity, GlobalTransform, OrthographicProjection, Query, Res, Transform,
@@ -83,10 +84,20 @@ fn recursive_get_child(
     children_of_child
 }
 
+enum ObjectColorType {
+    Base,
+    Detail,
+    Black,
+    None,
+}
+
 struct ObjectDefaultData {
     texture: String,
     default_z_layer: i8,
     default_z_order: i16,
+    default_base_color_channel: u64,
+    default_detail_color_channel: u64,
+    color_type: ObjectColorType,
     children: Vec<ObjectChild>,
 }
 
@@ -96,6 +107,9 @@ impl Default for ObjectDefaultData {
             texture: "emptyFrame.png".to_string(),
             default_z_layer: 0,
             default_z_order: 0,
+            default_base_color_channel: u64::MAX,
+            default_detail_color_channel: u64::MAX,
+            color_type: ObjectColorType::None,
             children: Vec::new(),
         }
     }
@@ -109,6 +123,7 @@ struct ObjectChild {
     scale: Vec2,
     flip_x: bool,
     flip_y: bool,
+    color_type: ObjectColorType,
     children: Vec<ObjectChild>,
 }
 
@@ -122,6 +137,7 @@ impl Default for ObjectChild {
             scale: Vec2::ONE,
             flip_x: false,
             flip_y: false,
+            color_type: ObjectColorType::None,
             children: Vec::new(),
         }
     }
@@ -179,16 +195,47 @@ pub(crate) fn spawn_object(
     if let Some(flip_y) = object_data.get(b"5".as_ref()) {
         transform.scale.y *= if u8_to_bool(flip_y) { -1. } else { 1. };
     }
-    if let Some(color_channel) = object_data.get(b"21".as_ref()) {
-        object.color_channel = std::str::from_utf8(color_channel)?.parse()?;
+
+    let base_color_channel = if let Some(base_color_channel) = object_data.get(b"21".as_ref()) {
+        std::str::from_utf8(base_color_channel)?.parse()?
+    } else {
+        object_default_data.default_base_color_channel
+    };
+    let detail_color_channel = if let Some(detail_color_channel) = object_data.get(b"22".as_ref()) {
+        std::str::from_utf8(detail_color_channel)?.parse()?
+    } else {
+        object_default_data.default_detail_color_channel
+    };
+
+    let base_hsv = if let Some(base_hsv) = object_data.get(b"43".as_ref()) {
+        Some(Hsv::parse(base_hsv)?)
+    } else {
+        None
+    };
+
+    let detail_hsv = if let Some(detail_hsv) = object_data.get(b"44".as_ref()) {
+        Some(Hsv::parse(detail_hsv)?)
+    } else {
+        None
+    };
+
+    match object_default_data.color_type {
+        ObjectColorType::Base => {
+            object.color_channel = base_color_channel;
+            object.hsv = base_hsv;
+        }
+        ObjectColorType::Detail => {
+            object.color_channel = detail_color_channel;
+            object.hsv = detail_hsv;
+        }
+        ObjectColorType::Black => {
+            object.color_channel = 1010;
+        }
+        ObjectColorType::None => {}
     }
-    if let Some(hsv) = object_data.get(b"43".as_ref()) {
-        object.hsv = Some(Hsv::parse(hsv)?);
-    }
+
     let object_id = object.id;
     let object_z_layer = object.z_layer;
-    let object_color_channel = object.color_channel;
-    let object_hsv = object.hsv.clone();
     object.groups = groups.clone();
     let mut entity = commands.spawn(object);
 
@@ -209,23 +256,15 @@ pub(crate) fn spawn_object(
         }
         _ => (),
     }
-    let child_color_channel = if let Some(secondary_color_channel) = object_data.get(b"22".as_ref())
-    {
-        std::str::from_utf8(secondary_color_channel)?.parse()?
-    } else {
-        object_color_channel
-    };
-    let child_hsv = if let Some(secondary_hsv) = object_data.get(b"44".as_ref()) {
-        Some(Hsv::parse(secondary_hsv)?)
-    } else {
-        object_hsv
-    };
+
     for child in object_default_data.children {
         let child_entity = recursive_spawn_child(
             commands,
             child,
-            child_color_channel,
-            child_hsv.clone(),
+            base_color_channel,
+            detail_color_channel,
+            base_hsv,
+            detail_hsv,
             object_z_layer,
             groups.clone(),
             cocos2d_frames,
@@ -239,20 +278,37 @@ pub(crate) fn spawn_object(
 fn recursive_spawn_child(
     commands: &mut Commands,
     child: ObjectChild,
-    color_channel: u64,
-    hsv: Option<Hsv>,
+    base_color_channel: u64,
+    detail_color_channel: u64,
+    base_hsv: Option<Hsv>,
+    detail_hsv: Option<Hsv>,
     z_layer: i8,
     groups: Vec<u64>,
     cocos2d_frames: &Cocos2dFrames,
     cocos2d_atlases: &Assets<Cocos2dAtlas>,
 ) -> Entity {
-    let mut entity = commands.spawn(Object {
-        color_channel,
-        hsv: hsv.clone(),
+    let mut object = Object {
         groups: groups.clone(),
         z_layer,
         ..default()
-    });
+    };
+
+    match child.color_type {
+        ObjectColorType::Base => {
+            object.color_channel = base_color_channel;
+            object.hsv = base_hsv;
+        }
+        ObjectColorType::Detail => {
+            object.color_channel = detail_color_channel;
+            object.hsv = detail_hsv;
+        }
+        ObjectColorType::Black => {
+            object.color_channel = 1010;
+        }
+        ObjectColorType::None => {}
+    }
+
+    let mut entity = commands.spawn(object);
     entity.insert(GlobalTransform::default());
     let flip = Vec2::new(
         if child.flip_x { -1. } else { 1. },
@@ -278,8 +334,10 @@ fn recursive_spawn_child(
         let child_entity = recursive_spawn_child(
             commands,
             child,
-            color_channel,
-            hsv.clone(),
+            base_color_channel,
+            detail_color_channel,
+            base_hsv,
+            detail_hsv,
             z_layer,
             groups.clone(),
             cocos2d_frames,

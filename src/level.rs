@@ -6,13 +6,13 @@ pub(crate) mod trigger;
 
 use crate::level::color::{BaseColor, ColorChannel, ColorChannels, CopyColor, Hsv};
 use crate::level::trigger::TriggerSystems;
-use crate::utils::{decompress, decrypt, u8_to_bool};
+use crate::utils::{decompress, decrypt, u8_to_bool, PassHashMap};
 use crate::GameState;
 use bevy::app::{App, Plugin};
 
 use bevy::log::error;
 use bevy::prelude::{Color, Commands, Entity, IntoSystemConfig, OnUpdate, Resource};
-use bevy::utils::{HashMap, HashSet};
+use bevy::utils::{hashbrown, HashMap, HashSet, PassHash, PassHasher, PreHashMap};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
@@ -117,7 +117,7 @@ pub(crate) struct ParsedInnerLevel<'a> {
 }
 
 #[derive(Default, Resource)]
-pub(crate) struct Groups(pub(crate) HashMap<u64, Group>);
+pub(crate) struct Groups(pub(crate) PassHashMap<Group>);
 
 pub(crate) struct Group {
     pub(crate) entities: Vec<Entity>,
@@ -164,9 +164,11 @@ impl<'a> ParsedInnerLevel<'a> {
         low_detail: bool,
     ) -> Result<(), anyhow::Error> {
         sections.0.clear();
-        let mut colors: HashMap<u64, ColorChannel> = HashMap::new();
-        let mut groups: HashMap<u64, Group> =
-            HashMap::with_capacity((self.objects.len() / 500).min(500));
+        let mut colors: PassHashMap<ColorChannel> = hashbrown::HashMap::with_hasher(PassHash);
+        let mut groups: PassHashMap<Group> = hashbrown::HashMap::with_capacity_and_hasher(
+            (self.objects.len() / 500).min(500),
+            PassHash,
+        );
         if let Some(colors_string) = self.start_object.get(b"kS38".as_ref()) {
             let parsed_colors: Vec<&[u8]> = de::from_slice(colors_string, b'|')?;
             colors.reserve(parsed_colors.len().saturating_sub(colors.capacity()));

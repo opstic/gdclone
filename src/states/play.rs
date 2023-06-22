@@ -314,16 +314,10 @@ fn update_background_color(
 fn exit_play(
     mut next_state: ResMut<NextState<GameState>>,
     keys: Res<Input<KeyCode>>,
-    mut color_channels: ResMut<ColorChannels>,
-    mut groups: ResMut<Groups>,
     mut executing_triggers: ResMut<ExecutingTriggers>,
-    mut clear_color: ResMut<ClearColor>,
 ) {
     if keys.pressed(KeyCode::Escape) {
-        color_channels.0.clear();
-        groups.0.clear();
         executing_triggers.0.clear();
-        clear_color.0 = Color::GRAY;
         next_state.set(GameState::LevelSelect);
     }
 }
@@ -335,8 +329,14 @@ fn exit_play(
 fn play_cleanup(
     mut commands: Commands,
     query: Query<Entity, (With<Object>, Without<Parent>)>,
-    // mut groups: ResMut<Groups>,
+    mut color_channels: ResMut<ColorChannels>,
+    mut groups: ResMut<Groups>,
+    mut clear_color: ResMut<ClearColor>,
+    mut sections: ResMut<Sections>,
 ) {
-    // groups.groups.clear();
+    color_channels.0.clear();
+    groups.0.clear();
+    sections.0.clear();
+    clear_color.0 = Color::GRAY;
     query.for_each(|entity| commands.entity(entity).despawn_recursive());
 }
