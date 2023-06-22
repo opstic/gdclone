@@ -46,7 +46,7 @@ pub(crate) struct TriggerInProgress;
 
 #[derive(Default, Resource)]
 pub(crate) struct ExecutingTriggers(
-    pub(crate) HashMap<u32, Vec<(Entity, Box<dyn TriggerFunction>)>>,
+    pub(crate) HashMap<u64, Vec<(Entity, Box<dyn TriggerFunction>)>>,
 );
 
 #[derive(Component)]
@@ -95,7 +95,7 @@ impl TriggerDuration {
 pub(crate) trait TriggerFunction: Send + Sync + DynClone {
     fn execute(&mut self, world: &mut World);
 
-    fn get_target_group(&self) -> u32;
+    fn get_target_group(&self) -> u64;
 
     fn done_executing(&self) -> bool;
 }

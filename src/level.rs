@@ -60,7 +60,7 @@ impl Plugin for LevelPlugin {
 #[derive(Debug, Deserialize)]
 pub(crate) struct Level {
     #[serde(rename = "k1")]
-    pub(crate) id: Option<u32>,
+    pub(crate) id: Option<u64>,
     #[serde(rename = "k2")]
     pub(crate) name: String,
     #[serde(rename = "k3")]
@@ -117,7 +117,7 @@ pub(crate) struct ParsedInnerLevel<'a> {
 }
 
 #[derive(Default, Resource)]
-pub(crate) struct Groups(pub(crate) HashMap<u32, Group>);
+pub(crate) struct Groups(pub(crate) HashMap<u64, Group>);
 
 pub(crate) struct Group {
     pub(crate) entities: Vec<Entity>,
@@ -164,8 +164,8 @@ impl<'a> ParsedInnerLevel<'a> {
         low_detail: bool,
     ) -> Result<(), anyhow::Error> {
         sections.0.clear();
-        let mut colors: HashMap<u32, ColorChannel> = HashMap::new();
-        let mut groups: HashMap<u32, Group> =
+        let mut colors: HashMap<u64, ColorChannel> = HashMap::new();
+        let mut groups: HashMap<u64, Group> =
             HashMap::with_capacity((self.objects.len() / 500).min(500));
         if let Some(colors_string) = self.start_object.get(b"kS38".as_ref()) {
             let parsed_colors: Vec<&[u8]> = de::from_slice(colors_string, b'|')?;
@@ -203,7 +203,7 @@ impl<'a> ParsedInnerLevel<'a> {
                     continue;
                 }
             }
-            let parsed_groups: Vec<u32> =
+            let parsed_groups: Vec<u64> =
                 if let Some(group_string) = object_data.get(b"57".as_ref()) {
                     de::from_slice(group_string, b'.')?
                 } else {

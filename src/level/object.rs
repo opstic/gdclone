@@ -18,10 +18,10 @@ use bevy::utils::{default, HashMap, HashSet};
 pub(crate) struct Object {
     pub(crate) id: u64,
     pub(crate) z_layer: i8,
-    pub(crate) color_channel: u32,
+    pub(crate) color_channel: u64,
     #[reflect(ignore)]
     pub(crate) hsv: Option<Hsv>,
-    pub(crate) groups: Vec<u32>,
+    pub(crate) groups: Vec<u64>,
 }
 
 pub(crate) fn update_visibility(
@@ -132,7 +132,7 @@ include!(concat!(env!("OUT_DIR"), "/generated_object.rs"));
 pub(crate) fn spawn_object(
     commands: &mut Commands,
     object_data: &HashMap<&[u8], &[u8]>,
-    groups: Vec<u32>,
+    groups: Vec<u64>,
     sections: &mut Sections,
     cocos2d_frames: &Cocos2dFrames,
     cocos2d_atlases: &Assets<Cocos2dAtlas>,
@@ -239,10 +239,10 @@ pub(crate) fn spawn_object(
 fn recursive_spawn_child(
     commands: &mut Commands,
     child: ObjectChild,
-    color_channel: u32,
+    color_channel: u64,
     hsv: Option<Hsv>,
     z_layer: i8,
-    groups: Vec<u32>,
+    groups: Vec<u64>,
     cocos2d_frames: &Cocos2dFrames,
     cocos2d_atlases: &Assets<Cocos2dAtlas>,
 ) -> Entity {

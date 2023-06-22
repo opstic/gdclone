@@ -8,7 +8,7 @@ use bevy::time::Time;
 #[derive(Clone, Default)]
 pub(crate) struct AlphaTrigger {
     pub(crate) duration: TriggerDuration,
-    pub(crate) target_group: u32,
+    pub(crate) target_group: u64,
     pub(crate) target_opacity: f32,
     pub(crate) original_opacity: f32,
     pub(crate) not_initial: bool,
@@ -37,7 +37,7 @@ impl TriggerFunction for AlphaTrigger {
         self.not_initial = true;
     }
 
-    fn get_target_group(&self) -> u32 {
+    fn get_target_group(&self) -> u64 {
         self.target_group
     }
 
