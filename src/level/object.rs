@@ -23,6 +23,8 @@ pub(crate) struct Object {
     #[reflect(ignore)]
     pub(crate) hsv: Option<Hsv>,
     pub(crate) groups: Vec<u64>,
+    pub(crate) opacity: f32,
+    pub(crate) black: bool,
 }
 
 pub(crate) fn update_visibility(
@@ -98,6 +100,7 @@ struct ObjectDefaultData {
     default_base_color_channel: u64,
     default_detail_color_channel: u64,
     color_type: ObjectColorType,
+    opacity: f32,
     children: Vec<ObjectChild>,
 }
 
@@ -110,6 +113,7 @@ impl Default for ObjectDefaultData {
             default_base_color_channel: u64::MAX,
             default_detail_color_channel: u64::MAX,
             color_type: ObjectColorType::None,
+            opacity: 1.,
             children: Vec::new(),
         }
     }
@@ -124,6 +128,7 @@ struct ObjectChild {
     flip_x: bool,
     flip_y: bool,
     color_type: ObjectColorType,
+    opacity: f32,
     children: Vec<ObjectChild>,
 }
 
@@ -138,6 +143,7 @@ impl Default for ObjectChild {
             flip_x: false,
             flip_y: false,
             color_type: ObjectColorType::None,
+            opacity: 1.,
             children: Vec::new(),
         }
     }
@@ -229,10 +235,17 @@ pub(crate) fn spawn_object(
             object.hsv = detail_hsv;
         }
         ObjectColorType::Black => {
-            object.color_channel = 1010;
+            object.color_channel = if base_color_channel != u64::MAX {
+                base_color_channel
+            } else {
+                detail_color_channel
+            };
+            object.black = true;
         }
         ObjectColorType::None => {}
     }
+
+    object.opacity = object_default_data.opacity;
 
     let object_id = object.id;
     let object_z_layer = object.z_layer;
@@ -303,10 +316,17 @@ fn recursive_spawn_child(
             object.hsv = detail_hsv;
         }
         ObjectColorType::Black => {
-            object.color_channel = 1010;
+            object.color_channel = if base_color_channel != u64::MAX {
+                base_color_channel
+            } else {
+                detail_color_channel
+            };
+            object.black = true;
         }
         ObjectColorType::None => {}
     }
+
+    object.opacity = child.opacity;
 
     let mut entity = commands.spawn(object);
     entity.insert(GlobalTransform::default());

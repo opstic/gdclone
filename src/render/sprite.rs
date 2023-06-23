@@ -26,7 +26,7 @@ use bevy::ecs::{
     system::{lifetimeless::*, SystemParamItem, SystemState},
 };
 use bevy::math::{Quat, Vec2, Vec4, Vec4Swizzles};
-use bevy::prelude::Transform;
+use bevy::prelude::{Color, Transform};
 use bevy::render::{
     render_phase::{
         BatchedPhaseItem, DrawFunctions, PhaseItem, RenderCommand, RenderCommandResult,
@@ -462,7 +462,10 @@ fn extract_cocos2d_sprites(
                         if let Some(hsv) = &object.hsv {
                             color = hsv.apply(color);
                         }
-                        color.set_a(color.a() * opacity);
+                        color.set_a(color.a() * opacity * object.opacity);
+                        if object.black {
+                            color = Color::rgba(0., 0., 0., color.a());
+                        }
                         if blending {
                             let transformed_opacity = (0.175656971639325_f32
                                 * 7.06033051530761_f32.powf(color.a())
