@@ -303,7 +303,7 @@ where
     where
         V: Visitor<'de>,
     {
-        visitor.visit_borrowed_bytes(self.next().unwrap())
+        visitor.visit_borrowed_bytes(self.next().unwrap_or_default())
     }
 
     fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Self::Error>
