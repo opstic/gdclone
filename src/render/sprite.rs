@@ -464,11 +464,11 @@ fn extract_cocos2d_sprites(
                         }
                         color.set_a(color.a() * opacity);
                         if blending {
-                            color.set_a(color.a().powf(3.75));
-                        }
-
-                        if color.a() < 0.02 {
-                            continue 'outer;
+                            let transformed_opacity = (0.175656971639325_f32
+                                * 7.06033051530761_f32.powf(color.a())
+                                - 0.213355914301931_f32)
+                                .clamp(0., 1.);
+                            color.set_a(transformed_opacity);
                         }
 
                         let rect = Some(frame.rect);
