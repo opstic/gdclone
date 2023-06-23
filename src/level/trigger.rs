@@ -325,7 +325,7 @@ pub(crate) fn setup_trigger(
     }
 
     let touch_triggered = object_data
-        .get(b"28".as_ref())
+        .get(b"11".as_ref())
         .map(|b| u8_to_bool(b))
         .unwrap_or_default();
     let spawn_triggered = object_data
