@@ -12,7 +12,7 @@ use bevy::app::{App, CoreSet, Plugin};
 
 use bevy::log::error;
 use bevy::prelude::{Color, Commands, Entity, IntoSystemConfig, OnUpdate, Resource};
-use bevy::utils::{hashbrown, HashMap, HashSet, PassHash, PassHasher, PreHashMap};
+use bevy::utils::{hashbrown, HashMap, HashSet, PassHash};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 

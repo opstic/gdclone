@@ -4,7 +4,6 @@ use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasSprite, Cocos2dFra
 use crate::utils::{section_from_pos, u8_to_bool};
 use bevy::asset::Assets;
 use bevy::hierarchy::{BuildChildren, Children, Parent};
-use bevy::log::info;
 use bevy::math::{IVec2, Quat, Vec2, Vec3, Vec3Swizzles};
 use bevy::prelude::{
     Commands, Component, Entity, GlobalTransform, OrthographicProjection, Query, Res, Transform,
