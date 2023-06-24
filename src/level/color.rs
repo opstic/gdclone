@@ -130,10 +130,10 @@ pub(crate) fn calculate_object_color(
                 color = Color::rgba(0., 0., 0., color.a());
             }
             if blending {
-                let transformed_opacity = (0.175656971639325_f32
-                    * 7.06033051530761_f32.powf(color.a())
-                    - 0.213355914301931_f32)
-                    .clamp(0., 1.);
+                let transformed_opacity = (0.175656971639325_f64
+                    * 7.06033051530761_f64.powf(color.a() as f64)
+                    - 0.213355914301931_f64)
+                    .clamp(0., 1.) as f32;
                 color.set_a(transformed_opacity);
             }
             sprite.color = color;
