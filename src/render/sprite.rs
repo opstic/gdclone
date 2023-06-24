@@ -15,9 +15,7 @@ use bevy::utils::{default, FloatOrd, HashMap, HashSet};
 use std::cmp::Ordering;
 use std::num::NonZeroU32;
 
-use crate::level::color::ColorChannels;
 use crate::level::object::Object;
-use crate::level::Groups;
 use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasSprite, Cocos2dFrames};
 use bevy::core_pipeline::tonemapping::DebandDither;
 use bevy::core_pipeline::{core_2d::Transparent2d, tonemapping::Tonemapping};
@@ -26,7 +24,7 @@ use bevy::ecs::{
     system::{lifetimeless::*, SystemParamItem, SystemState},
 };
 use bevy::math::{Quat, Vec2, Vec4, Vec4Swizzles};
-use bevy::prelude::{Color, Transform};
+use bevy::prelude::Transform;
 use bevy::render::{
     render_phase::{
         BatchedPhaseItem, DrawFunctions, PhaseItem, RenderCommand, RenderCommandResult,
@@ -455,68 +453,40 @@ fn extract_cocos2d_sprites(
     >,
     cocos2d_frames: Extract<Res<Cocos2dFrames>>,
     cocos2d_atlases: Extract<Res<Assets<Cocos2dAtlas>>>,
-    color_channels: Extract<Res<ColorChannels>>,
-    groups: Extract<Res<Groups>>,
     camera_query: Extract<Query<&VisibleEntities>>,
 ) {
     for visible_entities in &camera_query {
-        'outer: for entity in &visible_entities.entities {
-            if let Ok((entity, sprite, transform, handle, object)) = object_query.get(*entity) {
-                if let Some((frame, _)) = cocos2d_frames.frames.get(&sprite.texture) {
-                    if let Some(atlas) = cocos2d_atlases.get(handle) {
-                        let mut opacity = 1.;
-                        for group_id in &object.groups {
-                            if let Some(group) = groups.0.get(group_id) {
-                                if !group.activated || group.opacity < 0.02 {
-                                    continue 'outer;
-                                }
-                                opacity *= group.opacity;
-                            }
-                        }
-                        let (mut color, blending) =
-                            color_channels.get_color(&object.color_channel, &mut HashMap::new());
-                        if let Some(hsv) = &object.hsv {
-                            color = hsv.apply(color);
-                        }
-                        color.set_a(color.a() * opacity * object.opacity);
-                        if object.black {
-                            color = Color::rgba(0., 0., 0., color.a());
-                        }
-                        if blending {
-                            let transformed_opacity = (0.175656971639325_f32
-                                * 7.06033051530761_f32.powf(color.a())
-                                - 0.213355914301931_f32)
-                                .clamp(0., 1.);
-                            color.set_a(transformed_opacity);
-                        }
+        for (entity, sprite, transform, handle, object) in
+            object_query.iter_many(&visible_entities.entities)
+        {
+            if let Some((frame, _)) = cocos2d_frames.frames.get(&sprite.texture) {
+                if let Some(atlas) = cocos2d_atlases.get(handle) {
+                    let rect = Some(frame.rect);
 
-                        let rect = Some(frame.rect);
-
-                        extracted_objects.objects.insert(
-                            entity,
-                            ExtractedObject {
-                                rotated: frame.rotated,
-                                z_layer: if blending {
-                                    object.z_layer - 1
-                                } else {
-                                    object.z_layer
-                                },
-                                blending,
+                    extracted_objects.objects.insert(
+                        entity,
+                        ExtractedObject {
+                            rotated: frame.rotated,
+                            z_layer: if sprite.blending {
+                                object.z_layer - 1
+                            } else {
+                                object.z_layer
                             },
-                        );
-                        extracted_sprites.sprites.push(ExtractedSprite {
-                            entity,
-                            color,
-                            transform: *transform,
-                            rect,
-                            // Pass the custom size
-                            custom_size: sprite.custom_size,
-                            flip_x: sprite.flip_x,
-                            flip_y: sprite.flip_y,
-                            image_handle_id: atlas.texture.id(),
-                            anchor: sprite.anchor.as_vec() + frame.anchor,
-                        });
-                    }
+                            blending: sprite.blending,
+                        },
+                    );
+                    extracted_sprites.sprites.push(ExtractedSprite {
+                        entity,
+                        color: sprite.color,
+                        transform: *transform,
+                        rect,
+                        // Pass the custom size
+                        custom_size: sprite.custom_size,
+                        flip_x: sprite.flip_x,
+                        flip_y: sprite.flip_y,
+                        image_handle_id: atlas.texture.id(),
+                        anchor: sprite.anchor.as_vec() + frame.anchor,
+                    });
                 }
             }
         }

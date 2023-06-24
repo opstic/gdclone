@@ -8,7 +8,7 @@ use crate::level::color::{BaseColor, ColorChannel, ColorChannels, CopyColor, Hsv
 use crate::level::trigger::TriggerSystems;
 use crate::utils::{decompress, decrypt, u8_to_bool, PassHashMap};
 use crate::GameState;
-use bevy::app::{App, Plugin};
+use bevy::app::{App, CoreSet, Plugin};
 
 use bevy::log::error;
 use bevy::prelude::{Color, Commands, Entity, IntoSystemConfig, OnUpdate, Resource};
@@ -48,6 +48,11 @@ impl Plugin for LevelPlugin {
             object::propagate_visibility
                 .after(object::update_visibility)
                 .in_set(VisibilitySystems::CheckVisibility),
+        )
+        .add_system(
+            color::calculate_object_color
+                .after(object::propagate_visibility)
+                .in_base_set(CoreSet::PostUpdate),
         )
         .register_type::<Object>()
         .init_resource::<ColorChannels>()

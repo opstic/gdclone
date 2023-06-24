@@ -1,6 +1,6 @@
 use bevy::asset::{AssetEvent, AssetLoader, Assets, BoxedFuture, Handle, LoadContext, LoadedAsset};
 use bevy::math::Rect;
-use bevy::prelude::{Component, EventReader, FromWorld, Image, Res, ResMut, Resource, Vec2, World};
+use bevy::prelude::{Color, Component, EventReader, FromWorld, Image, Res, ResMut, Resource, Vec2, World};
 use bevy::reflect::Reflect;
 use bevy::reflect::TypeUuid;
 use bevy::render::renderer::RenderDevice;
@@ -57,6 +57,8 @@ struct Frame {
 #[derive(Component, Default, Reflect)]
 pub(crate) struct Cocos2dAtlasSprite {
     pub(crate) texture: String,
+    pub(crate) color: Color,
+    pub(crate) blending: bool,
     pub(crate) flip_x: bool,
     pub(crate) flip_y: bool,
     pub(crate) custom_size: Option<Vec2>,
