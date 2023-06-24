@@ -1,6 +1,5 @@
 use crate::level::de;
 use crate::utils::{hsv_to_rgb, rgb_to_hsv, u8_to_bool, PassHashMap};
-use bevy::log::warn;
 use bevy::prelude::{Color, Resource};
 use bevy::reflect::Reflect;
 use bevy::utils::HashMap;
@@ -10,15 +9,21 @@ use serde::Deserialize;
 pub(crate) struct ColorChannels(pub(crate) PassHashMap<ColorChannel>);
 
 impl ColorChannels {
-    pub(crate) fn get_color(&self, index: &u64) -> (Color, bool) {
+    pub(crate) fn get_color(
+        &self,
+        index: &u64,
+        recursed: &mut HashMap<u64, usize>,
+    ) -> (Color, bool) {
         match self.0.get(index).unwrap_or(&ColorChannel::default()) {
             ColorChannel::BaseColor(color) => (color.color, color.blending),
             ColorChannel::CopyColor(color) => {
-                if *index == color.copied_index {
-                    warn!("Recursing color, ID {}", index);
-                    return (color.hsv.apply(Color::WHITE), color.blending);
-                }
-                let (original_color, _) = Self::get_color(self, &color.copied_index);
+                let mut check = recursed.entry(*index).or_default();
+                *check += 1;
+                let (original_color, _) = if *check > 3 {
+                    (Color::WHITE, false)
+                } else {
+                    Self::get_color(self, &color.copied_index, recursed)
+                };
                 let mut transformed_color = color.hsv.apply(original_color);
                 if !color.copy_opacity {
                     transformed_color.set_a(color.opacity);

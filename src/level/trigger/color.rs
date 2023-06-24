@@ -4,6 +4,7 @@ use crate::utils::lerp_color;
 use bevy::ecs::system::SystemState;
 use bevy::prelude::{Color, Res, ResMut, World};
 use bevy::time::Time;
+use bevy::utils::HashMap;
 
 #[derive(Clone, Default)]
 pub(crate) struct ColorTrigger {
@@ -25,10 +26,12 @@ impl TriggerFunction for ColorTrigger {
         let (time, mut color_channels) = system_state.get_mut(world);
         self.duration.tick(time.delta());
         if !self.not_initial {
-            let (channel_color, _) = color_channels.get_color(&self.target_channel);
+            let (channel_color, _) =
+                color_channels.get_color(&self.target_channel, &mut HashMap::new());
             self.original_color = channel_color;
         }
-        let (copied_channel_color, _) = color_channels.get_color(&self.copied_channel);
+        let (copied_channel_color, _) =
+            color_channels.get_color(&self.copied_channel, &mut HashMap::new());
         let channel = color_channels.0.entry(self.target_channel).or_default();
         if self.duration.completed() || self.duration.duration.is_zero() {
             if self.copied_channel != 0 {

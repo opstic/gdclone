@@ -458,7 +458,8 @@ fn extract_cocos2d_sprites(
                                 opacity *= group.opacity;
                             }
                         }
-                        let (mut color, blending) = color_channels.get_color(&object.color_channel);
+                        let (mut color, blending) =
+                            color_channels.get_color(&object.color_channel, &mut HashMap::new());
                         if let Some(hsv) = &object.hsv {
                             color = hsv.apply(color);
                         }

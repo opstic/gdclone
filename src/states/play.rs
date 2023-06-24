@@ -11,6 +11,7 @@ use crate::GameState;
 
 use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dFrames};
 use bevy::prelude::*;
+use bevy::utils::HashMap;
 
 pub(crate) struct PlayStatePlugin;
 
@@ -307,7 +308,7 @@ fn update_background_color(
     color_channels: Res<ColorChannels>,
     mut clear_color: ResMut<ClearColor>,
 ) {
-    let (color, _) = color_channels.get_color(&1000);
+    let (color, _) = color_channels.get_color(&1000, &mut HashMap::new());
     clear_color.0 = color;
 }
 
