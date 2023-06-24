@@ -1,6 +1,6 @@
 use std::f32::consts::{PI, TAU};
 
-#[derive(Copy, Clone, Default, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub(crate) enum Easing {
     #[default]
     None,

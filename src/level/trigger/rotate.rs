@@ -8,7 +8,7 @@ use bevy::math::{Quat, Vec3Swizzles};
 use bevy::prelude::{Query, Res, ResMut, Transform, With, Without, World};
 use bevy::time::Time;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct RotateTrigger {
     pub(crate) duration: TriggerDuration,
     pub(crate) easing: Easing,

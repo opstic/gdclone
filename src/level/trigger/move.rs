@@ -9,7 +9,7 @@ use bevy::math::{Vec2, Vec3Swizzles};
 use bevy::prelude::{Query, Res, ResMut, Transform, With, Without, World};
 use bevy::time::Time;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct MoveTrigger {
     pub(crate) duration: TriggerDuration,
     pub(crate) easing: Easing,

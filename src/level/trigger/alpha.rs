@@ -5,7 +5,7 @@ use bevy::ecs::system::SystemState;
 use bevy::prelude::{Res, ResMut, World};
 use bevy::time::Time;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct AlphaTrigger {
     pub(crate) duration: TriggerDuration,
     pub(crate) target_group: u64,

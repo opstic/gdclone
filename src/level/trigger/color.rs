@@ -6,7 +6,7 @@ use bevy::prelude::{Color, Res, ResMut, World};
 use bevy::time::Time;
 use bevy::utils::HashMap;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct ColorTrigger {
     pub(crate) duration: TriggerDuration,
     pub(crate) target_channel: u64,
@@ -40,7 +40,7 @@ impl TriggerFunction for ColorTrigger {
                     copy_opacity: self.copy_opacity,
                     opacity: self.target_color.a(),
                     blending: self.target_blending,
-                    hsv: self.copied_hsv.clone(),
+                    hsv: self.copied_hsv,
                 })
             } else {
                 *channel = ColorChannel::BaseColor(BaseColor {

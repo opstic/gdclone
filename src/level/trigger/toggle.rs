@@ -3,7 +3,7 @@ use crate::level::Groups;
 use bevy::ecs::system::SystemState;
 use bevy::prelude::{ResMut, World};
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct ToggleTrigger {
     pub(crate) target_group: u64,
     pub(crate) activate: bool,

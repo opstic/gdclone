@@ -104,11 +104,11 @@ impl ColorChannel {
 
 pub(crate) fn calculate_object_color(
     mut object_query: Query<(Entity, &Object, &mut Cocos2dAtlasSprite)>,
-    visible_entities_query: Query<&VisibleEntities>,
+    mut visible_entities_query: Query<&mut VisibleEntities>,
     groups: Res<Groups>,
     color_channels: Res<ColorChannels>,
 ) {
-    for visible_entities in &visible_entities_query {
+    for mut visible_entities in &mut visible_entities_query {
         let mut deactivated_objects = HashSet::new();
         let mut object_iter = object_query.iter_many_mut(&visible_entities.entities);
         'outer: while let Some((entity, object, mut sprite)) = object_iter.fetch_next() {

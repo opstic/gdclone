@@ -6,16 +6,17 @@ use crate::level::trigger::r#move::MoveTrigger;
 use crate::level::trigger::rotate::RotateTrigger;
 use crate::level::trigger::toggle::ToggleTrigger;
 use crate::level::Groups;
-use crate::utils::u8_to_bool;
+use crate::utils::{u8_to_bool, PassHashMap};
 
 use crate::level::color::Hsv;
 use bevy::prelude::{
     Camera2d, Commands, Component, Entity, Mut, Query, Res, ResMut, Resource, SystemSet, Transform,
     With, Without, World,
 };
-use bevy::utils::HashMap;
+use bevy::utils::{hashbrown, HashMap, PassHash};
 use dyn_clone::DynClone;
 use std::any::{Any, TypeId};
+use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -58,7 +59,7 @@ pub(crate) enum TriggerSystems {
     ExecuteTriggers,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct TriggerDuration {
     elapsed: Duration,
     duration: Duration,
@@ -92,7 +93,7 @@ impl TriggerDuration {
     }
 }
 
-pub(crate) trait TriggerFunction: Send + Sync + DynClone {
+pub(crate) trait TriggerFunction: Send + Sync + DynClone + Debug {
     fn execute(&mut self, world: &mut World);
 
     fn get_target_group(&self) -> u64;
@@ -103,7 +104,7 @@ pub(crate) trait TriggerFunction: Send + Sync + DynClone {
 dyn_clone::clone_trait_object!(TriggerFunction);
 
 pub(crate) fn activate_xpos_triggers(
-    commands: Commands,
+    mut commands: Commands,
     triggers: Query<
         (Entity, &Transform, &Object, &Trigger),
         (
@@ -112,7 +113,7 @@ pub(crate) fn activate_xpos_triggers(
             Without<TriggerActivated>,
         ),
     >,
-    executing_triggers: ResMut<ExecutingTriggers>,
+    mut executing_triggers: ResMut<ExecutingTriggers>,
     groups: Res<Groups>,
     camera_transforms: Query<&Transform, (With<Camera2d>, Without<Object>, Without<XPosActivate>)>,
 ) {
@@ -121,8 +122,9 @@ pub(crate) fn activate_xpos_triggers(
     } else {
         return;
     };
-    let commands_mutex = Arc::new(Mutex::new(commands));
-    let triggers_mutex = Arc::new(Mutex::new(executing_triggers));
+    let mut triggers_to_be_executed: PassHashMap<Vec<(Entity, Box<dyn TriggerFunction>, f32)>> =
+        hashbrown::HashMap::with_hasher(PassHash);
+    let triggers_mutex = Arc::new(Mutex::new(&mut triggers_to_be_executed));
     triggers
         .par_iter()
         .for_each(|(entity, transform, object, trigger)| {
@@ -136,23 +138,29 @@ pub(crate) fn activate_xpos_triggers(
                     }
                 }
             }
-            if let Ok(mut executing_triggers) = triggers_mutex.lock() {
-                let executing_triggers = executing_triggers
-                    .0
+            if let Ok(mut triggers_to_be_executed) = triggers_mutex.lock() {
+                let triggers_to_be_executed = triggers_to_be_executed
                     .entry(trigger.0.get_target_group())
                     .or_default();
-                if trigger.0.type_id() == TypeId::of::<RotateTrigger>() {
-                    executing_triggers.retain(|t| t.type_id() != TypeId::of::<RotateTrigger>());
-                }
-                if trigger.0.type_id() == TypeId::of::<ColorTrigger>() {
-                    executing_triggers.retain(|t| t.type_id() != TypeId::of::<ColorTrigger>());
-                }
-                executing_triggers.push((entity, trigger.0.clone()));
-            }
-            if let Ok(mut commands) = commands_mutex.lock() {
-                commands.entity(entity).insert(TriggerInProgress);
+                triggers_to_be_executed.push((entity, trigger.0.clone(), transform.translation.x));
             }
         });
+    let triggers_to_be_executed = Arc::try_unwrap(triggers_mutex)
+        .unwrap()
+        .into_inner()
+        .unwrap();
+    for (group, mut triggers) in std::mem::take(triggers_to_be_executed) {
+        triggers.sort_unstable_by(|(_, _, x_a), (_, _, x_b)| x_a.partial_cmp(x_b).unwrap());
+        for (entity, _, _) in &triggers {
+            commands.entity(*entity).insert(TriggerInProgress);
+        }
+        let triggers_entry = executing_triggers.0.entry(group).or_default();
+        triggers_entry.extend(
+            triggers
+                .into_iter()
+                .map(|(entity, function, _)| (entity, function)),
+        );
+    }
 }
 
 pub(crate) fn execute_triggers(world: &mut World) {
