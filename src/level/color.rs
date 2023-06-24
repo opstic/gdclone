@@ -2,10 +2,10 @@ use crate::level::object::Object;
 use crate::level::{de, Groups};
 use crate::loaders::cocos2d_atlas::Cocos2dAtlasSprite;
 use crate::utils::{hsv_to_rgb, rgb_to_hsv, u8_to_bool, PassHashMap};
-use bevy::prelude::{Color, Query, Res, Resource};
+use bevy::prelude::{Color, Entity, Query, Res, Resource};
 use bevy::reflect::Reflect;
 use bevy::render::view::VisibleEntities;
-use bevy::utils::HashMap;
+use bevy::utils::{HashMap, HashSet};
 use serde::Deserialize;
 
 #[derive(Default, Resource)]
@@ -103,18 +103,20 @@ impl ColorChannel {
 }
 
 pub(crate) fn calculate_object_color(
-    mut object_query: Query<(&Object, &mut Cocos2dAtlasSprite)>,
+    mut object_query: Query<(Entity, &Object, &mut Cocos2dAtlasSprite)>,
     visible_entities_query: Query<&VisibleEntities>,
     groups: Res<Groups>,
     color_channels: Res<ColorChannels>,
 ) {
     for visible_entities in &visible_entities_query {
+        let mut deactivated_objects = HashSet::new();
         let mut object_iter = object_query.iter_many_mut(&visible_entities.entities);
-        'outer: while let Some((object, mut sprite)) = object_iter.fetch_next() {
+        'outer: while let Some((entity, object, mut sprite)) = object_iter.fetch_next() {
             let mut opacity = 1.;
             for group_id in &object.groups {
                 if let Some(group) = groups.0.get(group_id) {
                     if !group.activated {
+                        deactivated_objects.insert(entity);
                         continue 'outer;
                     }
                     opacity *= group.opacity;
@@ -139,6 +141,9 @@ pub(crate) fn calculate_object_color(
             sprite.color = color;
             sprite.blending = blending;
         }
+        visible_entities
+            .entities
+            .retain(|entity| !deactivated_objects.contains(entity));
     }
 }
 
