@@ -183,6 +183,20 @@ impl<'a> ParsedInnerLevel<'a> {
             }
         }
         colors.insert(
+            1005,
+            ColorChannel::BaseColor(BaseColor {
+                color: Color::rgb(0.49, 1., 0.),
+                blending: true,
+            }),
+        );
+        colors.insert(
+            1006,
+            ColorChannel::BaseColor(BaseColor {
+                color: Color::rgb(1., 1., 0.),
+                blending: true,
+            }),
+        );
+        colors.insert(
             1007,
             ColorChannel::CopyColor(CopyColor {
                 copied_index: 1000,
