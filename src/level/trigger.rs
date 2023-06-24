@@ -47,7 +47,7 @@ pub(crate) struct TriggerInProgress;
 
 #[derive(Default, Resource)]
 pub(crate) struct ExecutingTriggers(
-    pub(crate) HashMap<u64, Vec<(Entity, Box<dyn TriggerFunction>)>>,
+    pub(crate) HashMap<u64, Vec<(Entity, Box<dyn TriggerFunction>, f32)>>,
 );
 
 #[derive(Component)]
@@ -155,19 +155,19 @@ pub(crate) fn activate_xpos_triggers(
             commands.entity(*entity).insert(TriggerInProgress);
         }
         let triggers_entry = executing_triggers.0.entry(group).or_default();
-        triggers_entry.extend(
-            triggers
-                .into_iter()
-                .map(|(entity, function, _)| (entity, function)),
-        );
+        triggers_entry.extend(triggers);
     }
 }
 
 pub(crate) fn execute_triggers(world: &mut World) {
     world.resource_scope(|world, mut executing_triggers: Mut<ExecutingTriggers>| {
         for (_, triggers) in executing_triggers.0.iter_mut() {
-            triggers.retain_mut(|(entity, trigger)| {
+            let mut override_triggers = HashMap::new();
+            triggers.retain_mut(|(entity, trigger, x_pos)| {
                 trigger.execute(world);
+                if (*trigger).type_id() == TypeId::of::<ColorTrigger>() {
+                    override_triggers.insert(TypeId::of::<ColorTrigger>(), *x_pos);
+                }
                 if trigger.done_executing() {
                     if let Some(mut entity) = world.get_entity_mut(*entity) {
                         entity
@@ -176,9 +176,26 @@ pub(crate) fn execute_triggers(world: &mut World) {
                     }
                     false
                 } else {
+                    if (*trigger).type_id() == TypeId::of::<RotateTrigger>() {
+                        override_triggers.insert(TypeId::of::<RotateTrigger>(), *x_pos);
+                    }
                     true
                 }
             });
+            for (override_trigger_type, override_x_pos) in override_triggers {
+                triggers.retain(|(entity, trigger, x_pos)| {
+                    if trigger.type_id() == override_trigger_type && x_pos < &override_x_pos {
+                        if let Some(mut entity) = world.get_entity_mut(*entity) {
+                            entity
+                                .remove::<TriggerInProgress>()
+                                .insert(TriggerActivated);
+                        }
+                        false
+                    } else {
+                        true
+                    }
+                })
+            }
         }
     });
 }
