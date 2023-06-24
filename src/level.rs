@@ -49,6 +49,7 @@ impl Plugin for LevelPlugin {
                 .after(object::update_visibility)
                 .in_set(VisibilitySystems::CheckVisibility),
         )
+        .add_system(color::update_light_bg.in_base_set(CoreSet::PostUpdate))
         .add_system(
             color::calculate_object_color
                 .after(object::propagate_visibility)

@@ -1,8 +1,8 @@
 use crate::level::object::Object;
 use crate::level::{de, Groups};
 use crate::loaders::cocos2d_atlas::Cocos2dAtlasSprite;
-use crate::utils::{hsv_to_rgb, rgb_to_hsv, u8_to_bool, PassHashMap};
-use bevy::prelude::{Color, Entity, Query, Res, Resource};
+use crate::utils::{hsv_to_rgb, lerp_color, rgb_to_hsv, u8_to_bool, PassHashMap};
+use bevy::prelude::{Color, Entity, Query, Res, ResMut, Resource};
 use bevy::reflect::Reflect;
 use bevy::render::view::VisibleEntities;
 use bevy::utils::{HashMap, HashSet};
@@ -100,6 +100,22 @@ impl ColorChannel {
         .parse()?;
         Ok((index, color))
     }
+}
+
+pub(crate) fn update_light_bg(mut color_channels: ResMut<ColorChannels>) {
+    let (bg_color, _) = color_channels.get_color(&1000, &mut HashMap::new());
+    let mut bg_hsv = rgb_to_hsv([bg_color.r(), bg_color.g(), bg_color.b()]);
+    bg_hsv.1 -= 20.;
+    let bg_color = hsv_to_rgb(bg_hsv);
+    let bg_color = Color::rgb(bg_color[0], bg_color[1], bg_color[2]);
+    let (player_color, _) = color_channels.get_color(&1005, &mut HashMap::new());
+    color_channels.0.insert(
+        1007,
+        ColorChannel::BaseColor(BaseColor {
+            color: lerp_color(&player_color, &bg_color, &(bg_hsv.2 / 100.)),
+            blending: true,
+        }),
+    );
 }
 
 pub(crate) fn calculate_object_color(
