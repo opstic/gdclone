@@ -1486,6 +1486,7 @@ dependencies = [
  "dyn-clone",
  "fixedbitset",
  "flate2",
+ "futures-lite",
  "memchr",
  "plist",
  "quick-xml 0.29.0",

@@ -1,5 +1,5 @@
 use bevy::app::prelude::*;
-use bevy::asset::{AddAsset, AssetEvent, Assets, Handle, HandleUntyped};
+use bevy::asset::{AddAsset, AssetEvent, Assets, Handle, HandleId, HandleUntyped};
 use bevy::reflect::TypeUuid;
 use bevy::render::{
     render_phase::AddRenderCommand,
@@ -42,9 +42,11 @@ use bevy::render::{
         ViewUniforms, VisibleEntities,
     },
 };
+use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::transform::components::GlobalTransform;
 use bytemuck::{Pod, Zeroable};
 use fixedbitset::FixedBitSet;
+use futures_lite::future;
 
 #[derive(Default)]
 pub struct CustomSpritePlugin;
@@ -359,23 +361,19 @@ impl SpecializedRenderPipeline for SpritePipeline {
     }
 }
 
-#[derive(Resource)]
-pub struct ExtractedSpriteImages {
-    extracted: Vec<(Handle<Image>, Image)>,
-    removed: Vec<Handle<Image>>,
-}
+#[derive(Component)]
+pub(crate) struct PremultiplyImage(Task<(Handle<Image>, Image)>);
 
 pub fn extract_sprite_events(
-    mut commands: Commands,
     mut events: ResMut<SpriteAssetEvents>,
     mut image_events: Extract<EventReader<AssetEvent<Image>>>,
-    asset_images: Extract<Res<Assets<Image>>>,
+    mut premultiplied_images: ResMut<PremultipliedImages>,
+    image_assets: Extract<Res<Assets<Image>>>,
 ) {
     let SpriteAssetEvents { ref mut images } = *events;
     images.clear();
 
-    let mut changed_images = HashSet::default();
-    let mut removed = Vec::new();
+    let mut changed_images = HashSet::new();
 
     for image in image_events.iter() {
         // AssetEvent: !Clone
@@ -396,23 +394,40 @@ pub fn extract_sprite_events(
                 images.push(AssetEvent::Removed {
                     handle: handle.clone_weak(),
                 });
-                changed_images.remove(handle);
-                removed.push(handle.clone_weak());
+                changed_images.remove(&handle);
+                premultiplied_images.values.remove(&handle);
             }
         }
     }
 
-    let mut extracted_images = Vec::new();
-    for handle in changed_images.drain() {
-        if let Some(image) = asset_images.get(&handle) {
-            extracted_images.push((handle, image.clone()));
+    let thread_pool = AsyncComputeTaskPool::get();
+    for handle in changed_images {
+        if matches!(handle.id(), HandleId::AssetPathId(_)) {
+            if let Some(image) = image_assets.get(&handle) {
+                let mut image = image.clone();
+                let task = thread_pool.spawn(async move {
+                    let premultiplied_data = image
+                        .data
+                        .chunks_exact(4)
+                        .map(|pixel| {
+                            let alpha = pixel[3] as f32 / u8::MAX as f32;
+                            // Premultiply
+                            [
+                                (pixel[0] as f32 * alpha).round() as u8,
+                                (pixel[1] as f32 * alpha).round() as u8,
+                                (pixel[2] as f32 * alpha).round() as u8,
+                                pixel[3],
+                            ]
+                        })
+                        .collect::<Vec<[u8; 4]>>()
+                        .concat();
+                    image.data = premultiplied_data;
+                    (handle.clone_weak(), image)
+                });
+                premultiplied_images.tasks.push(task);
+            }
         }
     }
-
-    commands.insert_resource(ExtractedSpriteImages {
-        extracted: extracted_images,
-        removed,
-    })
 }
 
 #[derive(Resource, Default)]
@@ -620,40 +635,29 @@ pub struct ImageBindGroups {
 #[derive(Resource, Default)]
 pub struct PremultipliedImages {
     values: HashMap<Handle<Image>, GpuImage>,
+    tasks: Vec<Task<(Handle<Image>, Image)>>,
 }
 
-pub fn prepare_premultiplied_images(
-    mut extracted_images: ResMut<ExtractedSpriteImages>,
+fn prepare_premultiplied_images(
     mut premultiplied_images: ResMut<PremultipliedImages>,
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
     default_sampler: Res<DefaultImageSampler>,
 ) {
-    for removed in std::mem::take(&mut extracted_images.removed) {
-        premultiplied_images.values.remove(&removed);
-    }
-
-    for (handle, image) in std::mem::take(&mut extracted_images.extracted) {
-        let premultiplied_data = image
-            .data
-            .chunks_exact(4)
-            .map(|pixel| {
-                let alpha = pixel[3] as f32 / u8::MAX as f32;
-                // Premultiply
-                [
-                    (pixel[0] as f32 * alpha).round() as u8,
-                    (pixel[1] as f32 * alpha).round() as u8,
-                    (pixel[2] as f32 * alpha).round() as u8,
-                    pixel[3],
-                ]
-            })
-            .collect::<Vec<[u8; 4]>>()
-            .concat();
-
+    let mut finished_tasks = Vec::new();
+    premultiplied_images.tasks.retain_mut(|task| {
+        if let Some(result) = future::block_on(future::poll_once(task)) {
+            finished_tasks.push(result);
+            false
+        } else {
+            true
+        }
+    });
+    for (handle, image) in finished_tasks {
         let texture = render_device.create_texture_with_data(
             &render_queue,
             &image.texture_descriptor,
-            &premultiplied_data,
+            &image.data,
         );
 
         let texture_view = texture.create_view(
