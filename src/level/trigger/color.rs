@@ -4,7 +4,6 @@ use crate::utils::lerp_color;
 use bevy::ecs::system::SystemState;
 use bevy::prelude::{Color, Res, ResMut, World};
 use bevy::time::Time;
-use bevy::utils::HashMap;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ColorTrigger {
