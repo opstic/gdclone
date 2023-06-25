@@ -1,6 +1,8 @@
 use bevy::asset::{AssetEvent, AssetLoader, Assets, BoxedFuture, Handle, LoadContext, LoadedAsset};
 use bevy::math::Rect;
-use bevy::prelude::{Color, Component, EventReader, FromWorld, Image, Res, ResMut, Resource, Vec2, World};
+use bevy::prelude::{
+    Color, Component, EventReader, FromWorld, Image, Res, ResMut, Resource, Vec2, World,
+};
 use bevy::reflect::Reflect;
 use bevy::reflect::TypeUuid;
 use bevy::render::renderer::RenderDevice;
