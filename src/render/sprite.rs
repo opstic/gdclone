@@ -17,6 +17,7 @@ use std::num::NonZeroU32;
 
 use crate::level::object::Object;
 use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasSprite, Cocos2dFrames};
+use crate::utils::PassHashMap;
 use bevy::core_pipeline::tonemapping::DebandDither;
 use bevy::core_pipeline::{core_2d::Transparent2d, tonemapping::Tonemapping};
 use bevy::ecs::{
@@ -430,7 +431,7 @@ pub fn extract_sprite_events(
 
 #[derive(Resource, Default)]
 pub struct ExtractedObjects {
-    objects: HashMap<Entity, ExtractedObject>,
+    objects: PassHashMap<ExtractedObject>,
 }
 
 pub struct ExtractedObject {
@@ -464,7 +465,7 @@ fn extract_cocos2d_sprites(
                     let rect = Some(frame.rect);
 
                     extracted_objects.objects.insert(
-                        entity,
+                        entity.index() as u64,
                         ExtractedObject {
                             rotated: frame.rotated,
                             z_layer: if sprite.blending {
@@ -718,8 +719,8 @@ pub fn queue_sprites(
         // Sort sprites by z for correct transparency and then by handle to improve batching
         // NOTE: This can be done independent of views by reasonably assuming that all 2D views look along the negative-z axis in world space
         extracted_sprites.sort_unstable_by(|a, b| {
-            if let Some(object_a) = extracted_objects.objects.get(&a.entity) {
-                if let Some(object_b) = extracted_objects.objects.get(&b.entity) {
+            if let Some(object_a) = extracted_objects.objects.get(&(a.entity.index() as u64)) {
+                if let Some(object_b) = extracted_objects.objects.get(&(b.entity.index() as u64)) {
                     match object_a.z_layer.partial_cmp(&object_b.z_layer) {
                         Some(Ordering::Equal) | None => (),
                         Some(other) => {
@@ -728,16 +729,13 @@ pub fn queue_sprites(
                     };
                 }
             }
-            match a
-                .transform
+            a.transform
                 .translation()
                 .z
                 .partial_cmp(&b.transform.translation().z)
-            {
-                Some(Ordering::Equal) | None => a.image_handle_id.cmp(&b.image_handle_id),
-                Some(other) => other,
-            }
+                .unwrap_or(Ordering::Equal)
         });
+
         let image_bind_groups = &mut *image_bind_groups;
 
         for (mut transparent_phase, visible_entities, view, tonemapping, dither) in &mut views {
@@ -860,17 +858,6 @@ pub fn queue_sprites(
                     quad_size = custom_size;
                 }
 
-                let depth =
-                    if let Some(object) = extracted_objects.objects.get(&extracted_sprite.entity) {
-                        extracted_sprite.transform.translation().z / 16.
-                            + (object.z_layer + 4) as f32 * 1000. / 16.
-                    } else {
-                        extracted_sprite.transform.translation().z / 16.
-                    };
-
-                // These items will be sorted by depth with other phase items
-                let sort_key = FloatOrd(depth);
-
                 // Store the vertex data and add the item to the render phase
                 let mut instance_color = extracted_sprite.color.as_linear_rgba_f32();
 
@@ -884,14 +871,21 @@ pub fn queue_sprites(
 
                 let mut global_transform = extracted_sprite.transform;
 
+                let mut depth = extracted_sprite.transform.translation().z / 16.;
+
                 // Handle object specific properties
-                if let Some(extracted_object) =
-                    extracted_objects.objects.get(&extracted_sprite.entity)
+                if let Some(extracted_object) = extracted_objects
+                    .objects
+                    .get(&(extracted_sprite.entity.index() as u64))
                 {
+                    // Z layers
+                    depth += (extracted_object.z_layer + 4) as f32 * 1000. / 16.;
+
                     // Additive blending
                     if extracted_object.blending {
                         instance_color[3] = 0.;
                     }
+
                     // Rotated texture
                     if extracted_object.rotated {
                         global_transform = global_transform.mul_transform(Transform {
@@ -912,6 +906,9 @@ pub fn queue_sprites(
                         }
                     }
                 }
+
+                // These items will be sorted by depth with other phase items
+                let sort_key = FloatOrd(depth);
 
                 // Compute the transformation matrix of the item
                 let transform_matrix = global_transform.compute_matrix();
