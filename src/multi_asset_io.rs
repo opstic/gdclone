@@ -156,9 +156,9 @@ impl Plugin for MultiAssetIoPlugin {
         let project_dirs = ProjectDirs::from("dev", "Opstic", "GDClone").unwrap();
         let base_dirs = BaseDirs::new().unwrap();
 
-        std::fs::create_dir_all(project_dirs.project_path()).unwrap();
+        std::fs::create_dir_all(project_dirs.config_local_dir()).unwrap();
 
-        let config_path = project_dirs.project_path().join("path_config.json");
+        let config_path = project_dirs.config_local_dir().join("path_config.json");
 
         let mut path_config = if let Ok(config_file) = File::open(config_path.clone()) {
             serde_json::from_reader(BufReader::new(config_file)).unwrap_or_default()
