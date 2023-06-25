@@ -393,8 +393,8 @@ pub fn extract_sprite_events(
                 images.push(AssetEvent::Removed {
                     handle: handle.clone_weak(),
                 });
-                changed_images.remove(&handle);
-                premultiplied_images.values.remove(&handle);
+                changed_images.remove(handle);
+                premultiplied_images.values.remove(handle);
             }
         }
     }
