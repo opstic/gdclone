@@ -10,7 +10,7 @@ use futures_lite::future;
 use native_dialog::{FileDialog, MessageDialog, MessageType};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::{BufReader, Read, Write};
+use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 use steamlocate::SteamDir;
 
