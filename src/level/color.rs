@@ -12,20 +12,20 @@ use serde::Deserialize;
 pub(crate) struct ColorChannels(pub(crate) PassHashMap<ColorChannel>);
 
 impl ColorChannels {
-    pub(crate) fn get_color(
-        &self,
-        index: &u64,
-        recursed: &mut HashMap<u64, usize>,
-    ) -> (Color, bool) {
+    pub(crate) fn get_color(&self, index: &u64) -> (Color, bool) {
+        self.get_color_inner(index, &mut HashMap::new())
+    }
+
+    fn get_color_inner(&self, index: &u64, seen: &mut HashMap<u64, usize>) -> (Color, bool) {
         match self.0.get(index).unwrap_or(&ColorChannel::default()) {
             ColorChannel::BaseColor(color) => (color.color, color.blending),
             ColorChannel::CopyColor(color) => {
-                let mut check = recursed.entry(*index).or_default();
+                let check = seen.entry(*index).or_default();
                 *check += 1;
                 let (original_color, _) = if *check > 3 {
                     (Color::WHITE, false)
                 } else {
-                    Self::get_color(self, &color.copied_index, recursed)
+                    self.get_color_inner(&color.copied_index, seen)
                 };
                 let mut transformed_color = color.hsv.apply(original_color);
                 if !color.copy_opacity {
@@ -103,12 +103,12 @@ impl ColorChannel {
 }
 
 pub(crate) fn update_light_bg(mut color_channels: ResMut<ColorChannels>) {
-    let (bg_color, _) = color_channels.get_color(&1000, &mut HashMap::new());
+    let (bg_color, _) = color_channels.get_color(&1000);
     let mut bg_hsv = rgb_to_hsv([bg_color.r(), bg_color.g(), bg_color.b()]);
     bg_hsv.1 -= 20.;
     let bg_color = hsv_to_rgb(bg_hsv);
     let bg_color = Color::rgb(bg_color[0], bg_color[1], bg_color[2]);
-    let (player_color, _) = color_channels.get_color(&1005, &mut HashMap::new());
+    let (player_color, _) = color_channels.get_color(&1005);
     color_channels.0.insert(
         1007,
         ColorChannel::BaseColor(BaseColor {
@@ -138,8 +138,7 @@ pub(crate) fn calculate_object_color(
                     opacity *= group.opacity;
                 }
             }
-            let (mut color, blending) =
-                color_channels.get_color(&object.color_channel, &mut HashMap::new());
+            let (mut color, blending) = color_channels.get_color(&object.color_channel);
             if let Some(hsv) = &object.hsv {
                 color = hsv.apply(color);
             }
