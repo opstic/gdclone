@@ -308,7 +308,7 @@ fn update_background_color(
     color_channels: Res<ColorChannels>,
     mut clear_color: ResMut<ClearColor>,
 ) {
-    let (color, _) = color_channels.get_color(&1000, &mut HashMap::new());
+    let (color, _) = color_channels.get_color(&1000);
     clear_color.0 = color;
 }
 
