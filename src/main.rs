@@ -14,10 +14,12 @@ use std::time::Duration;
 
 mod level;
 mod loaders;
+mod multi_asset_io;
 mod render;
 mod states;
 mod utils;
 
+use crate::multi_asset_io::MultiAssetIoPlugin;
 use crate::states::play::Player;
 use level::LevelPlugin;
 use loaders::AssetLoaderPlugin;
@@ -52,7 +54,8 @@ fn main() {
                 ..default()
             })
             .disable::<SpritePlugin>()
-            .add_before::<SpritePlugin, CustomSpritePlugin>(CustomSpritePlugin),
+            .add_before::<SpritePlugin, CustomSpritePlugin>(CustomSpritePlugin)
+            .add_before::<AssetPlugin, MultiAssetIoPlugin>(MultiAssetIoPlugin),
     )
     // .add_plugin(EditorPlugin::default())
     .add_plugin(FrameTimeDiagnosticsPlugin)

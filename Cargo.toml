@@ -38,6 +38,9 @@ fixedbitset = "0.4"
 bitflags = "2.3"
 memchr = "2.5"
 futures-lite = "1.13"
+steamlocate = "1.2"
+native-dialog = "0.6"
+directories = "5.0"
 
 [build-dependencies]
 serde = { version = "1.0.154", features = ['derive'] }
