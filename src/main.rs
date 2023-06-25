@@ -81,6 +81,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
         .spawn(TextBundle {
             style: Style {
+                position_type: PositionType::Absolute,
                 align_self: AlignSelf::FlexStart,
                 ..default()
             },

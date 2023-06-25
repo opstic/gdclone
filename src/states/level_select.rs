@@ -1,5 +1,4 @@
 use crate::loaders::gdlevel::SaveFile;
-use crate::AlignSelf::Center;
 use crate::GameState;
 use bevy::app::{App, IntoSystemAppConfig, Plugin};
 use bevy::asset::{AssetServer, Assets};
@@ -35,8 +34,10 @@ fn select_setup(
     commands
         .spawn(NodeBundle {
             style: Style {
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                justify_content: JustifyContent::SpaceBetween,
                 ..default()
             },
             background_color: Color::NONE.into(),
@@ -49,8 +50,8 @@ fn select_setup(
                     style: Style {
                         flex_direction: FlexDirection::Column,
                         justify_content: JustifyContent::Center,
-                        align_self: Center,
-                        size: Size::new(Val::Percent(50.0), Val::Percent(75.0)),
+                        align_self: AlignSelf::Center,
+                        size: Size::new(Val::Percent(70.0), Val::Percent(80.0)),
                         ..default()
                     },
                     background_color: Color::rgb(0.15, 0.15, 0.15).into(),
@@ -69,7 +70,7 @@ fn select_setup(
                         )
                         .with_style(Style {
                             size: Size::new(Val::Undefined, Val::Px(30.0)),
-                            align_self: Center,
+                            align_self: AlignSelf::Center,
                             margin: UiRect {
                                 left: Val::Auto,
                                 right: Val::Auto,
@@ -84,7 +85,7 @@ fn select_setup(
                             style: Style {
                                 flex_direction: FlexDirection::Column,
                                 align_self: AlignSelf::Stretch,
-                                size: Size::height(Val::Percent(50.0)),
+                                size: Size::height(Val::Percent(80.0)),
                                 overflow: Overflow::Hidden,
                                 ..default()
                             },
@@ -170,14 +171,15 @@ fn select_setup(
                                                     .spawn(ButtonBundle {
                                                         style: Style {
                                                             flex_shrink: 0.,
-                                                            justify_content:
-                                                                JustifyContent::FlexEnd,
+                                                            flex_direction: FlexDirection::Column,
+                                                            justify_content: JustifyContent::Center,
+                                                            align_items: AlignItems::Center,
                                                             size: Size::new(
                                                                 Val::Percent(10.),
                                                                 Val::Percent(50.),
                                                             ),
                                                             margin: UiRect {
-                                                                left: Val::Percent(2.5),
+                                                                left: Val::Auto,
                                                                 right: Val::Percent(2.5),
                                                                 top: Val::Percent(2.5),
                                                                 bottom: Val::Percent(2.5),

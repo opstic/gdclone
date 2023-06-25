@@ -39,26 +39,39 @@ fn loading_setup(
     mut loading: ResMut<AssetsLoading>,
 ) {
     commands
-        .spawn(TextBundle {
+        .spawn(NodeBundle {
             style: Style {
-                align_self: AlignSelf::Center,
-                ..default()
-            },
-            text: Text {
-                sections: vec![TextSection {
-                    value: "".to_string(),
-                    style: TextStyle {
-                        font: server.load("fonts/FiraMono-Medium.ttf"),
-                        font_size: 20.,
-                        color: Color::WHITE,
-                    },
-                }],
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                size: Size::new(Val::Percent(100.), Val::Percent(100.)),
                 ..default()
             },
             ..default()
         })
-        .insert(ListText)
-        .insert(LoadingText);
+        .insert(LoadingText)
+        .with_children(|parent| {
+            parent
+                .spawn(TextBundle {
+                    style: Style {
+                        size: Size::new(Val::Percent(80.), Val::Auto),
+                        ..default()
+                    },
+                    text: Text {
+                        sections: vec![TextSection {
+                            value: "".to_string(),
+                            style: TextStyle {
+                                font: server.load("fonts/FiraMono-Medium.ttf"),
+                                font_size: 20.,
+                                color: Color::WHITE,
+                            },
+                        }],
+                        ..default()
+                    },
+                    ..default()
+                })
+                .insert(ListText);
+        });
 
     let save_file: Handle<SaveFile> = server.load(":gd/:data/CCLocalLevels.dat");
     let atlas1: Handle<Cocos2dAtlas> = server.load(":gd/:resources/GJ_GameSheet-uhd.plist");
