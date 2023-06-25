@@ -49,7 +49,7 @@ fn select_setup(
                 .spawn(NodeBundle {
                     style: Style {
                         flex_direction: FlexDirection::Column,
-                        justify_content: JustifyContent::Center,
+                        justify_content: JustifyContent::SpaceEvenly,
                         align_self: AlignSelf::Center,
                         size: Size::new(Val::Percent(70.0), Val::Percent(80.0)),
                         ..default()
