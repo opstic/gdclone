@@ -1,10 +1,11 @@
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::env;
 use std::fmt::Display;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
+
+use serde::Deserialize;
 
 #[derive(Deserialize)]
 struct ObjectData {

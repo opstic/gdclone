@@ -1,3 +1,7 @@
+use std::fs::File;
+use std::io::{BufReader, Write};
+use std::path::{Path, PathBuf};
+
 use bevy::asset::FileAssetIo;
 use bevy::utils::HashMap;
 use bevy::{
@@ -9,9 +13,6 @@ use directories::{BaseDirs, ProjectDirs};
 use futures_lite::future;
 use native_dialog::{FileDialog, MessageDialog, MessageType};
 use serde::{Deserialize, Serialize};
-use std::fs::File;
-use std::io::{BufReader, Write};
-use std::path::{Path, PathBuf};
 use steamlocate::SteamDir;
 
 struct MultiAssetIo {

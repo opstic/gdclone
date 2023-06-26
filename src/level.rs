@@ -1,28 +1,28 @@
+use std::marker::PhantomData;
+
+use bevy::app::{App, CoreSet, Plugin};
+use bevy::asset::Assets;
+use bevy::log::error;
+use bevy::math::IVec2;
+use bevy::prelude::{Color, Commands, Entity, IntoSystemConfig, OnUpdate, Resource};
+use bevy::render::view;
+use bevy::render::view::VisibilitySystems;
+use bevy::utils::{hashbrown, HashMap, HashSet, PassHash};
+use serde::de::Error;
+use serde::{Deserialize, Deserializer};
+
+use crate::level::color::{BaseColor, ColorChannel, ColorChannels, ColorMod, CopyColor, Hsv};
+use crate::level::object::Object;
+use crate::level::trigger::TriggerSystems;
+use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dFrames};
+use crate::utils::{decompress, decrypt, u8_to_bool, PassHashMap};
+use crate::GameState;
+
 pub(crate) mod color;
 pub(crate) mod de;
 pub(crate) mod easing;
 pub(crate) mod object;
 pub(crate) mod trigger;
-
-use crate::level::color::{BaseColor, ColorChannel, ColorChannels, ColorMod, CopyColor, Hsv};
-use crate::level::trigger::TriggerSystems;
-use crate::utils::{decompress, decrypt, u8_to_bool, PassHashMap};
-use crate::GameState;
-use bevy::app::{App, CoreSet, Plugin};
-
-use bevy::log::error;
-use bevy::prelude::{Color, Commands, Entity, IntoSystemConfig, OnUpdate, Resource};
-use bevy::utils::{hashbrown, HashMap, HashSet, PassHash};
-use serde::de::Error;
-use serde::{Deserialize, Deserializer};
-
-use crate::level::object::Object;
-use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dFrames};
-use bevy::asset::Assets;
-use bevy::math::IVec2;
-use bevy::render::view;
-use bevy::render::view::VisibilitySystems;
-use std::marker::PhantomData;
 
 #[derive(Default)]
 pub(crate) struct LevelPlugin;

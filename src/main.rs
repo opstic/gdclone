@@ -2,6 +2,8 @@
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]
 
+use std::time::Duration;
+
 use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy::render::primitives::Aabb;
@@ -10,7 +12,13 @@ use bevy::sprite::{Mesh2dHandle, SpritePlugin};
 use bevy::window::{PresentMode, WindowMode, WindowResizeConstraints};
 use bevy::winit::WinitSettings;
 
-use std::time::Duration;
+use level::LevelPlugin;
+use loaders::AssetLoaderPlugin;
+use render::sprite::CustomSpritePlugin;
+use states::{loading::AssetsLoading, GameState, StatePlugins};
+
+use crate::multi_asset_io::MultiAssetIoPlugin;
+use crate::states::play::Player;
 
 mod level;
 mod loaders;
@@ -18,13 +26,6 @@ mod multi_asset_io;
 mod render;
 mod states;
 mod utils;
-
-use crate::multi_asset_io::MultiAssetIoPlugin;
-use crate::states::play::Player;
-use level::LevelPlugin;
-use loaders::AssetLoaderPlugin;
-use render::sprite::CustomSpritePlugin;
-use states::{loading::AssetsLoading, GameState, StatePlugins};
 
 fn main() {
     let mut app = App::new();

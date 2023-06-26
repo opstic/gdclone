@@ -1,23 +1,8 @@
-use bevy::app::prelude::*;
-use bevy::asset::{AddAsset, AssetEvent, Assets, Handle, HandleId, HandleUntyped};
-use bevy::reflect::TypeUuid;
-use bevy::render::{
-    render_phase::AddRenderCommand,
-    render_resource::{Shader, SpecializedRenderPipelines},
-    Extract, ExtractSchedule, RenderApp, RenderSet,
-};
-use bevy::sprite::{
-    queue_material2d_meshes, Anchor, ColorMaterial, ColorMaterialPlugin, ExtractedSprite,
-    ExtractedSprites, Mesh2dHandle, Mesh2dRenderPlugin, Sprite, SpriteAssetEvents, SpriteSystem,
-    TextureAtlas, TextureAtlasSprite,
-};
-use bevy::utils::{default, FloatOrd, HashMap, HashSet};
 use std::cmp::Ordering;
 use std::num::NonZeroU32;
 
-use crate::level::object::Object;
-use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasSprite, Cocos2dFrames};
-use crate::utils::PassHashMap;
+use bevy::app::prelude::*;
+use bevy::asset::{AddAsset, AssetEvent, Assets, Handle, HandleId, HandleUntyped};
 use bevy::core_pipeline::tonemapping::DebandDither;
 use bevy::core_pipeline::{core_2d::Transparent2d, tonemapping::Tonemapping};
 use bevy::ecs::{
@@ -26,6 +11,12 @@ use bevy::ecs::{
 };
 use bevy::math::{Quat, Vec2, Vec4, Vec4Swizzles};
 use bevy::prelude::Transform;
+use bevy::reflect::TypeUuid;
+use bevy::render::{
+    render_phase::AddRenderCommand,
+    render_resource::{Shader, SpecializedRenderPipelines},
+    Extract, ExtractSchedule, RenderApp, RenderSet,
+};
 use bevy::render::{
     render_phase::{
         BatchedPhaseItem, DrawFunctions, PhaseItem, RenderCommand, RenderCommandResult,
@@ -41,11 +32,21 @@ use bevy::render::{
         ViewUniforms, VisibleEntities,
     },
 };
+use bevy::sprite::{
+    queue_material2d_meshes, Anchor, ColorMaterial, ColorMaterialPlugin, ExtractedSprite,
+    ExtractedSprites, Mesh2dHandle, Mesh2dRenderPlugin, Sprite, SpriteAssetEvents, SpriteSystem,
+    TextureAtlas, TextureAtlasSprite,
+};
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::transform::components::GlobalTransform;
+use bevy::utils::{default, FloatOrd, HashMap, HashSet};
 use bytemuck::{Pod, Zeroable};
 use fixedbitset::FixedBitSet;
 use futures_lite::future;
+
+use crate::level::object::Object;
+use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasSprite, Cocos2dFrames};
+use crate::utils::PassHashMap;
 
 #[derive(Default)]
 pub struct CustomSpritePlugin;
@@ -999,6 +1000,7 @@ pub type DrawSprite = (
 );
 
 pub struct SetSpriteViewBindGroup<const I: usize>;
+
 impl<P: PhaseItem, const I: usize> RenderCommand<P> for SetSpriteViewBindGroup<I> {
     type Param = SRes<SpriteMeta>;
     type ViewWorldQuery = Read<ViewUniformOffset>;
@@ -1019,7 +1021,9 @@ impl<P: PhaseItem, const I: usize> RenderCommand<P> for SetSpriteViewBindGroup<I
         RenderCommandResult::Success
     }
 }
+
 pub struct SetSpriteTextureBindGroup<const I: usize>;
+
 impl<P: PhaseItem, const I: usize> RenderCommand<P> for SetSpriteTextureBindGroup<I> {
     type Param = SRes<ImageBindGroups>;
     type ViewWorldQuery = ();
@@ -1044,6 +1048,7 @@ impl<P: PhaseItem, const I: usize> RenderCommand<P> for SetSpriteTextureBindGrou
 }
 
 pub struct DrawSpriteBatch;
+
 impl<P: BatchedPhaseItem> RenderCommand<P> for DrawSpriteBatch {
     type Param = SRes<SpriteMeta>;
     type ViewWorldQuery = ();

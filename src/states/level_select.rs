@@ -1,7 +1,5 @@
-use crate::loaders::gdlevel::SaveFile;
-use crate::GameState;
 use bevy::app::{App, IntoSystemAppConfig, Plugin};
-use bevy::asset::{AssetServer, Assets};
+use bevy::asset::{Assets, AssetServer};
 use bevy::ecs::component::Component;
 use bevy::hierarchy::{BuildChildren, Children, DespawnRecursiveExt};
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
@@ -11,6 +9,9 @@ use bevy::ui::{
     AlignSelf, BackgroundColor, FlexDirection, JustifyContent, Node, Overflow, Size, Style, UiRect,
     Val,
 };
+
+use crate::GameState;
+use crate::loaders::gdlevel::SaveFile;
 
 use super::loading::GlobalAssets;
 use super::play::LevelIndex;
@@ -68,16 +69,16 @@ fn select_setup(
                                 color: Color::WHITE,
                             },
                         )
-                        .with_style(Style {
-                            size: Size::new(Val::Undefined, Val::Px(30.0)),
-                            align_self: AlignSelf::Center,
-                            margin: UiRect {
-                                left: Val::Auto,
-                                right: Val::Auto,
+                            .with_style(Style {
+                                size: Size::new(Val::Undefined, Val::Px(30.0)),
+                                align_self: AlignSelf::Center,
+                                margin: UiRect {
+                                    left: Val::Auto,
+                                    right: Val::Auto,
+                                    ..default()
+                                },
                                 ..default()
-                            },
-                            ..default()
-                        }),
+                            }),
                     );
                     // List with hidden overflow
                     parent
@@ -147,25 +148,25 @@ fn select_setup(
                                                             color: Color::WHITE,
                                                         },
                                                     )
-                                                    .with_style(Style {
-                                                        flex_shrink: 0.,
-                                                        size: Size::new(
-                                                            Val::Percent(50.),
-                                                            Val::Px(50.),
-                                                        ),
-                                                        margin: UiRect {
-                                                            left: Val::Percent(2.5),
-                                                            right: Val::Percent(2.5),
-                                                            top: Val::Percent(2.5),
-                                                            bottom: Val::Percent(2.5),
-                                                        },
-                                                        align_self: AlignSelf::FlexStart,
-                                                        max_size: Size::new(
-                                                            Val::Percent(50.),
-                                                            Val::Px(50.),
-                                                        ),
-                                                        ..default()
-                                                    }),
+                                                        .with_style(Style {
+                                                            flex_shrink: 0.,
+                                                            size: Size::new(
+                                                                Val::Percent(50.),
+                                                                Val::Px(50.),
+                                                            ),
+                                                            margin: UiRect {
+                                                                left: Val::Percent(2.5),
+                                                                right: Val::Percent(2.5),
+                                                                top: Val::Percent(2.5),
+                                                                bottom: Val::Percent(2.5),
+                                                            },
+                                                            align_self: AlignSelf::FlexStart,
+                                                            max_size: Size::new(
+                                                                Val::Percent(50.),
+                                                                Val::Px(50.),
+                                                            ),
+                                                            ..default()
+                                                        }),
                                                 );
                                                 parent
                                                     .spawn(ButtonBundle {

@@ -1,7 +1,8 @@
-use crate::level::trigger::TriggerFunction;
-use crate::level::Groups;
 use bevy::ecs::system::SystemState;
 use bevy::prelude::{ResMut, World};
+
+use crate::level::Groups;
+use crate::level::trigger::TriggerFunction;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ToggleTrigger {

@@ -1,12 +1,13 @@
+use bevy::ecs::system::SystemState;
+use bevy::math::{Quat, Vec3Swizzles};
+use bevy::prelude::{Query, Res, ResMut, Transform, With, Without, World};
+use bevy::time::Time;
+
 use crate::level::easing::Easing;
 use crate::level::object::Object;
 use crate::level::trigger::{Trigger, TriggerDuration, TriggerFunction};
 use crate::level::{Groups, Sections};
 use crate::utils::section_from_pos;
-use bevy::ecs::system::SystemState;
-use bevy::math::{Quat, Vec3Swizzles};
-use bevy::prelude::{Query, Res, ResMut, Transform, With, Without, World};
-use bevy::time::Time;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct RotateTrigger {

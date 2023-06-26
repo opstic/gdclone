@@ -1,11 +1,12 @@
 use bevy::prelude::*;
 
-pub(crate) mod cocos2d_atlas;
-pub(crate) mod gdlevel;
-
-use crate::loaders::cocos2d_atlas::Cocos2dAtlasSprite;
 use cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasLoader, Cocos2dFrames};
 use gdlevel::{GDSaveLoader, SaveFile};
+
+use crate::loaders::cocos2d_atlas::Cocos2dAtlasSprite;
+
+pub(crate) mod cocos2d_atlas;
+pub(crate) mod gdlevel;
 
 pub(crate) struct AssetLoaderPlugin;
 
