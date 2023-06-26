@@ -13,7 +13,7 @@ impl TriggerFunction for ToggleTrigger {
     fn execute(&mut self, world: &mut World) {
         let mut system_state: SystemState<ResMut<Groups>> = SystemState::new(world);
         let mut groups = system_state.get_mut(world);
-        if let Some(group) = groups.0.get_mut(&self.target_group) {
+        if let Some((group, _, _)) = groups.0.get_mut(&self.target_group) {
             group.activated = self.activate;
         }
     }
@@ -24,5 +24,9 @@ impl TriggerFunction for ToggleTrigger {
 
     fn done_executing(&self) -> bool {
         true
+    }
+
+    fn exclusive(&self) -> bool {
+        false
     }
 }

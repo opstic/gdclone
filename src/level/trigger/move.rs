@@ -52,7 +52,7 @@ impl TriggerFunction for MoveTrigger {
         } else {
             amount = self.easing.sample(self.duration.fraction_progress()) - amount;
         }
-        if let Some(group) = groups.0.get(&self.target_group) {
+        if let Some((group, _, _)) = groups.0.get(&self.target_group) {
             for entity in &group.entities {
                 if let Ok(mut transform) = object_transform_query.get_mut(*entity) {
                     let initial_section = section_from_pos(transform.translation.xy());
@@ -81,5 +81,9 @@ impl TriggerFunction for MoveTrigger {
 
     fn done_executing(&self) -> bool {
         self.duration.completed()
+    }
+
+    fn exclusive(&self) -> bool {
+        false
     }
 }

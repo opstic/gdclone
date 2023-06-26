@@ -23,7 +23,7 @@ pub(crate) struct Object {
     pub(crate) hsv: Option<Hsv>,
     pub(crate) groups: Vec<u64>,
     pub(crate) opacity: f32,
-    pub(crate) black: bool,
+    pub(crate) color_type: ObjectColorType,
 }
 
 pub(crate) fn update_visibility(
@@ -85,10 +85,12 @@ fn recursive_get_child(
     children_of_child
 }
 
-enum ObjectColorType {
+#[derive(Clone, Copy, Default, Eq, PartialEq, Reflect)]
+pub(crate) enum ObjectColorType {
     Base,
     Detail,
     Black,
+    #[default]
     None,
 }
 
@@ -99,6 +101,7 @@ struct ObjectDefaultData {
     default_base_color_channel: u64,
     default_detail_color_channel: u64,
     color_type: ObjectColorType,
+    swap_base_detail: bool,
     opacity: f32,
     children: Vec<ObjectChild>,
 }
@@ -112,6 +115,7 @@ impl Default for ObjectDefaultData {
             default_base_color_channel: u64::MAX,
             default_detail_color_channel: u64::MAX,
             color_type: ObjectColorType::None,
+            swap_base_detail: false,
             opacity: 1.,
             children: Vec::new(),
         }
@@ -201,28 +205,36 @@ pub(crate) fn spawn_object(
         transform.scale.y *= if u8_to_bool(flip_y) { -1. } else { 1. };
     }
 
-    let base_color_channel = if let Some(base_color_channel) = object_data.get(b"21".as_ref()) {
+    let mut base_color_channel = if let Some(base_color_channel) = object_data.get(b"21".as_ref()) {
         std::str::from_utf8(base_color_channel)?.parse()?
     } else {
         object_default_data.default_base_color_channel
     };
-    let detail_color_channel = if let Some(detail_color_channel) = object_data.get(b"22".as_ref()) {
-        std::str::from_utf8(detail_color_channel)?.parse()?
-    } else {
-        object_default_data.default_detail_color_channel
-    };
+    let mut detail_color_channel =
+        if let Some(detail_color_channel) = object_data.get(b"22".as_ref()) {
+            std::str::from_utf8(detail_color_channel)?.parse()?
+        } else {
+            object_default_data.default_detail_color_channel
+        };
 
-    let base_hsv = if let Some(base_hsv) = object_data.get(b"43".as_ref()) {
+    let mut base_hsv = if let Some(base_hsv) = object_data.get(b"43".as_ref()) {
         Some(Hsv::parse(base_hsv)?)
     } else {
         None
     };
 
-    let detail_hsv = if let Some(detail_hsv) = object_data.get(b"44".as_ref()) {
+    let mut detail_hsv = if let Some(detail_hsv) = object_data.get(b"44".as_ref()) {
         Some(Hsv::parse(detail_hsv)?)
     } else {
         None
     };
+
+    if object_default_data.swap_base_detail {
+        std::mem::swap(&mut base_color_channel, &mut detail_color_channel);
+        std::mem::swap(&mut base_hsv, &mut detail_hsv);
+    }
+
+    object.color_type = object_default_data.color_type;
 
     match object_default_data.color_type {
         ObjectColorType::Base => {
@@ -239,7 +251,6 @@ pub(crate) fn spawn_object(
             } else {
                 detail_color_channel
             };
-            object.black = true;
         }
         ObjectColorType::None => {}
     }
@@ -263,7 +274,7 @@ pub(crate) fn spawn_object(
     let section = section_from_pos(transform.translation.xy());
     sections.get_section_mut(&section).insert(entity);
     match object_id {
-        901 | 1007 | 1346 | 1049 | 899 => {
+        901 | 1006 | 1007 | 1346 | 1049 | 899 => {
             trigger::setup_trigger(commands, entity, &object_id, object_data)?
         }
         _ => (),
@@ -302,6 +313,7 @@ fn recursive_spawn_child(
     let mut object = Object {
         groups: groups.clone(),
         z_layer,
+        color_type: child.color_type,
         ..default()
     };
 
@@ -320,7 +332,6 @@ fn recursive_spawn_child(
             } else {
                 detail_color_channel
             };
-            object.black = true;
         }
         ObjectColorType::None => {}
     }

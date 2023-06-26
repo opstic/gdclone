@@ -20,7 +20,7 @@ impl TriggerFunction for AlphaTrigger {
         let (time, mut groups) = system_state.get_mut(world);
         self.duration.tick(time.delta());
         let fractional_progress = self.duration.fraction_progress();
-        if let Some(group) = groups.0.get_mut(&self.target_group) {
+        if let Some((group, _, _)) = groups.0.get_mut(&self.target_group) {
             if !self.not_initial {
                 self.original_opacity = group.opacity;
             }
@@ -43,5 +43,9 @@ impl TriggerFunction for AlphaTrigger {
 
     fn done_executing(&self) -> bool {
         self.duration.completed()
+    }
+
+    fn exclusive(&self) -> bool {
+        true
     }
 }

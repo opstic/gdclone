@@ -34,22 +34,23 @@ impl TriggerFunction for RotateTrigger {
         } else {
             amount = self.easing.sample(self.duration.fraction_progress()) - amount;
         }
-        let center_translation = if let Some(center_group) = groups.0.get(&self.center_group) {
-            if center_group.entities.len() == 1 {
-                object_transform_query
-                    .get(center_group.entities[0])
-                    .map(|transform| transform.translation.xy())
-                    .ok()
+        let center_translation =
+            if let Some((center_group, _, _)) = groups.0.get(&self.center_group) {
+                if center_group.entities.len() == 1 {
+                    object_transform_query
+                        .get(center_group.entities[0])
+                        .map(|transform| transform.translation.xy())
+                        .ok()
+                } else {
+                    None
+                }
             } else {
                 None
-            }
-        } else {
-            None
-        };
+            };
         let rotation_amount = Quat::from_rotation_z(
             -((360 * self.times360 + self.degrees) as f32 * amount).to_radians(),
         );
-        if let Some(group) = groups.0.get(&self.target_group) {
+        if let Some((group, _, _)) = groups.0.get(&self.target_group) {
             for entity in &group.entities {
                 if let Ok(mut transform) = object_transform_query.get_mut(*entity) {
                     let initial_section = section_from_pos(transform.translation.xy());
@@ -74,5 +75,9 @@ impl TriggerFunction for RotateTrigger {
 
     fn done_executing(&self) -> bool {
         self.duration.completed()
+    }
+
+    fn exclusive(&self) -> bool {
+        !self.duration.duration.is_zero()
     }
 }

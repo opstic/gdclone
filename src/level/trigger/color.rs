@@ -29,7 +29,7 @@ impl TriggerFunction for ColorTrigger {
             self.original_color = channel_color;
         }
         let (copied_channel_color, _) = color_channels.get_color(&self.copied_channel);
-        let channel = color_channels.0.entry(self.target_channel).or_default();
+        let (channel, _) = color_channels.0.entry(self.target_channel).or_default();
         if self.duration.completed() || self.duration.duration.is_zero() {
             if self.copied_channel != 0 {
                 *channel = ColorChannel::CopyColor(CopyColor {
@@ -72,5 +72,9 @@ impl TriggerFunction for ColorTrigger {
 
     fn done_executing(&self) -> bool {
         self.duration.completed()
+    }
+
+    fn exclusive(&self) -> bool {
+        true
     }
 }

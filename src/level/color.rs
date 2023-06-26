@@ -9,7 +9,7 @@ use bevy::utils::{HashMap, HashSet};
 use serde::Deserialize;
 
 #[derive(Default, Resource)]
-pub(crate) struct ColorChannels(pub(crate) PassHashMap<ColorChannel>);
+pub(crate) struct ColorChannels(pub(crate) PassHashMap<(ColorChannel, Option<ColorMod>)>);
 
 impl ColorChannels {
     pub(crate) fn get_color(&self, index: &u64) -> (Color, bool) {
@@ -17,9 +17,28 @@ impl ColorChannels {
     }
 
     fn get_color_inner(&self, index: &u64, seen: &mut HashMap<u64, usize>) -> (Color, bool) {
-        match self.0.get(index).unwrap_or(&ColorChannel::default()) {
-            ColorChannel::BaseColor(color) => (color.color, color.blending),
-            ColorChannel::CopyColor(color) => {
+        match self
+            .0
+            .get(index)
+            .unwrap_or(&(ColorChannel::default(), None))
+        {
+            (ColorChannel::BaseColor(color), color_mod) => {
+                let final_color = if let Some(color_mod) = color_mod {
+                    match color_mod {
+                        ColorMod::Color(target_color, progress) => {
+                            lerp_color(&color.color, target_color, progress)
+                        }
+                        ColorMod::Hsv(target_channel, hsv, progress) => {
+                            let (target_color, _) = self.get_color(target_channel);
+                            lerp_color(&color.color, &hsv.apply(target_color), progress)
+                        }
+                    }
+                } else {
+                    color.color
+                };
+                (final_color, color.blending)
+            }
+            (ColorChannel::CopyColor(color), color_mod) => {
                 let check = seen.entry(*index).or_default();
                 *check += 1;
                 let (original_color, _) = if *check > 3 {
@@ -31,7 +50,20 @@ impl ColorChannels {
                 if !color.copy_opacity {
                     transformed_color.set_a(color.opacity);
                 }
-                (transformed_color, color.blending)
+                let final_color = if let Some(color_mod) = color_mod {
+                    match color_mod {
+                        ColorMod::Color(target_color, progress) => {
+                            lerp_color(&transformed_color, target_color, progress)
+                        }
+                        ColorMod::Hsv(target_channel, hsv, progress) => {
+                            let (target_color, _) = self.get_color(target_channel);
+                            lerp_color(&transformed_color, &hsv.apply(target_color), progress)
+                        }
+                    }
+                } else {
+                    transformed_color
+                };
+                (final_color, color.blending)
             }
         }
     }
@@ -102,6 +134,18 @@ impl ColorChannel {
     }
 }
 
+#[derive(Clone, Debug, Copy)]
+pub(crate) enum ColorMod {
+    Color(Color, f32),
+    Hsv(u64, Hsv, f32),
+}
+
+impl Default for ColorMod {
+    fn default() -> Self {
+        ColorMod::Color(Color::WHITE, 1.)
+    }
+}
+
 pub(crate) fn update_light_bg(mut color_channels: ResMut<ColorChannels>) {
     let (bg_color, _) = color_channels.get_color(&1000);
     let mut bg_hsv = rgb_to_hsv([bg_color.r(), bg_color.g(), bg_color.b()]);
@@ -111,10 +155,13 @@ pub(crate) fn update_light_bg(mut color_channels: ResMut<ColorChannels>) {
     let (player_color, _) = color_channels.get_color(&1005);
     color_channels.0.insert(
         1007,
-        ColorChannel::BaseColor(BaseColor {
-            color: lerp_color(&player_color, &bg_color, &(bg_hsv.2 / 100.)),
-            blending: true,
-        }),
+        (
+            ColorChannel::BaseColor(BaseColor {
+                color: lerp_color(&player_color, &bg_color, &(bg_hsv.2 / 100.)),
+                blending: true,
+            }),
+            None,
+        ),
     );
 }
 
@@ -129,21 +176,39 @@ pub(crate) fn calculate_object_color(
         let mut object_iter = object_query.iter_many_mut(&visible_entities.entities);
         'outer: while let Some((entity, object, mut sprite)) = object_iter.fetch_next() {
             let mut opacity = 1.;
+            let mut color_mod = None;
             for group_id in &object.groups {
-                if let Some(group) = groups.0.get(group_id) {
+                if let Some((group, base_color_mod, detail_color_mod)) = groups.0.get(group_id) {
                     if !group.activated {
                         deactivated_objects.insert(entity);
                         continue 'outer;
                     }
                     opacity *= group.opacity;
+                    if base_color_mod.is_some() && object.color_type == ObjectColorType::Base {
+                        color_mod = *base_color_mod;
+                    }
+                    if detail_color_mod.is_some() && object.color_type == ObjectColorType::Detail {
+                        color_mod = *detail_color_mod;
+                    }
                 }
             }
             let (mut color, blending) = color_channels.get_color(&object.color_channel);
+            if let Some(color_mod) = color_mod {
+                color = match color_mod {
+                    ColorMod::Color(target_color, progress) => {
+                        lerp_color(&color, &target_color, &progress)
+                    }
+                    ColorMod::Hsv(target_channel, hsv, progress) => {
+                        let (target_color, _) = color_channels.get_color(&target_channel);
+                        lerp_color(&color, &hsv.apply(target_color), &progress)
+                    }
+                }
+            }
             if let Some(hsv) = &object.hsv {
                 color = hsv.apply(color);
             }
             color.set_a(color.a() * opacity * object.opacity);
-            if object.black {
+            if object.color_type == ObjectColorType::Black {
                 color = Color::rgba(0., 0., 0., color.a());
             }
             if blending {

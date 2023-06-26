@@ -24,6 +24,7 @@ use std::time::Duration;
 pub(crate) mod alpha;
 pub(crate) mod color;
 pub(crate) mod r#move;
+pub(crate) mod pulse;
 pub(crate) mod rotate;
 pub(crate) mod toggle;
 
@@ -93,12 +94,18 @@ impl TriggerDuration {
     }
 }
 
-pub(crate) trait TriggerFunction: Send + Sync + DynClone + Debug {
+pub(crate) trait TriggerFunction: Send + Sync + DynClone + Debug + 'static {
     fn execute(&mut self, world: &mut World);
 
     fn get_target_group(&self) -> u64;
 
     fn done_executing(&self) -> bool;
+
+    fn exclusive(&self) -> bool;
+
+    fn concrete_type_id(&self) -> TypeId {
+        TypeId::of::<Self>()
+    }
 }
 
 dyn_clone::clone_trait_object!(TriggerFunction);
@@ -132,7 +139,7 @@ pub(crate) fn activate_xpos_triggers(
                 return;
             }
             for group_id in &object.groups {
-                if let Some(group) = groups.0.get(group_id) {
+                if let Some((group, _, _)) = groups.0.get(group_id) {
                     if !group.activated {
                         return;
                     }
@@ -165,8 +172,8 @@ pub(crate) fn execute_triggers(world: &mut World) {
             let mut override_triggers = HashMap::new();
             triggers.retain_mut(|(entity, trigger, x_pos)| {
                 trigger.execute(world);
-                if (*trigger).type_id() == TypeId::of::<ColorTrigger>() {
-                    override_triggers.insert(TypeId::of::<ColorTrigger>(), *x_pos);
+                if trigger.exclusive() {
+                    override_triggers.insert((*trigger).concrete_type_id(), *x_pos);
                 }
                 if trigger.done_executing() {
                     if let Some(mut entity) = world.get_entity_mut(*entity) {
@@ -176,15 +183,14 @@ pub(crate) fn execute_triggers(world: &mut World) {
                     }
                     false
                 } else {
-                    if (*trigger).type_id() == TypeId::of::<RotateTrigger>() {
-                        override_triggers.insert(TypeId::of::<RotateTrigger>(), *x_pos);
-                    }
                     true
                 }
             });
             for (override_trigger_type, override_x_pos) in override_triggers {
                 triggers.retain(|(entity, trigger, x_pos)| {
-                    if trigger.type_id() == override_trigger_type && x_pos < &override_x_pos {
+                    if (*trigger).concrete_type_id() == override_trigger_type
+                        && x_pos < &override_x_pos
+                    {
                         if let Some(mut entity) = world.get_entity_mut(*entity) {
                             entity
                                 .remove::<TriggerInProgress>()
@@ -286,6 +292,74 @@ pub(crate) fn setup_trigger(
             }
             if let Some(lock_y) = object_data.get(b"59".as_ref()) {
                 trigger.lock_y = u8_to_bool(lock_y);
+            }
+            entity.insert(Trigger(Box::new(trigger)));
+        }
+        1006 => {
+            let mut trigger = PulseTrigger::default();
+            if let Some(fade_in_duration) = object_data.get(b"45".as_ref()) {
+                trigger.fade_in_duration = TriggerDuration::new(
+                    Duration::try_from_secs_f32(std::str::from_utf8(fade_in_duration)?.parse()?)
+                        .unwrap_or(Duration::ZERO),
+                )
+            }
+            if let Some(hold_duration) = object_data.get(b"46".as_ref()) {
+                trigger.hold_duration = TriggerDuration::new(
+                    Duration::try_from_secs_f32(std::str::from_utf8(hold_duration)?.parse()?)
+                        .unwrap_or(Duration::ZERO),
+                )
+            }
+            if let Some(fade_out_duration) = object_data.get(b"47".as_ref()) {
+                trigger.fade_out_duration = TriggerDuration::new(
+                    Duration::try_from_secs_f32(std::str::from_utf8(fade_out_duration)?.parse()?)
+                        .unwrap_or(Duration::ZERO),
+                )
+            }
+            let mut mod_mode = false;
+            if let Some(hsv_mode) = object_data.get(b"48".as_ref()) {
+                mod_mode = u8_to_bool(hsv_mode);
+            }
+            if mod_mode {
+                let mut hsv = Hsv::default();
+                let mut copied_color_id = 0;
+                if let Some(targer_hsv) = object_data.get(b"49".as_ref()) {
+                    hsv = Hsv::parse(targer_hsv)?;
+                }
+                if let Some(color_id) = object_data.get(b"50".as_ref()) {
+                    copied_color_id = std::str::from_utf8(color_id)?.parse()?;
+                }
+                // Ignore trigger when the copied id is 0
+                if copied_color_id == 0 {
+                    return Ok(());
+                }
+                trigger.color_mod = ColorMod::Hsv(copied_color_id, hsv, 1.);
+            } else {
+                let mut color = Color::WHITE;
+                if let Some(r) = object_data.get(b"7".as_ref()) {
+                    color.set_r(std::str::from_utf8(r)?.parse::<u8>()? as f32 / u8::MAX as f32);
+                }
+                if let Some(g) = object_data.get(b"8".as_ref()) {
+                    color.set_g(std::str::from_utf8(g)?.parse::<u8>()? as f32 / u8::MAX as f32);
+                }
+                if let Some(b) = object_data.get(b"9".as_ref()) {
+                    color.set_b(std::str::from_utf8(b)?.parse::<u8>()? as f32 / u8::MAX as f32);
+                }
+                trigger.color_mod = ColorMod::Color(color, 1.);
+            }
+            if let Some(target_id) = object_data.get(b"51".as_ref()) {
+                trigger.target_id = std::str::from_utf8(target_id)?.parse()?;
+            }
+            if let Some(target_color_channel) = object_data.get(b"52".as_ref()) {
+                trigger.target_group = u8_to_bool(target_color_channel);
+            }
+            if let Some(base_only) = object_data.get(b"65".as_ref()) {
+                trigger.base_only = u8_to_bool(base_only);
+            }
+            if let Some(detail_only) = object_data.get(b"66".as_ref()) {
+                trigger.detail_only = u8_to_bool(detail_only);
+            }
+            if let Some(exclusive) = object_data.get(b"86".as_ref()) {
+                trigger.exclusive = u8_to_bool(exclusive);
             }
             entity.insert(Trigger(Box::new(trigger)));
         }

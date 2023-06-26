@@ -4,7 +4,7 @@ pub(crate) mod easing;
 pub(crate) mod object;
 pub(crate) mod trigger;
 
-use crate::level::color::{BaseColor, ColorChannel, ColorChannels, CopyColor, Hsv};
+use crate::level::color::{BaseColor, ColorChannel, ColorChannels, ColorMod, CopyColor, Hsv};
 use crate::level::trigger::TriggerSystems;
 use crate::utils::{decompress, decrypt, u8_to_bool, PassHashMap};
 use crate::GameState;
@@ -123,7 +123,7 @@ pub(crate) struct ParsedInnerLevel<'a> {
 }
 
 #[derive(Default, Resource)]
-pub(crate) struct Groups(pub(crate) PassHashMap<Group>);
+pub(crate) struct Groups(pub(crate) PassHashMap<(Group, Option<ColorMod>, Option<ColorMod>)>);
 
 pub(crate) struct Group {
     pub(crate) entities: Vec<Entity>,
@@ -170,53 +170,67 @@ impl<'a> ParsedInnerLevel<'a> {
         low_detail: bool,
     ) -> Result<(), anyhow::Error> {
         sections.0.clear();
-        let mut colors: PassHashMap<ColorChannel> = hashbrown::HashMap::with_hasher(PassHash);
-        let mut groups: PassHashMap<Group> = hashbrown::HashMap::with_capacity_and_hasher(
-            (self.objects.len() / 500).min(500),
-            PassHash,
-        );
+        let mut colors: PassHashMap<(ColorChannel, Option<ColorMod>)> =
+            hashbrown::HashMap::with_hasher(PassHash);
+        let mut groups: PassHashMap<(Group, Option<ColorMod>, Option<ColorMod>)> =
+            hashbrown::HashMap::with_capacity_and_hasher(
+                (self.objects.len() / 500).min(500),
+                PassHash,
+            );
         if let Some(colors_string) = self.start_object.get(b"kS38".as_ref()) {
             let parsed_colors: Vec<&[u8]> = de::from_slice(colors_string, b'|')?;
             colors.reserve(parsed_colors.len().saturating_sub(colors.capacity()));
             for color_string in parsed_colors {
                 let (index, color) = ColorChannel::parse(color_string)?;
-                colors.insert(index, color);
+                colors.insert(index, (color, None));
             }
         }
         colors.insert(
             1005,
-            ColorChannel::BaseColor(BaseColor {
-                color: Color::rgb(0.49, 1., 0.),
-                blending: true,
-            }),
+            (
+                ColorChannel::BaseColor(BaseColor {
+                    color: Color::rgb(0.49, 1., 0.),
+                    blending: true,
+                }),
+                None,
+            ),
         );
         colors.insert(
             1006,
-            ColorChannel::BaseColor(BaseColor {
-                color: Color::rgb(1., 1., 0.),
-                blending: true,
-            }),
+            (
+                ColorChannel::BaseColor(BaseColor {
+                    color: Color::rgb(1., 1., 0.),
+                    blending: true,
+                }),
+                None,
+            ),
         );
         colors.insert(
             1007,
-            ColorChannel::CopyColor(CopyColor {
-                copied_index: 1000,
-                opacity: 1.0,
-                blending: true,
-                hsv: Hsv {
-                    s: -20.,
-                    s_absolute: true,
+            (
+                ColorChannel::CopyColor(CopyColor {
+                    copied_index: 1000,
+                    opacity: 1.0,
+                    blending: true,
+                    hsv: Hsv {
+                        s: -20.,
+                        s_absolute: true,
+                        ..Default::default()
+                    },
                     ..Default::default()
-                },
-                ..Default::default()
-            }),
+                }),
+                None,
+            ),
         );
         colors.insert(
             1010,
-            ColorChannel::BaseColor(BaseColor {
-                color: Color::BLACK,
-                blending: false,
-            }),
+            (
+                ColorChannel::BaseColor(BaseColor {
+                    color: Color::BLACK,
+                    blending: false,
+                }),
+                None,
+            ),
         );
         commands.insert_resource(ColorChannels(colors));
         for object_data in &self.objects {
@@ -247,7 +261,7 @@ impl<'a> ParsedInnerLevel<'a> {
             };
             for group in parsed_groups {
                 let entry = groups.entry(group).or_default();
-                entry.entities.push(entity);
+                entry.0.entities.push(entity);
             }
         }
         commands.insert_resource(Groups(groups));
