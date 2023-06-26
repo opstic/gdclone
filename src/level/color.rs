@@ -24,13 +24,22 @@ impl ColorChannels {
             .unwrap_or(&(ColorChannel::default(), None))
         {
             (ColorChannel::BaseColor(color), color_mod) => {
+                let check = seen.entry(*index).or_default();
+                *check += 1;
+                if *check > 3 {
+                    return (color.color, color.blending);
+                }
                 let final_color = if let Some(color_mod) = color_mod {
                     match color_mod {
                         ColorMod::Color(target_color, progress) => {
                             lerp_color(&color.color, target_color, progress)
                         }
                         ColorMod::Hsv(target_channel, hsv, progress) => {
-                            let (target_color, _) = self.get_color(target_channel);
+                            let target_color = if target_channel == index {
+                                color.color
+                            } else {
+                                self.get_color_inner(target_channel, seen).0
+                            };
                             lerp_color(&color.color, &hsv.apply(target_color), progress)
                         }
                     }
@@ -57,7 +66,13 @@ impl ColorChannels {
                             lerp_color(&transformed_color, target_color, progress)
                         }
                         ColorMod::Hsv(target_channel, hsv, progress) => {
-                            let (target_color, _) = self.get_color(target_channel);
+                            let check = seen.entry(*index).or_default();
+                            *check += 1;
+                            let target_color = if *check > 3 {
+                                Color::WHITE
+                            } else {
+                                self.get_color_inner(target_channel, seen).0
+                            };
                             lerp_color(&transformed_color, &hsv.apply(target_color), progress)
                         }
                     }
