@@ -4,13 +4,15 @@ use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use bevy::prelude::{Camera2d, Color, Commands, Component, Entity, Mut, Query, Res, ResMut, Resource, SystemSet, Transform, With, Without, World};
+use bevy::prelude::{
+    Camera2d, Color, Commands, Component, Entity, Mut, Query, Res, ResMut, Resource, SystemSet,
+    Transform, With, Without, World,
+};
 use bevy::utils::{hashbrown, HashMap, PassHash};
 use dyn_clone::DynClone;
 
 use crate::level::color::{ColorMod, Hsv};
 use crate::level::easing::Easing;
-use crate::level::Groups;
 use crate::level::object::Object;
 use crate::level::trigger::alpha::AlphaTrigger;
 use crate::level::trigger::color::ColorTrigger;
@@ -18,7 +20,8 @@ use crate::level::trigger::pulse::PulseTrigger;
 use crate::level::trigger::r#move::MoveTrigger;
 use crate::level::trigger::rotate::RotateTrigger;
 use crate::level::trigger::toggle::ToggleTrigger;
-use crate::utils::{PassHashMap, u8_to_bool};
+use crate::level::Groups;
+use crate::utils::{u8_to_bool, PassHashMap};
 
 pub(crate) mod alpha;
 pub(crate) mod color;

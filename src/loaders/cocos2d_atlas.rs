@@ -129,7 +129,7 @@ impl AssetLoader for Cocos2dAtlasLoader {
                 &manifest.metadata.real_texture_file_name,
                 self.supported_compressed_formats,
             )
-                .await?;
+            .await?;
             let texture_handle =
                 load_context.set_labeled_asset("texture", LoadedAsset::new(texture));
             let mut frames = HashMap::with_capacity(manifest.frames.len());
@@ -179,8 +179,8 @@ impl AssetLoader for Cocos2dAtlasLoader {
 }
 
 fn to_vec2<'de, D>(deserializer: D) -> Result<Vec2, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let s: String = Deserialize::deserialize(deserializer)?;
     let split_str: Vec<f32> = s
@@ -195,8 +195,8 @@ fn to_vec2<'de, D>(deserializer: D) -> Result<Vec2, D::Error>
 }
 
 fn to_rect<'de, D>(deserializer: D) -> Result<Rect, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let s: String = Deserialize::deserialize(deserializer)?;
     let dimensions: Vec<f32> = s

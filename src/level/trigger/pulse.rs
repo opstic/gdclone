@@ -3,8 +3,8 @@ use bevy::prelude::{Res, ResMut, World};
 use bevy::time::Time;
 
 use crate::level::color::{ColorChannels, ColorMod};
-use crate::level::Groups;
 use crate::level::trigger::{TriggerDuration, TriggerFunction};
+use crate::level::Groups;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct PulseTrigger {

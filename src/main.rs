@@ -15,7 +15,7 @@ use bevy::winit::WinitSettings;
 use level::LevelPlugin;
 use loaders::AssetLoaderPlugin;
 use render::sprite::CustomSpritePlugin;
-use states::{GameState, loading::AssetsLoading, StatePlugins};
+use states::{loading::AssetsLoading, GameState, StatePlugins};
 
 use crate::multi_asset_io::MultiAssetIoPlugin;
 use crate::states::play::Player;
@@ -36,40 +36,40 @@ fn main() {
         },
         ..default()
     })
-        .insert_resource(Msaa::Off)
-        .insert_resource(AssetsLoading::default())
-        .add_plugins(
-            DefaultPlugins
-                .set(WindowPlugin {
-                    primary_window: Some(Window {
-                        resize_constraints: WindowResizeConstraints {
-                            // well if you are willing to play at such horrendous resolution here you go
-                            min_width: 128.,
-                            min_height: 72.,
-                            ..default()
-                        },
-                        title: "GDClone".to_string(),
-                        present_mode: PresentMode::AutoNoVsync,
+    .insert_resource(Msaa::Off)
+    .insert_resource(AssetsLoading::default())
+    .add_plugins(
+        DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    resize_constraints: WindowResizeConstraints {
+                        // well if you are willing to play at such horrendous resolution here you go
+                        min_width: 128.,
+                        min_height: 72.,
                         ..default()
-                    }),
+                    },
+                    title: "GDClone".to_string(),
+                    present_mode: PresentMode::AutoNoVsync,
                     ..default()
-                })
-                .disable::<SpritePlugin>()
-                .add_before::<SpritePlugin, CustomSpritePlugin>(CustomSpritePlugin)
-                .add_before::<AssetPlugin, MultiAssetIoPlugin>(MultiAssetIoPlugin),
-        )
-        // .add_plugin(EditorPlugin::default())
-        .add_plugin(FrameTimeDiagnosticsPlugin)
-        .add_plugin(AssetLoaderPlugin)
-        .add_plugin(LevelPlugin)
-        .add_state::<GameState>()
-        .add_plugins(StatePlugins)
-        .add_startup_system(setup)
-        .add_system(update_fps)
-        .add_system(toggle_fullscreen)
-        // .add_system(handle_resize)
-        .add_system(calculate_bounds.in_set(VisibilitySystems::CalculateBounds))
-        .run();
+                }),
+                ..default()
+            })
+            .disable::<SpritePlugin>()
+            .add_before::<SpritePlugin, CustomSpritePlugin>(CustomSpritePlugin)
+            .add_before::<AssetPlugin, MultiAssetIoPlugin>(MultiAssetIoPlugin),
+    )
+    // .add_plugin(EditorPlugin::default())
+    .add_plugin(FrameTimeDiagnosticsPlugin)
+    .add_plugin(AssetLoaderPlugin)
+    .add_plugin(LevelPlugin)
+    .add_state::<GameState>()
+    .add_plugins(StatePlugins)
+    .add_startup_system(setup)
+    .add_system(update_fps)
+    .add_system(toggle_fullscreen)
+    // .add_system(handle_resize)
+    .add_system(calculate_bounds.in_set(VisibilitySystems::CalculateBounds))
+    .run();
 }
 
 #[derive(Component)]
