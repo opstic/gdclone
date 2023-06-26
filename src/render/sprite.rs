@@ -3,8 +3,8 @@ use std::num::NonZeroU32;
 
 use bevy::app::prelude::*;
 use bevy::asset::{AddAsset, AssetEvent, Assets, Handle, HandleId, HandleUntyped};
-use bevy::core_pipeline::tonemapping::DebandDither;
 use bevy::core_pipeline::{core_2d::Transparent2d, tonemapping::Tonemapping};
+use bevy::core_pipeline::tonemapping::DebandDither;
 use bevy::ecs::{
     prelude::*,
     system::{lifetimeless::*, SystemParamItem, SystemState},
@@ -13,9 +13,9 @@ use bevy::math::{Quat, Vec2, Vec4, Vec4Swizzles};
 use bevy::prelude::Transform;
 use bevy::reflect::TypeUuid;
 use bevy::render::{
-    render_phase::AddRenderCommand,
-    render_resource::{Shader, SpecializedRenderPipelines},
-    Extract, ExtractSchedule, RenderApp, RenderSet,
+    Extract,
+    ExtractSchedule,
+    render_phase::AddRenderCommand, render_resource::{Shader, SpecializedRenderPipelines}, RenderApp, RenderSet,
 };
 use bevy::render::{
     render_phase::{
@@ -33,8 +33,8 @@ use bevy::render::{
     },
 };
 use bevy::sprite::{
-    queue_material2d_meshes, Anchor, ColorMaterial, ColorMaterialPlugin, ExtractedSprite,
-    ExtractedSprites, Mesh2dHandle, Mesh2dRenderPlugin, Sprite, SpriteAssetEvents, SpriteSystem,
+    Anchor, ColorMaterial, ColorMaterialPlugin, ExtractedSprite, ExtractedSprites,
+    Mesh2dHandle, Mesh2dRenderPlugin, queue_material2d_meshes, Sprite, SpriteAssetEvents, SpriteSystem,
     TextureAtlas, TextureAtlasSprite,
 };
 use bevy::tasks::{AsyncComputeTaskPool, Task};
@@ -176,7 +176,7 @@ impl FromWorld for SpritePipeline {
                         std::num::NonZeroU32::new(
                             image.texture_descriptor.size.width * format_size as u32,
                         )
-                        .unwrap(),
+                            .unwrap(),
                     ),
                     rows_per_image: None,
                 },
@@ -459,7 +459,7 @@ fn extract_cocos2d_sprites(
 ) {
     for visible_entities in &camera_query {
         for (entity, sprite, transform, handle, object) in
-            object_query.iter_many(&visible_entities.entities)
+        object_query.iter_many(&visible_entities.entities)
         {
             if let Some((frame, _)) = cocos2d_frames.frames.get(&sprite.texture) {
                 if let Some(atlas) = cocos2d_atlases.get(handle) {

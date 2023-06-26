@@ -2,13 +2,13 @@ use std::fs::File;
 use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 
-use bevy::asset::FileAssetIo;
-use bevy::utils::HashMap;
 use bevy::{
     asset::{AssetIo, AssetIoError, Metadata},
     prelude::*,
     utils::BoxedFuture,
 };
+use bevy::asset::FileAssetIo;
+use bevy::utils::HashMap;
 use directories::{BaseDirs, ProjectDirs};
 use futures_lite::future;
 use native_dialog::{FileDialog, MessageDialog, MessageType};
@@ -51,7 +51,7 @@ impl AssetIo for MultiAssetIo {
     fn read_directory(
         &self,
         path: &Path,
-    ) -> Result<Box<dyn Iterator<Item = PathBuf>>, AssetIoError> {
+    ) -> Result<Box<dyn Iterator<Item=PathBuf>>, AssetIoError> {
         let path_str = path.to_str().unwrap();
         let split_path: Vec<&str> = path_str.splitn(2, path_separator).collect();
         if !split_path[0].starts_with(':') {

@@ -8,15 +8,15 @@ use bevy::prelude::{Color, Commands, Entity, IntoSystemConfig, OnUpdate, Resourc
 use bevy::render::view;
 use bevy::render::view::VisibilitySystems;
 use bevy::utils::{hashbrown, HashMap, HashSet, PassHash};
-use serde::de::Error;
 use serde::{Deserialize, Deserializer};
+use serde::de::Error;
 
+use crate::GameState;
 use crate::level::color::{BaseColor, ColorChannel, ColorChannels, ColorMod, CopyColor, Hsv};
 use crate::level::object::Object;
 use crate::level::trigger::TriggerSystems;
 use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dFrames};
-use crate::utils::{decompress, decrypt, u8_to_bool, PassHashMap};
-use crate::GameState;
+use crate::utils::{decompress, decrypt, PassHashMap, u8_to_bool};
 
 pub(crate) mod color;
 pub(crate) mod de;
@@ -34,32 +34,32 @@ impl Plugin for LevelPlugin {
                 .in_set(TriggerSystems::ActivateTriggers)
                 .in_set(OnUpdate(GameState::Play)),
         )
-        .add_system(
-            trigger::execute_triggers
-                .in_set(TriggerSystems::ExecuteTriggers)
-                .after(TriggerSystems::ActivateTriggers),
-        )
-        .add_system(
-            object::update_visibility
-                .in_set(VisibilitySystems::CheckVisibility)
-                .after(view::check_visibility),
-        )
-        .add_system(
-            object::propagate_visibility
-                .after(object::update_visibility)
-                .in_set(VisibilitySystems::CheckVisibility),
-        )
-        .add_system(color::update_light_bg.in_base_set(CoreSet::PostUpdate))
-        .add_system(
-            color::calculate_object_color
-                .after(object::propagate_visibility)
-                .in_base_set(CoreSet::PostUpdate),
-        )
-        .register_type::<Object>()
-        .init_resource::<ColorChannels>()
-        .init_resource::<Groups>()
-        .init_resource::<Sections>()
-        .init_resource::<trigger::ExecutingTriggers>();
+            .add_system(
+                trigger::execute_triggers
+                    .in_set(TriggerSystems::ExecuteTriggers)
+                    .after(TriggerSystems::ActivateTriggers),
+            )
+            .add_system(
+                object::update_visibility
+                    .in_set(VisibilitySystems::CheckVisibility)
+                    .after(view::check_visibility),
+            )
+            .add_system(
+                object::propagate_visibility
+                    .after(object::update_visibility)
+                    .in_set(VisibilitySystems::CheckVisibility),
+            )
+            .add_system(color::update_light_bg.in_base_set(CoreSet::PostUpdate))
+            .add_system(
+                color::calculate_object_color
+                    .after(object::propagate_visibility)
+                    .in_base_set(CoreSet::PostUpdate),
+            )
+            .register_type::<Object>()
+            .init_resource::<ColorChannels>()
+            .init_resource::<Groups>()
+            .init_resource::<Sections>()
+            .init_resource::<trigger::ExecutingTriggers>();
     }
 }
 
@@ -78,8 +78,8 @@ pub(crate) struct Level {
 }
 
 fn decrypt_inner_level<'de, D>(deserializer: D) -> Result<Option<Vec<u8>>, D::Error>
-where
-    D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
 {
     let s: String = Deserialize::deserialize(deserializer).unwrap();
     Ok(Some(decrypt(s.as_bytes(), None).map_err(Error::custom)?))
