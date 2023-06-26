@@ -317,6 +317,12 @@ pub(crate) fn setup_trigger(
                         .unwrap_or(Duration::ZERO),
                 )
             }
+            if let Some(target_id) = object_data.get(b"51".as_ref()) {
+                trigger.target_id = std::str::from_utf8(target_id)?.parse()?;
+            }
+            if let Some(target_group) = object_data.get(b"52".as_ref()) {
+                trigger.target_group = u8_to_bool(target_group);
+            }
             let mut mod_mode = false;
             if let Some(hsv_mode) = object_data.get(b"48".as_ref()) {
                 mod_mode = u8_to_bool(hsv_mode);
@@ -330,9 +336,13 @@ pub(crate) fn setup_trigger(
                 if let Some(color_id) = object_data.get(b"50".as_ref()) {
                     copied_color_id = std::str::from_utf8(color_id)?.parse()?;
                 }
-                // Ignore trigger when the copied id is 0
+                // Ignore trigger when the copied id is 0 and is targeting a group
                 if copied_color_id == 0 {
-                    return Ok(());
+                    if trigger.target_group {
+                        return Ok(());
+                    } else {
+                        copied_color_id = trigger.target_id;
+                    }
                 }
                 trigger.color_mod = ColorMod::Hsv(copied_color_id, hsv, 1.);
             } else {
@@ -347,12 +357,6 @@ pub(crate) fn setup_trigger(
                     color.set_b(std::str::from_utf8(b)?.parse::<u8>()? as f32 / u8::MAX as f32);
                 }
                 trigger.color_mod = ColorMod::Color(color, 1.);
-            }
-            if let Some(target_id) = object_data.get(b"51".as_ref()) {
-                trigger.target_id = std::str::from_utf8(target_id)?.parse()?;
-            }
-            if let Some(target_color_channel) = object_data.get(b"52".as_ref()) {
-                trigger.target_group = u8_to_bool(target_color_channel);
             }
             if let Some(base_only) = object_data.get(b"65".as_ref()) {
                 trigger.base_only = u8_to_bool(base_only);
