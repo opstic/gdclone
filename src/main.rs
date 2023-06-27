@@ -10,7 +10,8 @@ use bevy::render::primitives::Aabb;
 use bevy::render::view::{NoFrustumCulling, VisibilitySystems};
 use bevy::sprite::{Mesh2dHandle, SpritePlugin};
 use bevy::window::{PresentMode, WindowMode, WindowResizeConstraints};
-use bevy::winit::WinitSettings;
+use bevy::winit::{WinitSettings, WinitWindows};
+use winit::window::Icon;
 
 use level::LevelPlugin;
 use loaders::AssetLoaderPlugin;
@@ -73,7 +74,29 @@ fn main() {
 #[derive(Component)]
 struct FpsText;
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+const ICON: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/assets/branding/icon.png"
+));
+
+fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    window_entities: Query<Entity, With<Window>>,
+    winit_windows: NonSend<WinitWindows>,
+) {
+    let (icon_rgba, icon_width, icon_height) = {
+        let image = image::load_from_memory(ICON).unwrap().into_rgba8();
+        let (width, height) = image.dimensions();
+        let rgba = image.into_raw();
+        (rgba, width, height)
+    };
+    let icon = Icon::from_rgba(icon_rgba, icon_width, icon_height).unwrap();
+    for entity in &window_entities {
+        let winit_window = winit_windows.get_window(entity).unwrap();
+        winit_window.set_window_icon(Some(icon.clone()));
+    }
+
     commands
         .spawn(Camera2dBundle::default())
         .insert(Player(Vec2::ZERO));

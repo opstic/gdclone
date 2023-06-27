@@ -41,6 +41,8 @@ futures-lite = "1.13"
 steamlocate = "1.2"
 native-dialog = "0.6"
 directories = "5.0"
+image = "0.24"
+winit = "0.28"
 
 [build-dependencies]
 serde = { version = "1.0.154", features = ['derive'] }
