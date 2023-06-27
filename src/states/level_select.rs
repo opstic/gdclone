@@ -65,7 +65,7 @@ fn select_setup(
                             "Loaded Levels",
                             TextStyle {
                                 font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                                font_size: 25.,
+                                font_size: 55.,
                                 color: Color::WHITE,
                             },
                         )
