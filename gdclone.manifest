@@ -1,21 +1,21 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1" xmlns:asmv3="urn:schemas-microsoft-com:asm.v3">
     <assemblyIdentity
-            version="1.0.0.0"
-            processorArchitecture="*"
-            name="Opstic.GDClone"
-            type="win32"
+        version="1.0.0.0"
+        processorArchitecture="*"
+        name="Opstic.GDClone"
+        type="win32"
     />
-    <description>An Alternative Geometry Dash Client Built Using Bevy</description>
+    <description>An attempt at an alternative Geometry Dash client built using Bevy</description>
     <dependency>
         <dependentAssembly>
             <assemblyIdentity
-                    type="win32"
-                    name="Microsoft.Windows.Common-Controls"
-                    version="6.0.0.0"
-                    processorArchitecture="*"
-                    publicKeyToken="6595b64144ccf1df"
-                    language="*"
+                type="win32"
+                name="Microsoft.Windows.Common-Controls"
+                version="6.0.0.0"
+                processorArchitecture="*"
+                publicKeyToken="6595b64144ccf1df"
+                language="*"
             />
         </dependentAssembly>
     </dependency>
