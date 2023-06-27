@@ -14,11 +14,9 @@ use bevy::winit::WinitSettings;
 
 use level::LevelPlugin;
 use loaders::AssetLoaderPlugin;
+use multi_asset_io::MultiAssetIoPlugin;
 use render::sprite::CustomSpritePlugin;
-use states::{loading::AssetsLoading, GameState, StatePlugins};
-
-use crate::multi_asset_io::MultiAssetIoPlugin;
-use crate::states::play::Player;
+use states::{loading::AssetsLoading, play::Player, GameState, StatePlugins};
 
 mod level;
 mod loaders;

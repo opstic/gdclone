@@ -5,7 +5,7 @@ use level_select::LevelSelectStatePlugin;
 use loading::LoadingStatePlugin;
 use play::PlayStatePlugin;
 
-mod level_select;
+pub(crate) mod level_select;
 pub(crate) mod loading;
 pub(crate) mod play;
 

@@ -2,14 +2,17 @@ use std::time::Instant;
 
 use bevy::prelude::*;
 
-use crate::level::color::ColorChannels;
-use crate::level::object::Object;
-use crate::level::trigger::ExecutingTriggers;
-use crate::level::{Groups, Sections};
-use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dFrames};
-use crate::loaders::gdlevel::SaveFile;
-use crate::states::loading::GlobalAssets;
-use crate::GameState;
+use crate::level::{
+    color::ColorChannels,
+    object::Object,
+    trigger::ExecutingTriggers,
+    {Groups, Sections},
+};
+use crate::loaders::{
+    cocos2d_atlas::{Cocos2dAtlas, Cocos2dFrames},
+    gdlevel::SaveFile,
+};
+use crate::states::{loading::GlobalAssets, GameState};
 
 pub(crate) struct PlayStatePlugin;
 

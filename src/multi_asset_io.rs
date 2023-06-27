@@ -2,13 +2,9 @@ use std::fs::File;
 use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 
-use bevy::asset::FileAssetIo;
-use bevy::utils::HashMap;
-use bevy::{
-    asset::{AssetIo, AssetIoError, Metadata},
-    prelude::*,
-    utils::BoxedFuture,
-};
+use bevy::asset::{AssetIo, AssetIoError, FileAssetIo, Metadata};
+use bevy::prelude::*;
+use bevy::utils::{BoxedFuture, HashMap};
 use directories::{BaseDirs, ProjectDirs};
 use futures_lite::future;
 use native_dialog::{FileDialog, MessageDialog, MessageType};

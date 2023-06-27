@@ -3,24 +3,20 @@ use std::num::NonZeroU32;
 
 use bevy::app::prelude::*;
 use bevy::asset::{AddAsset, AssetEvent, Assets, Handle, HandleId, HandleUntyped};
-use bevy::core_pipeline::tonemapping::DebandDither;
-use bevy::core_pipeline::{core_2d::Transparent2d, tonemapping::Tonemapping};
+use bevy::core_pipeline::{
+    core_2d::Transparent2d,
+    tonemapping::{DebandDither, Tonemapping},
+};
 use bevy::ecs::{
     prelude::*,
     system::{lifetimeless::*, SystemParamItem, SystemState},
 };
 use bevy::math::{Quat, Vec2, Vec4, Vec4Swizzles};
-use bevy::prelude::Transform;
 use bevy::reflect::TypeUuid;
 use bevy::render::{
-    render_phase::AddRenderCommand,
-    render_resource::{Shader, SpecializedRenderPipelines},
-    Extract, ExtractSchedule, RenderApp, RenderSet,
-};
-use bevy::render::{
     render_phase::{
-        BatchedPhaseItem, DrawFunctions, PhaseItem, RenderCommand, RenderCommandResult,
-        RenderPhase, SetItemPipeline, TrackedRenderPass,
+        AddRenderCommand, BatchedPhaseItem, DrawFunctions, PhaseItem, RenderCommand,
+        RenderCommandResult, RenderPhase, SetItemPipeline, TrackedRenderPass,
     },
     render_resource::*,
     renderer::{RenderDevice, RenderQueue},
@@ -31,6 +27,7 @@ use bevy::render::{
         ComputedVisibility, ExtractedView, Msaa, ViewTarget, ViewUniform, ViewUniformOffset,
         ViewUniforms, VisibleEntities,
     },
+    Extract, ExtractSchedule, RenderApp, RenderSet,
 };
 use bevy::sprite::{
     queue_material2d_meshes, Anchor, ColorMaterial, ColorMaterialPlugin, ExtractedSprite,
@@ -38,7 +35,7 @@ use bevy::sprite::{
     TextureAtlas, TextureAtlasSprite,
 };
 use bevy::tasks::{AsyncComputeTaskPool, Task};
-use bevy::transform::components::GlobalTransform;
+use bevy::transform::components::{GlobalTransform, Transform};
 use bevy::utils::{default, FloatOrd, HashMap, HashSet};
 use bytemuck::{Pod, Zeroable};
 use fixedbitset::FixedBitSet;

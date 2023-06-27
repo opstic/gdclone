@@ -1,9 +1,7 @@
 use bevy::prelude::*;
 
-use cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasLoader, Cocos2dFrames};
+use cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasLoader, Cocos2dAtlasSprite, Cocos2dFrames};
 use gdlevel::{GDSaveLoader, SaveFile};
-
-use crate::loaders::cocos2d_atlas::Cocos2dAtlasSprite;
 
 pub(crate) mod cocos2d_atlas;
 pub(crate) mod gdlevel;

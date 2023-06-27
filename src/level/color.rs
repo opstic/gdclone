@@ -4,8 +4,11 @@ use bevy::render::view::VisibleEntities;
 use bevy::utils::{HashMap, HashSet};
 use serde::Deserialize;
 
-use crate::level::object::{Object, ObjectColorType};
-use crate::level::{de, Groups};
+use crate::level::{
+    de,
+    object::{Object, ObjectColorType},
+    Groups,
+};
 use crate::loaders::cocos2d_atlas::Cocos2dAtlasSprite;
 use crate::utils::{hsv_to_rgb, lerp_color, rgb_to_hsv, u8_to_bool, PassHashMap};
 

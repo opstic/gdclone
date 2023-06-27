@@ -2,8 +2,10 @@ use bevy::ecs::system::SystemState;
 use bevy::prelude::{Res, ResMut, World};
 use bevy::time::Time;
 
-use crate::level::trigger::{TriggerDuration, TriggerFunction};
-use crate::level::Groups;
+use crate::level::{
+    trigger::{TriggerDuration, TriggerFunction},
+    Groups,
+};
 use crate::utils::lerp;
 
 #[derive(Clone, Debug, Default)]

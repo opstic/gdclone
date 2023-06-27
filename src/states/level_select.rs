@@ -11,10 +11,7 @@ use bevy::ui::{
 };
 
 use crate::loaders::gdlevel::SaveFile;
-use crate::GameState;
-
-use super::loading::GlobalAssets;
-use super::play::LevelIndex;
+use crate::states::{loading::GlobalAssets, play::LevelIndex, GameState};
 
 pub(crate) struct LevelSelectStatePlugin;
 

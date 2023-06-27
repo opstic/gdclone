@@ -11,16 +11,16 @@ use bevy::prelude::{
 use bevy::utils::{hashbrown, HashMap, PassHash};
 use dyn_clone::DynClone;
 
-use crate::level::color::{ColorMod, Hsv};
-use crate::level::easing::Easing;
-use crate::level::object::Object;
-use crate::level::trigger::alpha::AlphaTrigger;
-use crate::level::trigger::color::ColorTrigger;
-use crate::level::trigger::pulse::PulseTrigger;
-use crate::level::trigger::r#move::MoveTrigger;
-use crate::level::trigger::rotate::RotateTrigger;
-use crate::level::trigger::toggle::ToggleTrigger;
-use crate::level::Groups;
+use crate::level::{
+    color::{ColorMod, Hsv},
+    easing::Easing,
+    object::Object,
+    trigger::{
+        alpha::AlphaTrigger, color::ColorTrigger, pulse::PulseTrigger, r#move::MoveTrigger,
+        rotate::RotateTrigger, toggle::ToggleTrigger,
+    },
+    Groups,
+};
 use crate::utils::{u8_to_bool, PassHashMap};
 
 pub(crate) mod alpha;

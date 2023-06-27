@@ -5,10 +5,11 @@ use bevy::math::Rect;
 use bevy::prelude::{
     Color, Component, EventReader, FromWorld, Image, Res, ResMut, Resource, Vec2, World,
 };
-use bevy::reflect::Reflect;
-use bevy::reflect::TypeUuid;
-use bevy::render::renderer::RenderDevice;
-use bevy::render::texture::{CompressedImageFormats, ImageType};
+use bevy::reflect::{Reflect, TypeUuid};
+use bevy::render::{
+    renderer::RenderDevice,
+    texture::{CompressedImageFormats, ImageType},
+};
 use bevy::sprite::Anchor;
 use bevy::utils::HashMap;
 use serde::{Deserialize, Deserializer};

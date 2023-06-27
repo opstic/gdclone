@@ -11,12 +11,13 @@ use bevy::utils::{hashbrown, HashMap, HashSet, PassHash};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
-use crate::level::color::{BaseColor, ColorChannel, ColorChannels, ColorMod, CopyColor, Hsv};
-use crate::level::object::Object;
-use crate::level::trigger::TriggerSystems;
+use color::{BaseColor, ColorChannel, ColorChannels, ColorMod, CopyColor, Hsv};
+use object::Object;
+use trigger::TriggerSystems;
+
 use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dFrames};
+use crate::states::GameState;
 use crate::utils::{decompress, decrypt, u8_to_bool, PassHashMap};
-use crate::GameState;
 
 pub(crate) mod color;
 pub(crate) mod de;

@@ -2,8 +2,10 @@ use bevy::ecs::system::SystemState;
 use bevy::prelude::{Color, Res, ResMut, World};
 use bevy::time::Time;
 
-use crate::level::color::{BaseColor, ColorChannel, ColorChannels, CopyColor, Hsv};
-use crate::level::trigger::{TriggerDuration, TriggerFunction};
+use crate::level::{
+    color::{BaseColor, ColorChannel, ColorChannels, CopyColor, Hsv},
+    trigger::{TriggerDuration, TriggerFunction},
+};
 use crate::utils::lerp_color;
 
 #[derive(Clone, Debug, Default)]
