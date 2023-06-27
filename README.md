@@ -10,7 +10,7 @@ Built using Bevy engine and Rust.
 
 ## Usage
 
-~~Grab the latest binary from [releases](https://github.com/opstic/gdclone/releases) then copy your `Resources` folder from GD into the `assets` folder.~~
+~~Grab the latest binary from [releases](https://github.com/opstic/gdclone/releases) then just run it.~~
 
 **No release yet, sorry :(**
 
