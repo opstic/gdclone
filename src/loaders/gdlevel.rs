@@ -25,22 +25,30 @@ impl AssetLoader for GDSaveLoader {
     ) -> BoxedFuture<'a, Result<(), bevy::asset::Error>> {
         Box::pin(async move {
             info!("Loading save");
-            let decrypted = decompress(decrypt(bytes, Some(11_u8)).unwrap().as_slice()).unwrap();
-            let parsed_save: Dictionary = plist::from_bytes::<Dictionary>(&decrypted).unwrap();
-            let mut levels: Vec<Level> = Vec::with_capacity(parsed_save.len() - 1);
-            for (key_name, key) in parsed_save.get("LLM_01").unwrap().as_dictionary().unwrap() {
-                if key_name == "_isArr" {
-                    continue;
-                }
-                match plist::from_value::<Level>(key.clone()) {
-                    Ok(l) => {
-                        levels.push(l);
+            let mut levels: Vec<Level> = Vec::new();
+            if let Ok(decompressed) = match decrypt(bytes, Some(11_u8)) {
+                Ok(decrypted) => decompress(&decrypted),
+                Err(e) => Err(e),
+            } {
+                let parsed_save: Dictionary =
+                    plist::from_bytes::<Dictionary>(&decompressed).unwrap();
+                levels.reserve(parsed_save.len() - 1);
+                for (key_name, key) in parsed_save.get("LLM_01").unwrap().as_dictionary().unwrap() {
+                    if key_name == "_isArr" {
+                        continue;
                     }
-                    Err(e) => {
-                        println!("{:?}", key);
-                        panic!("{:?}", e);
+                    match plist::from_value::<Level>(key.clone()) {
+                        Ok(l) => {
+                            levels.push(l);
+                        }
+                        Err(e) => {
+                            println!("{:?}", key);
+                            panic!("{:?}", e);
+                        }
                     }
                 }
+            } else {
+                warn!("Corrupted or empty save file");
             }
             load_context.set_default_asset(LoadedAsset::new(SaveFile { levels }));
             info!("Done");
