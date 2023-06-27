@@ -4,7 +4,7 @@
 
 <br />
 
-**An attempt at a alternative GD client.**
+**An attempt at an alternative GD client.**
 
 Built using Bevy engine and Rust.
 
