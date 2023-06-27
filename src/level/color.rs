@@ -17,38 +17,41 @@ pub(crate) struct ColorChannels(pub(crate) PassHashMap<(ColorChannel, Option<Col
 
 impl ColorChannels {
     pub(crate) fn get_color(&self, index: &u64) -> (Color, bool) {
-        self.get_color_inner(index, &mut HashMap::new())
+        self.get_color_inner(index, &mut HashMap::new(), false)
     }
 
-    fn get_color_inner(&self, index: &u64, seen: &mut HashMap<u64, usize>) -> (Color, bool) {
+    fn get_color_inner(
+        &self,
+        index: &u64,
+        seen: &mut HashMap<u64, usize>,
+        no_color_mod: bool,
+    ) -> (Color, bool) {
         match self
             .0
             .get(index)
             .unwrap_or(&(ColorChannel::default(), None))
         {
             (ColorChannel::BaseColor(color), color_mod) => {
-                let check = seen.entry(*index).or_default();
-                *check += 1;
-                if *check > 3 {
-                    return (color.color, color.blending);
-                }
-                let final_color = if let Some(color_mod) = color_mod {
-                    match color_mod {
-                        ColorMod::Color(target_color, progress) => {
-                            lerp_color(&color.color, target_color, progress)
-                        }
-                        ColorMod::Hsv(target_channel, hsv, progress) => {
-                            let target_color = if target_channel == index {
-                                color.color
-                            } else {
-                                self.get_color_inner(target_channel, seen).0
-                            };
-                            lerp_color(&color.color, &hsv.apply(target_color), progress)
+                let mut final_color = color.color;
+                if !no_color_mod {
+                    if let Some(color_mod) = color_mod {
+                        match color_mod {
+                            ColorMod::Color(target_color, progress) => {
+                                final_color = lerp_color(&final_color, target_color, progress);
+                            }
+                            ColorMod::Hsv(target_channel, hsv, progress) => {
+                                let target_color = if target_channel == index {
+                                    color.color
+                                } else {
+                                    self.get_color_inner(target_channel, &mut HashMap::new(), true)
+                                        .0
+                                };
+                                final_color =
+                                    lerp_color(&final_color, &hsv.apply(target_color), progress);
+                            }
                         }
                     }
-                } else {
-                    color.color
-                };
+                }
                 (final_color, color.blending)
             }
             (ColorChannel::CopyColor(color), color_mod) => {
@@ -57,31 +60,29 @@ impl ColorChannels {
                 let (original_color, _) = if *check > 3 {
                     (Color::WHITE, false)
                 } else {
-                    self.get_color_inner(&color.copied_index, seen)
+                    self.get_color_inner(&color.copied_index, seen, false)
                 };
                 let mut transformed_color = color.hsv.apply(original_color);
                 if !color.copy_opacity {
                     transformed_color.set_a(color.opacity);
                 }
-                let final_color = if let Some(color_mod) = color_mod {
-                    match color_mod {
-                        ColorMod::Color(target_color, progress) => {
-                            lerp_color(&transformed_color, target_color, progress)
-                        }
-                        ColorMod::Hsv(target_channel, hsv, progress) => {
-                            let check = seen.entry(*index).or_default();
-                            *check += 1;
-                            let target_color = if *check > 3 {
-                                Color::WHITE
-                            } else {
-                                self.get_color_inner(target_channel, seen).0
-                            };
-                            lerp_color(&transformed_color, &hsv.apply(target_color), progress)
+                let mut final_color = transformed_color;
+                if !no_color_mod {
+                    if let Some(color_mod) = color_mod {
+                        match color_mod {
+                            ColorMod::Color(target_color, progress) => {
+                                final_color = lerp_color(&final_color, target_color, progress);
+                            }
+                            ColorMod::Hsv(target_channel, hsv, progress) => {
+                                let target_color = self
+                                    .get_color_inner(target_channel, &mut HashMap::new(), true)
+                                    .0;
+                                final_color =
+                                    lerp_color(&final_color, &hsv.apply(target_color), progress);
+                            }
                         }
                     }
-                } else {
-                    transformed_color
-                };
+                }
                 (final_color, color.blending)
             }
         }
