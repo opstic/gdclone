@@ -39,7 +39,13 @@ struct Child {
 }
 
 fn main() {
+    println!("cargo:rerun-if-changed=gdclone.manifest");
+    println!("cargo:rerun-if-changed=gdclone.rc");
+
+    embed_resource::compile("gdclone.rc", embed_resource::NONE);
+
     println!("cargo:rerun-if-changed=assets/data/object.json");
+
     let mut object_json = File::open("assets/data/object.json").unwrap();
     let mut bytes = Vec::new();
     if let Ok(metadata) = object_json.metadata() {
