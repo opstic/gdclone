@@ -265,12 +265,7 @@ impl Plugin for MultiAssetIoPlugin {
                             .unwrap();
                     }
                 } else {
-                    MessageDialog::new()
-                        .set_type(MessageType::Warning)
-                        .set_title("Select a directory")
-                        .set_text("Please select a directory.")
-                        .show_alert()
-                        .unwrap();
+                    std::process::exit(0);
                 }
             }
             gd_data_path
