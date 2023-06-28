@@ -118,19 +118,23 @@ fn select_setup(
                                         parent
                                             .spawn(NodeBundle {
                                                 style: Style {
+                                                    flex_direction: FlexDirection::Row,
                                                     flex_shrink: 0.,
+                                                    align_items: AlignItems::Center,
                                                     size: Size::new(
-                                                        Val::Percent(100.0),
-                                                        Val::Percent(1.0),
+                                                        Val::Percent(99.0),
+                                                        Val::Px(100.),
                                                     ),
                                                     margin: UiRect {
-                                                        left: Val::Auto,
-                                                        right: Val::Auto,
+                                                        top: Val::Px(5.),
+                                                        bottom: Val::Px(5.),
+                                                        left: Val::Px(5.),
+                                                        right: Val::Px(5.),
                                                         ..default()
                                                     },
                                                     ..default()
                                                 },
-                                                background_color: Color::NONE.into(),
+                                                background_color: Color::rgb(0.12, 0.12, 0.12).into(),
                                                 ..default()
                                             })
                                             .with_children(|parent| {
@@ -157,7 +161,6 @@ fn select_setup(
                                                             top: Val::Percent(2.5),
                                                             bottom: Val::Percent(2.5),
                                                         },
-                                                        align_self: AlignSelf::FlexStart,
                                                         max_size: Size::new(
                                                             Val::Percent(50.),
                                                             Val::Px(50.),
@@ -173,8 +176,8 @@ fn select_setup(
                                                             justify_content: JustifyContent::Center,
                                                             align_items: AlignItems::Center,
                                                             size: Size::new(
-                                                                Val::Percent(10.),
-                                                                Val::Percent(50.),
+                                                                Val::Px(75.),
+                                                                Val::Px(50.),
                                                             ),
                                                             margin: UiRect {
                                                                 left: Val::Auto,
@@ -195,7 +198,7 @@ fn select_setup(
                                                                     "fonts/FiraSans-Bold.ttf",
                                                                 ),
                                                                 font_size: 25.0,
-                                                                color: Color::rgb(0.9, 0.9, 0.9),
+                                                                color: Color::rgb(0.8, 0.8, 0.8),
                                                             },
                                                         ));
                                                     });
