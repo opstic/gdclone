@@ -45,14 +45,25 @@ fn vertex(in: VertexInput) -> VertexOutput {
     return out;
 }
 
+#ifndef NO_TEXTURE_ARRAY
 @group(1) @binding(0)
 var sprite_textures: binding_array<texture_2d<f32>, 16>;
 @group(1) @binding(1)
 var sprite_samplers: binding_array<sampler, 16>;
+#else
+@group(1) @binding(0)
+var sprite_texture: texture_2d<f32>;
+@group(1) @binding(1)
+var sprite_sampler: sampler;
+#endif
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
+#ifndef NO_TEXTURE_ARRAY
     var color = textureSample(sprite_textures[in.texture_index], sprite_samplers[in.texture_index], in.uv);
+#else
+    var color = textureSample(sprite_texture, sprite_sampler, in.uv);
+#endif
     color = in.color * color;
 
 #ifdef TONEMAP_IN_SHADER

@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::num::NonZeroU32;
 
 use bevy::app::prelude::*;
-use bevy::asset::{AddAsset, AssetEvent, Assets, Handle, HandleId, HandleUntyped};
+use bevy::asset::{AddAsset, AssetEvent, Assets, Handle, HandleUntyped};
 use bevy::core_pipeline::{
     core_2d::Transparent2d,
     tonemapping::{DebandDither, Tonemapping},
@@ -11,6 +11,7 @@ use bevy::ecs::{
     prelude::*,
     system::{lifetimeless::*, SystemParamItem, SystemState},
 };
+use bevy::log::warn;
 use bevy::math::{Quat, Vec2, Vec4, Vec4Swizzles};
 use bevy::reflect::TypeUuid;
 use bevy::render::{
@@ -63,8 +64,23 @@ impl Plugin for CustomSpritePlugin {
             .add_plugin(Mesh2dRenderPlugin)
             .add_plugin(ColorMaterialPlugin);
 
+        let mut fallbacks = Fallbacks::default();
+
+        let render_device = app.world.resource::<RenderDevice>();
+
+        if !render_device
+            .features()
+            .contains(WgpuFeatures::TEXTURE_BINDING_ARRAY)
+        {
+            warn!(
+                "Current GPU does not support texture arrays, switching to fallback implementation"
+            );
+            fallbacks.no_texture_array = true;
+        }
+
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
+                .insert_resource(fallbacks)
                 .init_resource::<ImageBindGroups>()
                 .init_resource::<SpritePipeline>()
                 .init_resource::<SpecializedRenderPipelines<SpritePipeline>>()
@@ -95,6 +111,11 @@ impl Plugin for CustomSpritePlugin {
     }
 }
 
+#[derive(Default, Resource)]
+pub struct Fallbacks {
+    no_texture_array: bool,
+}
+
 #[derive(Resource)]
 pub struct SpritePipeline {
     view_layout: BindGroupLayout,
@@ -108,8 +129,9 @@ impl FromWorld for SpritePipeline {
             Res<RenderDevice>,
             Res<DefaultImageSampler>,
             Res<RenderQueue>,
+            Res<Fallbacks>,
         )> = SystemState::new(world);
-        let (render_device, default_sampler, render_queue) = system_state.get_mut(world);
+        let (render_device, default_sampler, render_queue, fallbacks) = system_state.get_mut(world);
 
         let view_layout = render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             entries: &[BindGroupLayoutEntry {
@@ -136,13 +158,21 @@ impl FromWorld for SpritePipeline {
                         view_dimension: TextureViewDimension::D2,
                     },
                     // TODO: Detect amount of texture binds available at once
-                    count: NonZeroU32::new(16),
+                    count: if fallbacks.no_texture_array {
+                        None
+                    } else {
+                        NonZeroU32::new(16)
+                    },
                 },
                 BindGroupLayoutEntry {
                     binding: 1,
                     visibility: ShaderStages::FRAGMENT,
                     ty: BindingType::Sampler(SamplerBindingType::Filtering),
-                    count: NonZeroU32::new(16),
+                    count: if fallbacks.no_texture_array {
+                        None
+                    } else {
+                        NonZeroU32::new(16)
+                    },
                 },
             ],
             label: Some("sprite_material_layout"),
@@ -209,6 +239,7 @@ bitflags::bitflags! {
         const HDR                               = (1 << 1);
         const TONEMAP_IN_SHADER                 = (1 << 2);
         const DEBAND_DITHER                     = (1 << 3);
+        const NO_TEXTURE_ARRAY                  = (1 << 4);
         const MSAA_RESERVED_BITS                = Self::MSAA_MASK_BITS << Self::MSAA_SHIFT_BITS;
         const TONEMAP_METHOD_RESERVED_BITS      = Self::TONEMAP_METHOD_MASK_BITS << Self::TONEMAP_METHOD_SHIFT_BITS;
         const TONEMAP_METHOD_NONE               = 0 << Self::TONEMAP_METHOD_SHIFT_BITS;
@@ -280,6 +311,10 @@ impl SpecializedRenderPipeline for SpritePipeline {
             VertexBufferLayout::from_vertex_formats(VertexStepMode::Instance, formats);
 
         let mut shader_defs = Vec::new();
+
+        if key.contains(SpritePipelineKey::NO_TEXTURE_ARRAY) {
+            shader_defs.push("NO_TEXTURE_ARRAY".into());
+        }
 
         if key.contains(SpritePipelineKey::TONEMAP_IN_SHADER) {
             shader_defs.push("TONEMAP_IN_SHADER".into());
@@ -575,7 +610,11 @@ pub fn queue_sprites(
     mut image_bind_groups: ResMut<ImageBindGroups>,
     gpu_images: Res<RenderAssets<Image>>,
     msaa: Res<Msaa>,
-    extracted: (ResMut<ExtractedSprites>, Res<ExtractedObjects>),
+    combined: (
+        ResMut<ExtractedSprites>,
+        Res<ExtractedObjects>,
+        Res<Fallbacks>,
+    ),
     mut views: Query<(
         &mut RenderPhase<Transparent2d>,
         &VisibleEntities,
@@ -584,7 +623,7 @@ pub fn queue_sprites(
         Option<&DebandDither>,
     )>,
 ) {
-    let (mut extracted_sprites, extracted_objects) = extracted;
+    let (mut extracted_sprites, extracted_objects, fallbacks) = combined;
 
     image_bind_groups.values.clear();
 
@@ -615,23 +654,51 @@ pub fn queue_sprites(
         let extracted_sprites = &mut extracted_sprites.sprites;
         // Sort sprites by z for correct transparency and then by handle to improve batching
         // NOTE: This can be done independent of views by reasonably assuming that all 2D views look along the negative-z axis in world space
-        extracted_sprites.sort_unstable_by(|a, b| {
-            if let Some(object_a) = extracted_objects.objects.get(&(a.entity.index() as u64)) {
-                if let Some(object_b) = extracted_objects.objects.get(&(b.entity.index() as u64)) {
-                    match object_a.z_layer.partial_cmp(&object_b.z_layer) {
-                        Some(Ordering::Equal) | None => (),
-                        Some(other) => {
-                            return other;
-                        }
-                    };
+        if !fallbacks.no_texture_array {
+            extracted_sprites.sort_unstable_by(|a, b| {
+                if let Some(object_a) = extracted_objects.objects.get(&(a.entity.index() as u64)) {
+                    if let Some(object_b) =
+                        extracted_objects.objects.get(&(b.entity.index() as u64))
+                    {
+                        match object_a.z_layer.partial_cmp(&object_b.z_layer) {
+                            Some(Ordering::Equal) | None => (),
+                            Some(other) => {
+                                return other;
+                            }
+                        };
+                    }
                 }
-            }
-            a.transform
-                .translation()
-                .z
-                .partial_cmp(&b.transform.translation().z)
-                .unwrap_or(Ordering::Equal)
-        });
+                a.transform
+                    .translation()
+                    .z
+                    .partial_cmp(&b.transform.translation().z)
+                    .unwrap_or(Ordering::Equal)
+            });
+        } else {
+            extracted_sprites.sort_unstable_by(|a, b| {
+                if let Some(object_a) = extracted_objects.objects.get(&(a.entity.index() as u64)) {
+                    if let Some(object_b) =
+                        extracted_objects.objects.get(&(b.entity.index() as u64))
+                    {
+                        match object_a.z_layer.partial_cmp(&object_b.z_layer) {
+                            Some(Ordering::Equal) | None => (),
+                            Some(other) => {
+                                return other;
+                            }
+                        };
+                    }
+                }
+                match a
+                    .transform
+                    .translation()
+                    .z
+                    .partial_cmp(&b.transform.translation().z)
+                {
+                    Some(Ordering::Equal) | None => a.image_handle_id.cmp(&b.image_handle_id),
+                    Some(other) => other,
+                }
+            });
+        }
 
         let image_bind_groups = &mut *image_bind_groups;
 
@@ -665,6 +732,10 @@ pub fn queue_sprites(
                 }
             }
 
+            if fallbacks.no_texture_array {
+                view_key |= SpritePipelineKey::NO_TEXTURE_ARRAY;
+            }
+
             let pipeline = pipelines.specialize(&pipeline_cache, &sprite_pipeline, view_key);
 
             view_entities.clear();
@@ -692,7 +763,7 @@ pub fn queue_sprites(
                 {
                     Some((index, size, _, _)) => (*index, *size),
                     None => {
-                        if image_group.len() >= 16 {
+                        if image_group.len() >= if fallbacks.no_texture_array { 1 } else { 16 } {
                             // This image group is full, create a bind group for it and set-up a new batch
                             image_bind_groups.values.push(create_image_bind_group(
                                 std::mem::take(&mut image_group)
@@ -703,6 +774,7 @@ pub fn queue_sprites(
                                     .collect(),
                                 &sprite_pipeline,
                                 &render_device,
+                                if fallbacks.no_texture_array { 1 } else { 16 },
                             ));
                             current_batch = SpriteBatch {
                                 image_group_index: image_bind_groups.values.len(),
@@ -847,6 +919,7 @@ pub fn queue_sprites(
                     .collect(),
                 &sprite_pipeline,
                 &render_device,
+                if fallbacks.no_texture_array { 1 } else { 16 },
             ));
         }
         sprite_meta
@@ -859,34 +932,55 @@ fn create_image_bind_group(
     mut image_handles: Vec<(usize, &TextureView, &Sampler)>,
     sprite_pipeline: &SpritePipeline,
     render_device: &RenderDevice,
+    array_len: usize,
 ) -> BindGroup {
-    let mut texture_views = Vec::with_capacity(16);
-    let mut samplers = Vec::with_capacity(16);
+    assert!(image_handles.len() <= array_len);
+
+    let mut texture_views = Vec::with_capacity(array_len);
+    let mut samplers = Vec::with_capacity(array_len);
     image_handles.sort_unstable_by_key(|(index, _, _)| *index);
     for (_, texture_view, sampler) in image_handles {
         texture_views.push(&**texture_view);
         samplers.push(&**sampler);
     }
-    while texture_views.len() < 16 {
+    while texture_views.len() < array_len {
         texture_views.push(&*sprite_pipeline.dummy_white_gpu_image.texture_view);
     }
-    while samplers.len() < 16 {
+    while samplers.len() < array_len {
         samplers.push(&*sprite_pipeline.dummy_white_gpu_image.sampler);
     }
-    render_device.create_bind_group(&BindGroupDescriptor {
-        entries: &[
-            BindGroupEntry {
-                binding: 0,
-                resource: BindingResource::TextureViewArray(&texture_views),
-            },
-            BindGroupEntry {
-                binding: 1,
-                resource: BindingResource::SamplerArray(&samplers),
-            },
-        ],
-        label: Some("sprite_material_bind_group"),
-        layout: &sprite_pipeline.material_layout,
-    })
+
+    if array_len > 1 {
+        render_device.create_bind_group(&BindGroupDescriptor {
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::TextureViewArray(&texture_views),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::SamplerArray(&samplers),
+                },
+            ],
+            label: Some("sprite_material_bind_group"),
+            layout: &sprite_pipeline.material_layout,
+        })
+    } else {
+        render_device.create_bind_group(&BindGroupDescriptor {
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::TextureView(texture_views[0]),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::Sampler(&samplers[0]),
+                },
+            ],
+            label: Some("sprite_material_bind_group"),
+            layout: &sprite_pipeline.material_layout,
+        })
+    }
 }
 
 pub type DrawSprite = (
