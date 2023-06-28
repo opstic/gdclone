@@ -53,59 +53,55 @@ pub(crate) fn nonlinear_to_linear(rgb: [f32; 3]) -> [f32; 3] {
 }
 
 #[inline(always)]
-pub fn rgb_to_hsv(rgb: [f32; 3]) -> (f32, f32, f32) {
-    let [r, g, b] = rgb;
-    let (max, min, diff, add) = {
-        let (max, min, diff, add) = if r > g {
-            (r, g, g - b, 0.0)
-        } else {
-            (g, r, b - r, 2.0)
-        };
-        if b > max {
-            (b, min, r - g, 4.0)
-        } else {
-            (max, b.min(min), diff, add)
-        }
-    };
+pub fn rgb_to_hsv([r, g, b]: [f32; 3]) -> (f32, f32, f32) {
+    let min = r.min(g).min(b);
+    let max = r.max(g).max(b);
 
-    let v = max;
-    let h = if max == min {
-        0.0
+    let delta = max - min;
+
+    let mut h = if r == max {
+        // Between yellow & magenta
+        (g - b) / delta
+    } else if g == max {
+        // Between cyan & yellow
+        2. + (b - r) / delta
     } else {
-        let mut h = 60.0 * (add + diff / (max - min));
-        if h < 0.0 {
-            h += 360.0;
-        }
-        h
+        // Between magenta & cyan
+        4. + (r - g) / delta
     };
-    let s = if max == 0.0 { 0.0 } else { (max - min) / max };
 
-    (h, s, v)
+    // To degrees
+    h *= 60.;
+
+    h = h.rem_euclid(360.);
+
+    (h, if max == 0. { 0. } else { delta / max }, max)
 }
 
-/// Convert hsv to rgb. Expects h [0, 360], s [0, 1], v [0, 1]
 #[inline(always)]
 pub fn hsv_to_rgb((h, s, v): (f32, f32, f32)) -> [f32; 3] {
-    let c = s * v;
-    let h = h / 60.0;
-    let x = c * (1.0 - (h % 2.0 - 1.0).abs());
-    let m = v - c;
+    if h.is_nan() {
+        return [v, v, v];
+    }
 
-    let (r, g, b) = if (0.0..=1.0).contains(&h) {
-        (c, x, 0.0)
-    } else if h <= 2.0 {
-        (x, c, 0.0)
-    } else if h <= 3.0 {
-        (0.0, c, x)
-    } else if h <= 4.0 {
-        (0.0, x, c)
-    } else if h <= 5.0 {
-        (x, 0.0, c)
-    } else {
-        (c, 0.0, x)
-    };
+    let h = h.rem_euclid(360.);
+    let s = s.clamp(0., 1.);
+    let v = v.clamp(0., 1.);
 
-    [r + m, g + m, b + m]
+    let h = h / 60.;
+    let p = v * (1. - s);
+    let q = v * (1. - (s * h.fract()));
+    let t = v * (1. - (s * (1. - h.fract())));
+
+    match (h.floor() as u8) % 6 {
+        0 => [v, t, p],
+        1 => [q, v, p],
+        2 => [p, v, t],
+        3 => [p, q, v],
+        4 => [t, p, v],
+        5 => [v, p, q],
+        _ => unreachable!(),
+    }
 }
 
 #[inline(always)]
