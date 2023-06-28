@@ -131,30 +131,22 @@ impl AssetLoader for Cocos2dAtlasLoader {
             .await?;
 
             // Premultiply texture
-            texture.data = texture
-                .data
-                .chunks_exact(4)
-                .map(|pixel| {
-                    let f32_pixel = [
-                        pixel[0] as f32 / u8::MAX as f32,
-                        pixel[1] as f32 / u8::MAX as f32,
-                        pixel[2] as f32 / u8::MAX as f32,
-                        pixel[3] as f32 / u8::MAX as f32,
-                    ];
-                    let linear_rgb = nonlinear_to_linear(f32_pixel[0..3].try_into().unwrap());
-                    let premultiplied_linear_rgb = linear_rgb.map(|val| val * f32_pixel[3]);
-                    let premultiplied_nonlinear_rgb = linear_to_nonlinear(premultiplied_linear_rgb);
-                    let u8_premultiplied_rgb =
-                        premultiplied_nonlinear_rgb.map(|val| (val * u8::MAX as f32).round() as u8);
-                    [
-                        u8_premultiplied_rgb[0],
-                        u8_premultiplied_rgb[1],
-                        u8_premultiplied_rgb[2],
-                        pixel[3],
-                    ]
-                })
-                .collect::<Vec<[u8; 4]>>()
-                .concat();
+            for pixel in texture.data.chunks_exact_mut(4) {
+                let f32_pixel = [
+                    pixel[0] as f32 / u8::MAX as f32,
+                    pixel[1] as f32 / u8::MAX as f32,
+                    pixel[2] as f32 / u8::MAX as f32,
+                    pixel[3] as f32 / u8::MAX as f32,
+                ];
+                let linear_rgb = nonlinear_to_linear(f32_pixel[0..3].try_into().unwrap());
+                let premultiplied_linear_rgb = linear_rgb.map(|val| val * f32_pixel[3]);
+                let premultiplied_nonlinear_rgb = linear_to_nonlinear(premultiplied_linear_rgb);
+                let u8_premultiplied_rgb =
+                    premultiplied_nonlinear_rgb.map(|val| (val * u8::MAX as f32).round() as u8);
+                pixel[0] = u8_premultiplied_rgb[0];
+                pixel[1] = u8_premultiplied_rgb[1];
+                pixel[2] = u8_premultiplied_rgb[2];
+            }
 
             let texture_handle =
                 load_context.set_labeled_asset("texture", LoadedAsset::new(texture));
