@@ -3,7 +3,7 @@ use std::path::Path;
 use bevy::asset::{AssetEvent, AssetLoader, Assets, BoxedFuture, Handle, LoadContext, LoadedAsset};
 use bevy::math::Rect;
 use bevy::prelude::{
-    Color, Component, EventReader, FromWorld, Image, Res, ResMut, Resource, Vec2, World,
+    Color, Component, EventReader, FromWorld, Image, ResMut, Resource, Vec2, World,
 };
 use bevy::reflect::{Reflect, TypeUuid};
 use bevy::render::{
@@ -77,20 +77,16 @@ pub(crate) struct Cocos2dFrames {
 pub(crate) fn add_frames_to_resource(
     mut frames: ResMut<Cocos2dFrames>,
     mut atlas_events: EventReader<AssetEvent<Cocos2dAtlas>>,
-    atlases: Res<Assets<Cocos2dAtlas>>,
+    mut atlases: ResMut<Assets<Cocos2dAtlas>>,
 ) {
     for atlas_event in atlas_events.iter() {
         match atlas_event {
             AssetEvent::Created { handle } | AssetEvent::Modified { handle } => {
-                if let Some(atlas) = atlases.get(handle) {
+                if let Some(atlas) = atlases.get_mut(handle) {
                     frames.frames.extend(
-                        atlas
-                            .frames
-                            .clone()
-                            .into_iter()
-                            .map(|(texture, frame_info)| {
-                                (texture, (frame_info, handle.clone_weak()))
-                            }),
+                        std::mem::take(&mut atlas.frames).into_iter().map(
+                            |(texture, frame_info)| (texture, (frame_info, handle.clone_weak())),
+                        ),
                     );
                 }
             }
