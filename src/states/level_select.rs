@@ -134,7 +134,8 @@ fn select_setup(
                                                     },
                                                     ..default()
                                                 },
-                                                background_color: Color::rgb(0.12, 0.12, 0.12).into(),
+                                                background_color: Color::rgb(0.12, 0.12, 0.12)
+                                                    .into(),
                                                 ..default()
                                             })
                                             .with_children(|parent| {
