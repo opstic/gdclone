@@ -14,6 +14,8 @@ use bevy::sprite::Anchor;
 use bevy::utils::HashMap;
 use serde::{Deserialize, Deserializer};
 
+use crate::utils::{linear_to_nonlinear, nonlinear_to_linear};
+
 #[derive(Debug, TypeUuid)]
 #[uuid = "f2c8ed94-b8c8-4d9e-99e9-7ba9b7e8603b"]
 pub(crate) struct Cocos2dAtlas {
@@ -121,12 +123,39 @@ impl AssetLoader for Cocos2dAtlasLoader {
     ) -> BoxedFuture<'a, Result<(), bevy::asset::Error>> {
         Box::pin(async move {
             let manifest: AtlasFile = plist::from_bytes(bytes).expect("Invalid manifest");
-            let texture = load_texture(
+            let mut texture = load_texture(
                 load_context,
                 &manifest.metadata.real_texture_file_name,
                 self.supported_compressed_formats,
             )
             .await?;
+
+            // Premultiply texture
+            texture.data = texture
+                .data
+                .chunks_exact(4)
+                .map(|pixel| {
+                    let f32_pixel = [
+                        pixel[0] as f32 / u8::MAX as f32,
+                        pixel[1] as f32 / u8::MAX as f32,
+                        pixel[2] as f32 / u8::MAX as f32,
+                        pixel[3] as f32 / u8::MAX as f32,
+                    ];
+                    let linear_rgb = nonlinear_to_linear(f32_pixel[0..3].try_into().unwrap());
+                    let premultiplied_linear_rgb = linear_rgb.map(|val| val * f32_pixel[3]);
+                    let premultiplied_nonlinear_rgb = linear_to_nonlinear(premultiplied_linear_rgb);
+                    let u8_premultiplied_rgb =
+                        premultiplied_nonlinear_rgb.map(|val| (val * u8::MAX as f32).round() as u8);
+                    [
+                        u8_premultiplied_rgb[0],
+                        u8_premultiplied_rgb[1],
+                        u8_premultiplied_rgb[2],
+                        pixel[3],
+                    ]
+                })
+                .collect::<Vec<[u8; 4]>>()
+                .concat();
+
             let texture_handle =
                 load_context.set_labeled_asset("texture", LoadedAsset::new(texture));
             let mut frames = HashMap::with_capacity(manifest.frames.len());

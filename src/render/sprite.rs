@@ -14,6 +14,7 @@ use bevy::ecs::{
 use bevy::math::{Quat, Vec2, Vec4, Vec4Swizzles};
 use bevy::reflect::TypeUuid;
 use bevy::render::{
+    render_asset::RenderAssets,
     render_phase::{
         AddRenderCommand, BatchedPhaseItem, DrawFunctions, PhaseItem, RenderCommand,
         RenderCommandResult, RenderPhase, SetItemPipeline, TrackedRenderPass,
@@ -34,16 +35,14 @@ use bevy::sprite::{
     ExtractedSprites, Mesh2dHandle, Mesh2dRenderPlugin, Sprite, SpriteAssetEvents, SpriteSystem,
     TextureAtlas, TextureAtlasSprite,
 };
-use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::transform::components::{GlobalTransform, Transform};
-use bevy::utils::{default, FloatOrd, HashMap, HashSet};
+use bevy::utils::{default, FloatOrd, HashMap};
 use bytemuck::{Pod, Zeroable};
 use fixedbitset::FixedBitSet;
-use futures_lite::future;
 
 use crate::level::object::Object;
 use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasSprite, Cocos2dFrames};
-use crate::utils::{linear_to_nonlinear, nonlinear_to_linear, PassHashMap};
+use crate::utils::PassHashMap;
 
 #[derive(Default)]
 pub struct CustomSpritePlugin;
@@ -73,7 +72,6 @@ impl Plugin for CustomSpritePlugin {
                 .init_resource::<ExtractedSprites>()
                 .init_resource::<ExtractedObjects>()
                 .init_resource::<SpriteAssetEvents>()
-                .init_resource::<PremultipliedImages>()
                 .add_render_command::<Transparent2d, DrawSprite>()
                 .add_systems(
                     (
@@ -82,7 +80,6 @@ impl Plugin for CustomSpritePlugin {
                     )
                         .in_schedule(ExtractSchedule),
                 )
-                .add_system(prepare_premultiplied_images.in_set(RenderSet::Prepare))
                 .add_system(
                     queue_sprites
                         .in_set(RenderSet::Queue)
@@ -358,19 +355,12 @@ impl SpecializedRenderPipeline for SpritePipeline {
     }
 }
 
-#[derive(Component)]
-pub(crate) struct PremultiplyImage(Task<(Handle<Image>, Image)>);
-
 pub fn extract_sprite_events(
     mut events: ResMut<SpriteAssetEvents>,
     mut image_events: Extract<EventReader<AssetEvent<Image>>>,
-    mut premultiplied_images: ResMut<PremultipliedImages>,
-    image_assets: Extract<Res<Assets<Image>>>,
 ) {
     let SpriteAssetEvents { ref mut images } = *events;
     images.clear();
-
-    let mut changed_images = HashSet::new();
 
     for image in image_events.iter() {
         // AssetEvent: !Clone
@@ -379,60 +369,16 @@ pub fn extract_sprite_events(
                 images.push(AssetEvent::Created {
                     handle: handle.clone_weak(),
                 });
-                changed_images.insert(handle.clone_weak());
             }
             AssetEvent::Modified { handle } => {
                 images.push(AssetEvent::Modified {
                     handle: handle.clone_weak(),
                 });
-                changed_images.insert(handle.clone_weak());
             }
             AssetEvent::Removed { handle } => {
                 images.push(AssetEvent::Removed {
                     handle: handle.clone_weak(),
                 });
-                changed_images.remove(handle);
-                premultiplied_images.values.remove(handle);
-            }
-        }
-    }
-
-    let thread_pool = AsyncComputeTaskPool::get();
-    for handle in changed_images {
-        if matches!(handle.id(), HandleId::AssetPathId(_)) {
-            if let Some(image) = image_assets.get(&handle) {
-                let mut image = image.clone();
-                let task = thread_pool.spawn(async move {
-                    let premultiplied_data = image
-                        .data
-                        .chunks_exact(4)
-                        .map(|pixel| {
-                            let f32_pixel = [
-                                pixel[0] as f32 / u8::MAX as f32,
-                                pixel[1] as f32 / u8::MAX as f32,
-                                pixel[2] as f32 / u8::MAX as f32,
-                                pixel[3] as f32 / u8::MAX as f32,
-                            ];
-                            let linear_rgb =
-                                nonlinear_to_linear(f32_pixel[0..3].try_into().unwrap());
-                            let premultiplied_linear_rgb = linear_rgb.map(|val| val * f32_pixel[3]);
-                            let premultiplied_nonlinear_rgb =
-                                linear_to_nonlinear(premultiplied_linear_rgb);
-                            let u8_premultiplied_rgb = premultiplied_nonlinear_rgb
-                                .map(|val| (val * u8::MAX as f32).round() as u8);
-                            [
-                                u8_premultiplied_rgb[0],
-                                u8_premultiplied_rgb[1],
-                                u8_premultiplied_rgb[2],
-                                pixel[3],
-                            ]
-                        })
-                        .collect::<Vec<[u8; 4]>>()
-                        .concat();
-                    image.data = premultiplied_data;
-                    (handle.clone_weak(), image)
-                });
-                premultiplied_images.tasks.push(task);
             }
         }
     }
@@ -612,64 +558,6 @@ pub struct ImageBindGroups {
     values: Vec<BindGroup>,
 }
 
-#[derive(Resource, Default)]
-pub struct PremultipliedImages {
-    values: HashMap<Handle<Image>, GpuImage>,
-    tasks: Vec<Task<(Handle<Image>, Image)>>,
-}
-
-fn prepare_premultiplied_images(
-    mut premultiplied_images: ResMut<PremultipliedImages>,
-    render_device: Res<RenderDevice>,
-    render_queue: Res<RenderQueue>,
-    default_sampler: Res<DefaultImageSampler>,
-) {
-    let mut finished_tasks = Vec::new();
-    premultiplied_images.tasks.retain_mut(|task| {
-        if let Some(result) = future::block_on(future::poll_once(task)) {
-            finished_tasks.push(result);
-            false
-        } else {
-            true
-        }
-    });
-    for (handle, image) in finished_tasks {
-        let texture = render_device.create_texture_with_data(
-            &render_queue,
-            &image.texture_descriptor,
-            &image.data,
-        );
-
-        let texture_view = texture.create_view(
-            image
-                .texture_view_descriptor
-                .or_else(|| Some(TextureViewDescriptor::default()))
-                .as_ref()
-                .unwrap(),
-        );
-        let size = Vec2::new(
-            image.texture_descriptor.size.width as f32,
-            image.texture_descriptor.size.height as f32,
-        );
-        let sampler = match image.sampler_descriptor {
-            ImageSampler::Default => (**default_sampler).clone(),
-            ImageSampler::Descriptor(descriptor) => render_device.create_sampler(&descriptor),
-        };
-
-        premultiplied_images.values.insert(
-            handle,
-            GpuImage {
-                texture,
-                texture_view,
-                texture_format: image.texture_descriptor.format,
-                sampler,
-                size,
-                mip_level_count: image.texture_descriptor.mip_level_count,
-            },
-        );
-    }
-}
-
 const QUAD_UV: Vec4 = Vec4::new(1., 0., -1., 1.);
 
 #[allow(clippy::too_many_arguments)]
@@ -685,7 +573,7 @@ pub fn queue_sprites(
     mut pipelines: ResMut<SpecializedRenderPipelines<SpritePipeline>>,
     pipeline_cache: Res<PipelineCache>,
     mut image_bind_groups: ResMut<ImageBindGroups>,
-    premultiplied_images: Res<PremultipliedImages>,
+    gpu_images: Res<RenderAssets<Image>>,
     msaa: Res<Msaa>,
     extracted: (ResMut<ExtractedSprites>, Res<ExtractedObjects>),
     mut views: Query<(
@@ -802,16 +690,17 @@ pub fn queue_sprites(
                 let item_image_handle = Handle::weak(extracted_sprite.image_handle_id);
                 let (texture_index, current_image_size) = match image_group.get(&item_image_handle)
                 {
-                    Some(image_info) => *image_info,
+                    Some((index, size, _, _)) => (*index, *size),
                     None => {
                         if image_group.len() >= 16 {
                             // This image group is full, create a bind group for it and set-up a new batch
                             image_bind_groups.values.push(create_image_bind_group(
                                 std::mem::take(&mut image_group)
-                                    .iter()
-                                    .map(|(handle, (index, _))| (index, handle))
+                                    .into_iter()
+                                    .map(|(_, (index, _, texture_view, sampler))| {
+                                        (index, texture_view, sampler)
+                                    })
                                     .collect(),
-                                &premultiplied_images,
                                 &sprite_pipeline,
                                 &render_device,
                             ));
@@ -821,13 +710,17 @@ pub fn queue_sprites(
                             current_batch_entity = commands.spawn(current_batch).id();
                         }
                         let image_group_len = image_group.len();
-                        if let Some(premultiplied_image) =
-                            premultiplied_images.values.get(&item_image_handle)
-                        {
-                            let current_image_size =
-                                Vec2::new(premultiplied_image.size.x, premultiplied_image.size.y);
-                            image_group
-                                .insert(item_image_handle, (image_group_len, current_image_size));
+                        if let Some(gpu_image) = gpu_images.get(&item_image_handle) {
+                            let current_image_size = Vec2::new(gpu_image.size.x, gpu_image.size.y);
+                            image_group.insert(
+                                item_image_handle,
+                                (
+                                    image_group_len,
+                                    current_image_size,
+                                    &gpu_image.texture_view,
+                                    &gpu_image.sampler,
+                                ),
+                            );
                             (image_group_len, current_image_size)
                         } else {
                             // Skip this item if the texture is not ready
@@ -949,10 +842,9 @@ pub fn queue_sprites(
             // Finish the last batch
             image_bind_groups.values.push(create_image_bind_group(
                 std::mem::take(&mut image_group)
-                    .iter()
-                    .map(|(handle, (index, _))| (index, handle))
+                    .into_iter()
+                    .map(|(_, (index, _, texture_view, sampler))| (index, texture_view, sampler))
                     .collect(),
-                &premultiplied_images,
                 &sprite_pipeline,
                 &render_device,
             ));
@@ -964,19 +856,16 @@ pub fn queue_sprites(
 }
 
 fn create_image_bind_group(
-    mut image_handles: Vec<(&usize, &Handle<Image>)>,
-    premultiplied_images: &PremultipliedImages,
+    mut image_handles: Vec<(usize, &TextureView, &Sampler)>,
     sprite_pipeline: &SpritePipeline,
     render_device: &RenderDevice,
 ) -> BindGroup {
     let mut texture_views = Vec::with_capacity(16);
     let mut samplers = Vec::with_capacity(16);
-    image_handles.sort_unstable_by(|(a_index, _), (b_index, _)| a_index.cmp(b_index));
-    for (_, handle) in image_handles {
-        if let Some(premultiplied_image) = premultiplied_images.values.get(handle) {
-            texture_views.push(&*premultiplied_image.texture_view);
-            samplers.push(&*premultiplied_image.sampler);
-        }
+    image_handles.sort_unstable_by_key(|(index, _, _)| *index);
+    for (_, texture_view, sampler) in image_handles {
+        texture_views.push(&**texture_view);
+        samplers.push(&**sampler);
     }
     while texture_views.len() < 16 {
         texture_views.push(&*sprite_pipeline.dummy_white_gpu_image.texture_view);
