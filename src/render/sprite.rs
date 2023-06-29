@@ -442,35 +442,33 @@ fn extract_cocos2d_sprites(
         for (entity, sprite, transform, object) in
             object_query.iter_many(&visible_entities.entities)
         {
-            if let Some((frame, handle)) = cocos2d_frames.frames.get(&sprite.texture) {
-                if let Some(atlas) = cocos2d_atlases.get(handle) {
-                    let rect = Some(frame.rect);
+            if let Some((frame, image_handle_id)) = cocos2d_frames.frames.get(sprite.index) {
+                let rect = Some(frame.rect);
 
-                    extracted_objects.objects.insert(
-                        entity.index() as u64,
-                        ExtractedObject {
-                            rotated: frame.rotated,
-                            z_layer: if sprite.blending {
-                                object.z_layer - 1
-                            } else {
-                                object.z_layer
-                            },
-                            blending: sprite.blending,
+                extracted_objects.objects.insert(
+                    entity.index() as u64,
+                    ExtractedObject {
+                        rotated: frame.rotated,
+                        z_layer: if sprite.blending {
+                            object.z_layer - 1
+                        } else {
+                            object.z_layer
                         },
-                    );
-                    extracted_sprites.sprites.push(ExtractedSprite {
-                        entity,
-                        color: sprite.color,
-                        transform: *transform,
-                        rect,
-                        // Pass the custom size
-                        custom_size: sprite.custom_size,
-                        flip_x: sprite.flip_x,
-                        flip_y: sprite.flip_y,
-                        image_handle_id: atlas.texture.id(),
-                        anchor: sprite.anchor.as_vec() + frame.anchor,
-                    });
-                }
+                        blending: sprite.blending,
+                    },
+                );
+                extracted_sprites.sprites.push(ExtractedSprite {
+                    entity,
+                    color: sprite.color,
+                    transform: *transform,
+                    rect,
+                    // Pass the custom size
+                    custom_size: sprite.custom_size,
+                    flip_x: sprite.flip_x,
+                    flip_y: sprite.flip_y,
+                    image_handle_id: *image_handle_id,
+                    anchor: sprite.anchor.as_vec() + frame.anchor,
+                });
             }
         }
     }

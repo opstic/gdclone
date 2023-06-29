@@ -165,14 +165,13 @@ pub(crate) fn spawn_object(
     let mut object = Object::default();
     let mut transform = Transform::default();
     let mut sprite = Cocos2dAtlasSprite::default();
+    sprite.index = usize::MAX;
 
     if let Some(id) = object_data.get(b"1".as_ref()) {
         object.id = std::str::from_utf8(id)?.parse()?;
     }
 
     let object_default_data: ObjectDefaultData = object_handler(object.id);
-
-    sprite.texture = object_default_data.texture.clone();
 
     if let Some(x) = object_data.get(b"2".as_ref()) {
         transform.translation.x = std::str::from_utf8(x)?.parse()?;
@@ -262,6 +261,10 @@ pub(crate) fn spawn_object(
     object.groups = groups.clone();
     let mut entity = commands.spawn(object);
 
+    if let Some(index) = cocos2d_frames.index.get(&object_default_data.texture) {
+        sprite.index = *index;
+    }
+
     entity.insert(transform);
     entity.insert(GlobalTransform::default());
     entity.insert(sprite);
@@ -344,11 +347,18 @@ fn recursive_spawn_child(
         rotation: Quat::from_rotation_z(child.rotation.to_radians()),
         scale: (child.scale * flip).extend(0.),
     });
-    entity.insert(Cocos2dAtlasSprite {
-        texture: child.texture.clone(),
+
+    let mut sprite = Cocos2dAtlasSprite {
         anchor: Anchor::Custom(child.anchor * 2. * flip),
+        index: usize::MAX,
         ..default()
-    });
+    };
+
+    if let Some(index) = cocos2d_frames.index.get(&child.texture) {
+        sprite.index = *index;
+    }
+
+    entity.insert(sprite);
     let entity = entity.id();
     for child in child.children {
         let child_entity = recursive_spawn_child(

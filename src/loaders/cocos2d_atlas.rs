@@ -1,6 +1,9 @@
+use std::any::Any;
 use std::path::Path;
 
-use bevy::asset::{AssetEvent, AssetLoader, Assets, BoxedFuture, Handle, LoadContext, LoadedAsset};
+use bevy::asset::{
+    AssetEvent, AssetLoader, Assets, BoxedFuture, Handle, HandleId, LoadContext, LoadedAsset,
+};
 use bevy::math::Rect;
 use bevy::prelude::{
     Color, Component, EventReader, FromWorld, Image, ResMut, Resource, Vec2, World,
@@ -62,7 +65,7 @@ struct Frame {
 
 #[derive(Component, Default, Reflect)]
 pub(crate) struct Cocos2dAtlasSprite {
-    pub(crate) texture: String,
+    pub(crate) index: usize,
     pub(crate) color: Color,
     pub(crate) blending: bool,
     pub(crate) flip_x: bool,
@@ -73,7 +76,8 @@ pub(crate) struct Cocos2dAtlasSprite {
 
 #[derive(Resource, Default)]
 pub(crate) struct Cocos2dFrames {
-    pub(crate) frames: HashMap<String, (Cocos2dFrame, Handle<Cocos2dAtlas>)>,
+    pub(crate) index: HashMap<String, usize>,
+    pub(crate) frames: Vec<(Cocos2dFrame, HandleId)>,
 }
 
 pub(crate) fn add_frames_to_resource(
@@ -85,11 +89,11 @@ pub(crate) fn add_frames_to_resource(
         match atlas_event {
             AssetEvent::Created { handle } | AssetEvent::Modified { handle } => {
                 if let Some(atlas) = atlases.get_mut(handle) {
-                    frames.frames.extend(
-                        std::mem::take(&mut atlas.frames).into_iter().map(
-                            |(texture, frame_info)| (texture, (frame_info, handle.clone_weak())),
-                        ),
-                    );
+                    for (texture_name, frame_info) in std::mem::take(&mut atlas.frames) {
+                        let frame_index = frames.frames.len();
+                        frames.index.insert(texture_name, frame_index);
+                        frames.frames.push((frame_info, atlas.texture.id()));
+                    }
                 }
             }
             AssetEvent::Removed { .. } => {
