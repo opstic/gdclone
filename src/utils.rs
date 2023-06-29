@@ -18,35 +18,31 @@ pub(crate) fn lerp(start: &f32, end: &f32, x: &f32) -> f32 {
 
 // https://github.com/bevyengine/bevy/issues/6315#issuecomment-1332720260
 #[inline(always)]
-pub(crate) fn linear_to_nonlinear(rgb: [f32; 3]) -> [f32; 3] {
-    rgb.map(|val| {
-        if val <= 0.0 {
-            return val;
-        }
-        if val <= 0.0031308 {
-            // Linear falloff in dark values
-            val * 12.92
-        } else {
-            // Gamma curve in other area
-            (1.055 * val.powf(1.0 / 2.4)) - 0.055
-        }
-    })
+pub(crate) fn linear_to_nonlinear(val: f32) -> f32 {
+    if val <= 0.0 {
+        return val;
+    }
+    if val <= 0.0031308 {
+        // Linear falloff in dark values
+        val * 12.92
+    } else {
+        // Gamma curve in other area
+        (1.055 * val.powf(1.0 / 2.4)) - 0.055
+    }
 }
 
 #[inline(always)]
-pub(crate) fn nonlinear_to_linear(rgb: [f32; 3]) -> [f32; 3] {
-    rgb.map(|val| {
-        if val <= 0.0 {
-            return val;
-        }
-        if val <= 0.04045 {
-            // Linear falloff in dark values
-            val / 12.92
-        } else {
-            // Gamma curve in other area
-            ((val + 0.055) / 1.055).powf(2.4)
-        }
-    })
+pub(crate) fn nonlinear_to_linear(val: f32) -> f32 {
+    if val <= 0.0 {
+        return val;
+    }
+    if val <= 0.04045 {
+        // Linear falloff in dark values
+        val / 12.92
+    } else {
+        // Gamma curve in other area
+        ((val + 0.055) / 1.055).powf(2.4)
+    }
 }
 
 #[inline(always)]

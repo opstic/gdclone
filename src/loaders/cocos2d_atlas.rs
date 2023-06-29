@@ -132,20 +132,33 @@ impl AssetLoader for Cocos2dAtlasLoader {
 
             // Premultiply texture
             for pixel in texture.data.chunks_exact_mut(4) {
-                let f32_pixel = [
+                // Convert to f32
+                let mut f32_pixel = [
                     pixel[0] as f32 / u8::MAX as f32,
                     pixel[1] as f32 / u8::MAX as f32,
                     pixel[2] as f32 / u8::MAX as f32,
                     pixel[3] as f32 / u8::MAX as f32,
                 ];
-                let linear_rgb = nonlinear_to_linear(f32_pixel[0..3].try_into().unwrap());
-                let premultiplied_linear_rgb = linear_rgb.map(|val| val * f32_pixel[3]);
-                let premultiplied_nonlinear_rgb = linear_to_nonlinear(premultiplied_linear_rgb);
-                let u8_premultiplied_rgb =
-                    premultiplied_nonlinear_rgb.map(|val| (val * u8::MAX as f32).round() as u8);
-                pixel[0] = u8_premultiplied_rgb[0];
-                pixel[1] = u8_premultiplied_rgb[1];
-                pixel[2] = u8_premultiplied_rgb[2];
+
+                // Non-linear to linear
+                f32_pixel[0] = nonlinear_to_linear(f32_pixel[0]);
+                f32_pixel[1] = nonlinear_to_linear(f32_pixel[1]);
+                f32_pixel[2] = nonlinear_to_linear(f32_pixel[2]);
+
+                // Pre-multiply
+                f32_pixel[0] *= f32_pixel[3];
+                f32_pixel[1] *= f32_pixel[3];
+                f32_pixel[2] *= f32_pixel[3];
+
+                // Linear back to non-linear
+                f32_pixel[0] = linear_to_nonlinear(f32_pixel[0]);
+                f32_pixel[1] = linear_to_nonlinear(f32_pixel[1]);
+                f32_pixel[2] = linear_to_nonlinear(f32_pixel[2]);
+
+                // Back to u8
+                pixel[0] = (f32_pixel[0] * u8::MAX as f32).round() as u8;
+                pixel[1] = (f32_pixel[1] * u8::MAX as f32).round() as u8;
+                pixel[2] = (f32_pixel[2] * u8::MAX as f32).round() as u8;
             }
 
             let texture_handle =
