@@ -61,12 +61,12 @@ impl AssetLoader for GDSaveLoader {
                         }
                     }
                 }
+                info!("Save loading done");
+                info!("Took {:?}", start.elapsed());
             } else {
                 warn!("Corrupted or empty save file");
             }
             load_context.set_default_asset(LoadedAsset::new(SaveFile { levels }));
-            info!("Save loading done");
-            info!("Took {:?}", start.elapsed());
             Ok(())
         })
     }
