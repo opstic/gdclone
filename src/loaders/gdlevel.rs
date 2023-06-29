@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use bevy::asset::{AssetLoader, LoadContext, LoadedAsset};
 use bevy::prelude::*;
 use bevy::reflect::TypeUuid;
@@ -25,6 +27,7 @@ impl AssetLoader for GDSaveLoader {
     ) -> BoxedFuture<'a, Result<(), bevy::asset::Error>> {
         Box::pin(async move {
             info!("Loading save");
+            let start = Instant::now();
             let mut levels: Vec<Level> = Vec::new();
             if let Ok(mut decompressed) = match decrypt(bytes, Some(11_u8)) {
                 Ok(decrypted) => decompress(&decrypted),
@@ -62,7 +65,8 @@ impl AssetLoader for GDSaveLoader {
                 warn!("Corrupted or empty save file");
             }
             load_context.set_default_asset(LoadedAsset::new(SaveFile { levels }));
-            info!("Done");
+            info!("Save loading done");
+            info!("Took {:?}", start.elapsed());
             Ok(())
         })
     }
