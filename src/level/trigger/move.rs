@@ -83,7 +83,7 @@ impl TriggerFunction for MoveTrigger {
     }
 
     fn done_executing(&self) -> bool {
-        self.duration.completed()
+        self.duration.completed() || self.duration.duration.is_zero()
     }
 
     fn exclusive(&self) -> bool {
