@@ -79,14 +79,14 @@ fn play_setup(
         .get(level_index.index)
         .unwrap();
     info!("Loading {}", level.name);
-    let total_time = Instant::now();
-    let decompress_time = Instant::now();
+    let total_start = Instant::now();
+    let decompress_start = Instant::now();
     if let Some(Ok(decompressed_level)) = level.decompress_inner_level() {
-        info!("Decompressing took {:?}", decompress_time.elapsed());
-        let parse_time = Instant::now();
+        info!("Decompressing took {:?}", decompress_start.elapsed());
+        let parse_start = Instant::now();
         if let Ok(parsed_level) = decompressed_level.parse() {
-            info!("Parsing took {:?}", parse_time.elapsed());
-            let spawn_time = Instant::now();
+            info!("Parsing took {:?}", parse_start.elapsed());
+            let spawn_start = Instant::now();
             parsed_level
                 .spawn_level(
                     &mut commands,
@@ -97,8 +97,8 @@ fn play_setup(
                 )
                 .unwrap();
             info!("Spawned {:?} objects", parsed_level.objects());
-            info!("Spawning took {:?}", spawn_time.elapsed());
-            info!("Total loading time is {:?}", total_time.elapsed());
+            info!("Spawning took {:?}", spawn_start.elapsed());
+            info!("Total loading time is {:?}", total_start.elapsed());
         }
     }
 }
