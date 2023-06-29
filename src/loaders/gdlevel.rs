@@ -26,10 +26,22 @@ impl AssetLoader for GDSaveLoader {
         Box::pin(async move {
             info!("Loading save");
             let mut levels: Vec<Level> = Vec::new();
-            if let Ok(decompressed) = match decrypt(bytes, Some(11_u8)) {
+            if let Ok(mut decompressed) = match decrypt(bytes, Some(11_u8)) {
                 Ok(decrypted) => decompress(&decrypted),
                 Err(e) => Err(e),
             } {
+                let mut cursor = 0;
+                loop {
+                    match std::str::from_utf8(&decompressed[cursor..]) {
+                        Ok(_) => break,
+                        Err(error) => {
+                            cursor += error.valid_up_to();
+                            if let Some(len) = error.error_len() {
+                                decompressed.splice(cursor..cursor + len, [b'\0']);
+                            }
+                        }
+                    }
+                }
                 let parsed_save: Dictionary =
                     plist::from_bytes::<Dictionary>(&decompressed).unwrap();
                 levels.reserve(parsed_save.len() - 1);
@@ -42,8 +54,7 @@ impl AssetLoader for GDSaveLoader {
                             levels.push(l);
                         }
                         Err(e) => {
-                            println!("{:?}", key);
-                            panic!("{:?}", e);
+                            error!("Cannot load level {}, error: {}", key_name, e);
                         }
                     }
                 }
