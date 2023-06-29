@@ -1,5 +1,3 @@
-use std::io::Read;
-
 use bevy::math::{IVec2, Vec2};
 use bevy::prelude::Color;
 use bevy::utils::{hashbrown, PassHash};
@@ -141,16 +139,15 @@ pub(crate) fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, anyhow::
 
 #[inline(always)]
 pub(crate) fn decompress(bytes: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
-    let mut decompressed = Vec::with_capacity(bytes.len() + bytes.len() / 2);
-    match flate2::read::GzDecoder::new(bytes).read_to_end(&mut decompressed) {
-        Ok(_) => {}
+    match zune_inflate::DeflateDecoder::new(bytes).decode_gzip() {
+        Ok(decompressed) => Ok(decompressed),
         Err(_) => {
-            // Older versions of GD uses just zlib instead
-            decompressed.clear();
-            flate2::read::ZlibDecoder::new(bytes).read_to_end(&mut decompressed)?;
+            // Older versions of GD uses zlib instead
+            zune_inflate::DeflateDecoder::new(bytes)
+                .decode_zlib()
+                .map_err(anyhow::Error::new)
         }
     }
-    Ok(decompressed)
 }
 
 #[inline(always)]
