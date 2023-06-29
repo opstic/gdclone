@@ -1,8 +1,5 @@
-use base64::DecodeError::InvalidByte;
 use std::io::Read;
 
-use base64::Engine;
-use bevy::log::info;
 use bevy::math::{IVec2, Vec2};
 use bevy::prelude::Color;
 use bevy::utils::{hashbrown, PassHash};
@@ -129,17 +126,17 @@ pub(crate) fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, anyhow::
         })
         .unwrap_or(bytes.len() - 1)
         + 1;
-    let mut xored = Vec::with_capacity(bytes.len());
-    xored.extend(match key {
+    let mut result =
+        Vec::with_capacity(base64_simd::URL_SAFE.estimated_decoded_length(bytes.len()));
+    result.extend(match key {
         Some(key) => bytes[..invalid_byte_start]
             .iter()
             .map(|byte| *byte ^ key)
             .collect::<Vec<u8>>(),
         None => bytes[..invalid_byte_start].to_vec(),
     });
-    let mut decoded = Vec::new();
-    BASE64_URL_SAFE.decode_vec(xored.clone(), &mut decoded)?;
-    Ok(decoded)
+    base64_simd::URL_SAFE.decode_inplace(&mut result)?;
+    Ok(result)
 }
 
 #[inline(always)]
@@ -160,5 +157,3 @@ pub(crate) fn decompress(bytes: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
 pub(crate) fn section_from_pos(pos: Vec2) -> IVec2 {
     IVec2::new((pos.x / SECTION_SIZE) as i32, (pos.y / SECTION_SIZE) as i32)
 }
-
-const BASE64_URL_SAFE: base64::engine::GeneralPurpose = base64::engine::general_purpose::URL_SAFE;
