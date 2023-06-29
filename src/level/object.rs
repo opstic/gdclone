@@ -265,11 +265,6 @@ pub(crate) fn spawn_object(
     entity.insert(transform);
     entity.insert(GlobalTransform::default());
     entity.insert(sprite);
-    if let Some((_, handle)) = cocos2d_frames.frames.get(&object_default_data.texture) {
-        let mut handle = handle.clone();
-        handle.make_strong(cocos2d_atlases);
-        entity.insert(handle);
-    }
     let entity = entity.id();
     let section = section_from_pos(transform.translation.xy());
     sections.get_section_mut(&section).insert(entity);
@@ -354,11 +349,6 @@ fn recursive_spawn_child(
         anchor: Anchor::Custom(child.anchor * 2. * flip),
         ..default()
     });
-    if let Some((_, handle)) = cocos2d_frames.frames.get(&child.texture) {
-        let mut handle = handle.clone();
-        handle.make_strong(cocos2d_atlases);
-        entity.insert(handle);
-    }
     let entity = entity.id();
     for child in child.children {
         let child_entity = recursive_spawn_child(

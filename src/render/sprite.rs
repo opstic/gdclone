@@ -433,24 +433,16 @@ pub struct ExtractedObject {
 fn extract_cocos2d_sprites(
     mut extracted_sprites: ResMut<ExtractedSprites>,
     mut extracted_objects: ResMut<ExtractedObjects>,
-    object_query: Extract<
-        Query<(
-            Entity,
-            &Cocos2dAtlasSprite,
-            &GlobalTransform,
-            &Handle<Cocos2dAtlas>,
-            &Object,
-        )>,
-    >,
+    object_query: Extract<Query<(Entity, &Cocos2dAtlasSprite, &GlobalTransform, &Object)>>,
     cocos2d_frames: Extract<Res<Cocos2dFrames>>,
     cocos2d_atlases: Extract<Res<Assets<Cocos2dAtlas>>>,
     camera_query: Extract<Query<&VisibleEntities>>,
 ) {
     for visible_entities in &camera_query {
-        for (entity, sprite, transform, handle, object) in
+        for (entity, sprite, transform, object) in
             object_query.iter_many(&visible_entities.entities)
         {
-            if let Some((frame, _)) = cocos2d_frames.frames.get(&sprite.texture) {
+            if let Some((frame, handle)) = cocos2d_frames.frames.get(&sprite.texture) {
                 if let Some(atlas) = cocos2d_atlases.get(handle) {
                     let rect = Some(frame.rect);
 
