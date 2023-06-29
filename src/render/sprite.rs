@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::num::NonZeroU32;
 
 use bevy::app::prelude::*;
@@ -644,51 +643,17 @@ pub fn queue_sprites(
         let extracted_sprites = &mut extracted_sprites.sprites;
         // Sort sprites by z for correct transparency and then by handle to improve batching
         // NOTE: This can be done independent of views by reasonably assuming that all 2D views look along the negative-z axis in world space
-        if !fallbacks.no_texture_array {
-            extracted_sprites.sort_unstable_by(|a, b| {
-                if let Some(object_a) = extracted_objects.objects.get(&(a.entity.index() as u64)) {
-                    if let Some(object_b) =
-                        extracted_objects.objects.get(&(b.entity.index() as u64))
+            radsort::sort_by_cached_key(extracted_sprites, |sprite| {
+                sprite.transform.translation().z
+                    + if let Some(object) = extracted_objects
+                        .objects
+                        .get(&(sprite.entity.index() as u64))
                     {
-                        match object_a.z_layer.partial_cmp(&object_b.z_layer) {
-                            Some(Ordering::Equal) | None => (),
-                            Some(other) => {
-                                return other;
-                            }
-                        };
+                        (object.z_layer + 4) as f32 * 1000. / 16.
+                    } else {
+                        -50.
                     }
-                }
-                a.transform
-                    .translation()
-                    .z
-                    .partial_cmp(&b.transform.translation().z)
-                    .unwrap_or(Ordering::Equal)
             });
-        } else {
-            extracted_sprites.sort_unstable_by(|a, b| {
-                if let Some(object_a) = extracted_objects.objects.get(&(a.entity.index() as u64)) {
-                    if let Some(object_b) =
-                        extracted_objects.objects.get(&(b.entity.index() as u64))
-                    {
-                        match object_a.z_layer.partial_cmp(&object_b.z_layer) {
-                            Some(Ordering::Equal) | None => (),
-                            Some(other) => {
-                                return other;
-                            }
-                        };
-                    }
-                }
-                match a
-                    .transform
-                    .translation()
-                    .z
-                    .partial_cmp(&b.transform.translation().z)
-                {
-                    Some(Ordering::Equal) | None => a.image_handle_id.cmp(&b.image_handle_id),
-                    Some(other) => other,
-                }
-            });
-        }
 
         let image_bind_groups = &mut *image_bind_groups;
 

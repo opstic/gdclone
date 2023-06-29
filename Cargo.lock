@@ -1754,6 +1754,7 @@ dependencies = [
  "native-dialog",
  "plist",
  "quick-xml",
+ "radsort",
  "serde",
  "serde_json",
  "steamlocate",

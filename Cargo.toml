@@ -38,6 +38,7 @@ memchr = "2.5"
 native-dialog = "0.6"
 plist = { git = "https://github.com/opstic/rust-plist" }
 quick-xml = { version = "0.29", features = ["serialize"] }
+radsort = "0.1"
 serde = "1.0"
 serde_json = "1.0"
 steamlocate = "1.2"
