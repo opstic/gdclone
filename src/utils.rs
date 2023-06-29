@@ -1,6 +1,8 @@
+use base64::DecodeError::InvalidByte;
 use std::io::Read;
 
 use base64::Engine;
+use bevy::log::info;
 use bevy::math::{IVec2, Vec2};
 use bevy::prelude::Color;
 use bevy::utils::{hashbrown, PassHash};
@@ -115,21 +117,28 @@ pub(crate) fn lerp_color(start: &Color, end: &Color, x: &f32) -> Color {
 
 #[inline(always)]
 pub(crate) fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, anyhow::Error> {
-    let null_byte_start = bytes
+    let invalid_byte_end = bytes
         .iter()
-        .rposition(|byte| *byte != key.unwrap_or_default())
+        .rposition(|byte| *byte == key.unwrap_or_default())
+        .unwrap_or(bytes.len());
+    let invalid_byte_start = bytes[..invalid_byte_end]
+        .iter()
+        .rposition(|byte| {
+            !(*byte == key.unwrap_or_default()
+                || (*byte ^ key.unwrap_or_default()).is_ascii_whitespace())
+        })
         .unwrap_or(bytes.len() - 1)
         + 1;
     let mut xored = Vec::with_capacity(bytes.len());
     xored.extend(match key {
-        Some(key) => bytes[..null_byte_start]
+        Some(key) => bytes[..invalid_byte_start]
             .iter()
             .map(|byte| *byte ^ key)
             .collect::<Vec<u8>>(),
-        None => bytes[..null_byte_start].to_vec(),
+        None => bytes[..invalid_byte_start].to_vec(),
     });
     let mut decoded = Vec::new();
-    BASE64_URL_SAFE.decode_vec(xored, &mut decoded)?;
+    BASE64_URL_SAFE.decode_vec(xored.clone(), &mut decoded)?;
     Ok(decoded)
 }
 
