@@ -96,8 +96,8 @@ fn play_setup(
                     false,
                 )
                 .unwrap();
-            info!("Spawned {:?} objects", parsed_level.objects());
             info!("Spawning took {:?}", spawn_start.elapsed());
+            info!("Spawned {:?} objects", parsed_level.objects());
             info!("Total loading time is {:?}", total_start.elapsed());
         }
     }
