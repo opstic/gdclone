@@ -6,10 +6,11 @@ use std::time::Duration;
 
 use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
+use bevy::render::camera::ScalingMode;
 use bevy::render::primitives::Aabb;
 use bevy::render::view::{NoFrustumCulling, VisibilitySystems};
 use bevy::sprite::{Mesh2dHandle, SpritePlugin};
-use bevy::window::{PresentMode, WindowMode, WindowResizeConstraints};
+use bevy::window::{PresentMode, WindowMode, WindowResizeConstraints, WindowResized};
 use bevy::winit::{WinitSettings, WinitWindows};
 use winit::window::Icon;
 
@@ -66,7 +67,6 @@ fn main() {
     .add_startup_system(setup)
     .add_system(update_fps)
     .add_system(toggle_fullscreen)
-    // .add_system(handle_resize)
     .add_system(calculate_bounds.in_set(VisibilitySystems::CalculateBounds))
     .run();
 }
@@ -98,7 +98,16 @@ fn setup(
     }
 
     commands
-        .spawn(Camera2dBundle::default())
+        .spawn(Camera2dBundle {
+            projection: OrthographicProjection {
+                scaling_mode: ScalingMode::AutoMin {
+                    min_width: 1280.,
+                    min_height: 720.,
+                },
+                ..default()
+            },
+            ..default()
+        })
         .insert(Player(Vec2::ZERO));
     commands
         .spawn(TextBundle {
@@ -157,23 +166,6 @@ fn toggle_fullscreen(input: Res<Input<KeyCode>>, mut windows: Query<&mut Window>
         info!("Switching window mode to {:?}", window.mode);
     }
 }
-
-// fn handle_resize(mut windows: Query<&mut Window>, mut resize_events: EventReader<WindowResized>) {
-//     for event in resize_events.iter() {
-//         match windows.get_mut(event.window) {
-//             Ok(window) => {
-//                 let scale_factor = f32::min(
-//                     window.physical_width() as f32 / window.width(),
-//                     window.physical_height() as f32 / window.requested_height(),
-//                 ) as f64;
-//                 if scale_factor != 0.0 {
-//                     window.update_scale_factor_from_backend(scale_factor);
-//                 }
-//             }
-//             Err(_) => unreachable!("Bevy should have handled ghost window events for us"),
-//         }
-//     }
-// }
 
 pub(crate) fn calculate_bounds(
     mut commands: Commands,
