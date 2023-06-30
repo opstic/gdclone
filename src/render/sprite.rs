@@ -643,17 +643,17 @@ pub fn queue_sprites(
         let extracted_sprites = &mut extracted_sprites.sprites;
         // Sort sprites by z for correct transparency and then by handle to improve batching
         // NOTE: This can be done independent of views by reasonably assuming that all 2D views look along the negative-z axis in world space
-            radsort::sort_by_cached_key(extracted_sprites, |sprite| {
-                sprite.transform.translation().z
-                    + if let Some(object) = extracted_objects
-                        .objects
-                        .get(&(sprite.entity.index() as u64))
-                    {
-                        (object.z_layer + 4) as f32 * 1000. / 16.
-                    } else {
-                        -50.
-                    }
-            });
+        radsort::sort_by_cached_key(extracted_sprites, |sprite| {
+            sprite.transform.translation().z
+                + if let Some(object) = extracted_objects
+                    .objects
+                    .get(&(sprite.entity.index() as u64))
+                {
+                    (object.z_layer + 4) as f32 * 1000. / 16.
+                } else {
+                    -50.
+                }
+        });
 
         let image_bind_groups = &mut *image_bind_groups;
 
