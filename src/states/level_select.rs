@@ -9,6 +9,7 @@ use bevy::ui::{
     AlignSelf, BackgroundColor, FlexDirection, JustifyContent, Node, Overflow, Size, Style, UiRect,
     Val,
 };
+use image::open;
 
 use crate::loaders::gdlevel::SaveFile;
 use crate::states::{loading::GlobalAssets, play::LevelIndex, GameState};
@@ -29,186 +30,206 @@ fn select_setup(
     global_assets: Res<GlobalAssets>,
     saves: Res<Assets<SaveFile>>,
 ) {
-    commands
+    let main_container = commands
         .spawn(NodeBundle {
             style: Style {
                 flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
                 ..default()
             },
             background_color: Color::NONE.into(),
             ..default()
         })
-        .insert(SelectMenu)
-        .with_children(|parent| {
-            parent
-                .spawn(NodeBundle {
-                    style: Style {
-                        flex_direction: FlexDirection::Column,
-                        justify_content: JustifyContent::SpaceEvenly,
-                        align_self: AlignSelf::Center,
-                        size: Size::new(Val::Percent(70.0), Val::Percent(80.0)),
-                        ..default()
-                    },
-                    background_color: Color::rgb(0.15, 0.15, 0.15).into(),
+        .id();
+    commands.entity(main_container).insert(SelectMenu);
+
+    let select_window = commands
+        .spawn(NodeBundle {
+            style: Style {
+                flex_direction: FlexDirection::Column,
+                justify_content: JustifyContent::SpaceBetween,
+                align_items: AlignItems::Center,
+                size: Size::new(Val::Percent(70.0), Val::Percent(80.0)),
+                ..default()
+            },
+            background_color: Color::rgb(0.15, 0.15, 0.15).into(),
+            ..default()
+        })
+        .id();
+    commands.entity(main_container).add_child(select_window);
+
+    let title = commands
+        .spawn(
+            TextBundle::from_section(
+                "Loaded Levels",
+                TextStyle {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font_size: 50.,
+                    color: Color::WHITE,
+                },
+            )
+            .with_style(Style {
+                margin: UiRect::new(Val::Auto, Val::Auto, Val::Auto, Val::Auto),
+                ..default()
+            }),
+        )
+        .id();
+    commands.entity(select_window).add_child(title);
+
+    let panel_frame = commands
+        .spawn(NodeBundle {
+            style: Style {
+                flex_direction: FlexDirection::Column,
+                align_self: AlignSelf::Stretch,
+                size: Size::height(Val::Percent(90.)),
+                overflow: Overflow::Hidden,
+                ..default()
+            },
+            background_color: Color::rgb(0.10, 0.10, 0.10).into(),
+            ..default()
+        })
+        .id();
+    commands.entity(select_window).add_child(panel_frame);
+
+    let panel = commands
+        .spawn(NodeBundle {
+            style: Style {
+                flex_direction: FlexDirection::Column,
+                max_size: Size::UNDEFINED,
+                align_items: AlignItems::Center,
+                padding: UiRect::new(Val::Px(10.), Val::Px(10.), Val::Px(10.), Val::Undefined),
+                ..default()
+            },
+            ..default()
+        })
+        .id();
+    commands.entity(panel).insert(ScrollingList::default());
+    commands.entity(panel_frame).add_child(panel);
+
+    for (index, level) in saves
+        .get(&global_assets.save_file)
+        .unwrap()
+        .levels
+        .iter()
+        .enumerate()
+    {
+        let level_entry = commands
+            .spawn(NodeBundle {
+                style: Style {
+                    align_items: AlignItems::Center,
+                    size: Size::new(Val::Percent(100.), Val::Px(125.)),
+                    margin: UiRect::bottom(Val::Px(10.)),
+                    padding: UiRect::all(Val::Px(15.)),
                     ..default()
-                })
-                .with_children(|parent| {
-                    // Title
-                    parent.spawn(
-                        TextBundle::from_section(
-                            "Loaded Levels",
-                            TextStyle {
-                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                                font_size: 55.,
-                                color: Color::WHITE,
-                            },
-                        )
-                        .with_style(Style {
-                            size: Size::new(Val::Undefined, Val::Px(30.0)),
-                            align_self: AlignSelf::Center,
-                            margin: UiRect {
-                                left: Val::Auto,
-                                right: Val::Auto,
-                                ..default()
-                            },
-                            ..default()
-                        }),
-                    );
-                    // List with hidden overflow
-                    parent
-                        .spawn(NodeBundle {
-                            style: Style {
-                                flex_direction: FlexDirection::Column,
-                                align_self: AlignSelf::Stretch,
-                                size: Size::height(Val::Percent(80.0)),
-                                overflow: Overflow::Hidden,
-                                ..default()
-                            },
-                            background_color: Color::rgb(0.10, 0.10, 0.10).into(),
-                            ..default()
-                        })
-                        .with_children(|parent| {
-                            // Moving panel
-                            parent
-                                .spawn((
-                                    NodeBundle {
-                                        style: Style {
-                                            flex_direction: FlexDirection::Column,
-                                            flex_grow: 1.0,
-                                            max_size: Size::UNDEFINED,
-                                            align_items: AlignItems::Center,
-                                            ..default()
-                                        },
-                                        ..default()
-                                    },
-                                    ScrollingList::default(),
-                                ))
-                                .with_children(|parent| {
-                                    // List items
-                                    for (index, level) in saves
-                                        .get(&global_assets.save_file)
-                                        .unwrap()
-                                        .levels
-                                        .iter()
-                                        .enumerate()
-                                    {
-                                        parent
-                                            .spawn(NodeBundle {
-                                                style: Style {
-                                                    flex_direction: FlexDirection::Row,
-                                                    flex_shrink: 0.,
-                                                    align_items: AlignItems::Center,
-                                                    size: Size::new(
-                                                        Val::Percent(99.0),
-                                                        Val::Px(100.),
-                                                    ),
-                                                    margin: UiRect {
-                                                        top: Val::Px(5.),
-                                                        bottom: Val::Px(5.),
-                                                        left: Val::Px(5.),
-                                                        right: Val::Px(5.),
-                                                        ..default()
-                                                    },
-                                                    ..default()
-                                                },
-                                                background_color: Color::rgb(0.12, 0.12, 0.12)
-                                                    .into(),
-                                                ..default()
-                                            })
-                                            .with_children(|parent| {
-                                                parent.spawn(
-                                                    // Create a TextBundle that has a Text with a list of sections.
-                                                    TextBundle::from_section(
-                                                        &level.name,
-                                                        TextStyle {
-                                                            font: asset_server
-                                                                .load("fonts/FiraSans-Bold.ttf"),
-                                                            font_size: 50.,
-                                                            color: Color::WHITE,
-                                                        },
-                                                    )
-                                                    .with_style(Style {
-                                                        flex_shrink: 0.,
-                                                        size: Size::new(
-                                                            Val::Percent(50.),
-                                                            Val::Px(50.),
-                                                        ),
-                                                        margin: UiRect {
-                                                            left: Val::Percent(2.5),
-                                                            right: Val::Percent(2.5),
-                                                            top: Val::Percent(2.5),
-                                                            bottom: Val::Percent(2.5),
-                                                        },
-                                                        max_size: Size::new(
-                                                            Val::Percent(50.),
-                                                            Val::Px(50.),
-                                                        ),
-                                                        ..default()
-                                                    }),
-                                                );
-                                                parent
-                                                    .spawn(ButtonBundle {
-                                                        style: Style {
-                                                            flex_shrink: 0.,
-                                                            flex_direction: FlexDirection::Column,
-                                                            justify_content: JustifyContent::Center,
-                                                            align_items: AlignItems::Center,
-                                                            size: Size::new(
-                                                                Val::Px(75.),
-                                                                Val::Px(50.),
-                                                            ),
-                                                            margin: UiRect {
-                                                                left: Val::Auto,
-                                                                right: Val::Percent(2.5),
-                                                                top: Val::Percent(2.5),
-                                                                bottom: Val::Percent(2.5),
-                                                            },
-                                                            ..default()
-                                                        },
-                                                        ..default()
-                                                    })
-                                                    .insert(OpenButton { level_index: index })
-                                                    .with_children(|parent| {
-                                                        parent.spawn(TextBundle::from_section(
-                                                            "Open",
-                                                            TextStyle {
-                                                                font: asset_server.load(
-                                                                    "fonts/FiraSans-Bold.ttf",
-                                                                ),
-                                                                font_size: 25.0,
-                                                                color: Color::rgb(0.8, 0.8, 0.8),
-                                                            },
-                                                        ));
-                                                    });
-                                            });
-                                    }
-                                });
-                        });
-                });
-        });
+                },
+                background_color: Color::rgb(0.12, 0.12, 0.12).into(),
+                ..default()
+            })
+            .id();
+        commands.entity(panel).add_child(level_entry);
+
+        let level_info_container = commands
+            .spawn(NodeBundle {
+                style: Style {
+                    flex_direction: FlexDirection::Column,
+                    size: Size::new(Val::Percent(75.), Val::Percent(100.)),
+                    align_items: AlignItems::Start,
+                    justify_content: JustifyContent::SpaceBetween,
+                    ..default()
+                },
+                ..default()
+            })
+            .id();
+        commands.entity(level_entry).add_child(level_info_container);
+
+        let level_name = commands
+            .spawn(TextBundle::from_section(
+                &level.name,
+                TextStyle {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font_size: 50.,
+                    color: Color::WHITE,
+                },
+            ))
+            .id();
+        commands.entity(level_info_container).add_child(level_name);
+
+        let level_secondary_info_container = commands
+            .spawn(NodeBundle {
+                style: Style {
+                    align_items: AlignItems::Center,
+                    gap: Size::width(Val::Px(15.)),
+                    ..default()
+                },
+                ..default()
+            })
+            .id();
+        commands
+            .entity(level_info_container)
+            .add_child(level_secondary_info_container);
+
+        let level_creator = commands
+            .spawn(TextBundle::from_section(
+                &level.creator,
+                TextStyle {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font_size: 35.,
+                    color: Color::GRAY,
+                },
+            ))
+            .id();
+        commands
+            .entity(level_secondary_info_container)
+            .add_child(level_creator);
+
+        if let Some(level_id) = level.id {
+            let level_id = commands
+                .spawn(TextBundle::from_section(
+                    &(level_id.to_string()),
+                    TextStyle {
+                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font_size: 25.,
+                        color: Color::DARK_GRAY,
+                    },
+                ))
+                .id();
+            commands
+                .entity(level_secondary_info_container)
+                .add_child(level_id);
+        }
+
+        let open_button = commands
+            .spawn(ButtonBundle {
+                style: Style {
+                    flex_direction: FlexDirection::Column,
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    size: Size::new(Val::Px(75.), Val::Px(50.)),
+                    margin: UiRect::left(Val::Auto),
+                    ..default()
+                },
+                ..default()
+            })
+            .id();
+        commands
+            .entity(open_button)
+            .insert(OpenButton { level_index: index });
+        commands.entity(level_entry).add_child(open_button);
+
+        let button_text = commands
+            .spawn(TextBundle::from_section(
+                "Open",
+                TextStyle {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font_size: 25.0,
+                    color: Color::rgb(0.8, 0.8, 0.8),
+                },
+            ))
+            .id();
+        commands.entity(open_button).add_child(button_text);
+    }
 }
 
 #[derive(Component, Default)]
@@ -226,23 +247,23 @@ struct SelectMenu;
 
 fn mouse_scroll(
     mut mouse_wheel_events: EventReader<MouseWheel>,
-    mut query_list: Query<(&mut ScrollingList, &mut Style, &Children, &Node)>,
-    query_item: Query<&Node>,
+    mut query_list: Query<(&mut ScrollingList, &mut Style, &Parent, &Node)>,
+    query_node: Query<&Node>,
 ) {
     for mouse_wheel_event in mouse_wheel_events.iter() {
-        for (mut scrolling_list, mut style, children, uinode) in &mut query_list {
-            let items_height: f32 = children
-                .iter()
-                .map(|entity| query_item.get(*entity).unwrap().size().y)
-                .sum();
-            let panel_height = uinode.size().y;
-            // let max_scroll = (items_height * 2. - panel_height).max(0.);
+        for (mut scrolling_list, mut style, parent, list_node) in &mut query_list {
+            let items_height = list_node.size().y;
+            let container_height = query_node.get(parent.get()).unwrap().size().y;
+
+            let max_scroll = (items_height - container_height).max(0.);
+
             let dy = match mouse_wheel_event.unit {
                 MouseScrollUnit::Line => mouse_wheel_event.y * 20.,
                 MouseScrollUnit::Pixel => mouse_wheel_event.y,
             };
+
             scrolling_list.position += dy;
-            // scrolling_list.position = scrolling_list.position.clamp(-max_scroll, 0.);
+            scrolling_list.position = scrolling_list.position.clamp(-max_scroll, 0.);
             style.position.top = Val::Px(scrolling_list.position);
         }
     }
