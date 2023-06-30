@@ -17,13 +17,13 @@ pub(crate) struct ColorChannels(pub(crate) PassHashMap<(ColorChannel, Option<Col
 
 impl ColorChannels {
     pub(crate) fn get_color(&self, index: &u64) -> (Color, bool) {
-        self.get_color_inner(index, &mut HashMap::new(), false)
+        self.get_color_inner(index, &mut PassHashMap::default(), false)
     }
 
     fn get_color_inner(
         &self,
         index: &u64,
-        seen: &mut HashMap<u64, usize>,
+        seen: &mut PassHashMap<usize>,
         no_color_mod: bool,
     ) -> (Color, bool) {
         match self
@@ -43,7 +43,7 @@ impl ColorChannels {
                                 let target_color = if target_channel == index {
                                     color.color
                                 } else {
-                                    self.get_color_inner(target_channel, &mut HashMap::new(), true)
+                                    self.get_color_inner(target_channel, &mut PassHashMap::default(), true)
                                         .0
                                 };
                                 final_color =
@@ -75,7 +75,7 @@ impl ColorChannels {
                             }
                             ColorMod::Hsv(target_channel, hsv, progress) => {
                                 let target_color = self
-                                    .get_color_inner(target_channel, &mut HashMap::new(), true)
+                                    .get_color_inner(target_channel, &mut PassHashMap::default(), true)
                                     .0;
                                 final_color =
                                     lerp_color(&final_color, &hsv.apply(target_color), progress);
