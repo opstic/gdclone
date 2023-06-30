@@ -1,7 +1,7 @@
 use bevy::app::{App, IntoSystemAppConfig, Plugin};
 use bevy::asset::{AssetServer, Assets};
 use bevy::ecs::component::Component;
-use bevy::hierarchy::{BuildChildren, Children, DespawnRecursiveExt};
+use bevy::hierarchy::{BuildChildren, DespawnRecursiveExt};
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
 use bevy::text::TextStyle;
@@ -9,7 +9,6 @@ use bevy::ui::{
     AlignSelf, BackgroundColor, FlexDirection, JustifyContent, Node, Overflow, Size, Style, UiRect,
     Val,
 };
-use image::open;
 
 use crate::loader::gdlevel::SaveFile;
 use crate::state::{loading::GlobalAssets, play::LevelIndex, GameState};

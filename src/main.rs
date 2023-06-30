@@ -10,7 +10,7 @@ use bevy::render::camera::ScalingMode;
 use bevy::render::primitives::Aabb;
 use bevy::render::view::{NoFrustumCulling, VisibilitySystems};
 use bevy::sprite::{Mesh2dHandle, SpritePlugin};
-use bevy::window::{PresentMode, WindowMode, WindowResizeConstraints, WindowResized};
+use bevy::window::{PresentMode, WindowMode, WindowResizeConstraints};
 use bevy::winit::{WinitSettings, WinitWindows};
 use winit::window::Icon;
 

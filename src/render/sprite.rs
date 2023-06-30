@@ -41,7 +41,7 @@ use bytemuck::{Pod, Zeroable};
 use fixedbitset::FixedBitSet;
 
 use crate::level::object::Object;
-use crate::loader::cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasSprite, Cocos2dFrames};
+use crate::loader::cocos2d_atlas::{Cocos2dAtlasSprite, Cocos2dFrames};
 use crate::utils::PassHashMap;
 
 #[derive(Default)]
@@ -434,7 +434,6 @@ fn extract_cocos2d_sprites(
     mut extracted_objects: ResMut<ExtractedObjects>,
     object_query: Extract<Query<(Entity, &Cocos2dAtlasSprite, &GlobalTransform, &Object)>>,
     cocos2d_frames: Extract<Res<Cocos2dFrames>>,
-    cocos2d_atlases: Extract<Res<Assets<Cocos2dAtlas>>>,
     camera_query: Extract<Query<&VisibleEntities>>,
 ) {
     for visible_entities in &camera_query {

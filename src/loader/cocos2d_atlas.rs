@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::path::Path;
 
 use bevy::asset::{
