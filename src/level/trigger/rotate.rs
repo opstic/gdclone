@@ -19,6 +19,7 @@ pub(crate) struct RotateTrigger {
     pub(crate) center_group: u64,
     pub(crate) degrees: i32,
     pub(crate) times360: i32,
+    pub(crate) lock_object_rotation: bool,
 }
 
 impl TriggerFunction for RotateTrigger {
@@ -58,8 +59,9 @@ impl TriggerFunction for RotateTrigger {
                 if let Ok(mut transform) = object_transform_query.get_mut(*entity) {
                     let initial_section = section_from_pos(transform.translation.xy());
                     if let Some(center_translation) = center_translation {
-                        transform.rotate_around(center_translation.extend(0.), rotation_amount);
-                    } else {
+                        transform.translate_around(center_translation.extend(0.), rotation_amount);
+                    }
+                    if !self.lock_object_rotation {
                         transform.rotate(rotation_amount);
                     }
                     let after_section = section_from_pos(transform.translation.xy());

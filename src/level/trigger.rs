@@ -424,6 +424,9 @@ pub(crate) fn setup_trigger(
             if let Some(times360) = object_data.get(b"69".as_ref()) {
                 trigger.times360 = std::str::from_utf8(times360)?.parse()?;
             }
+            if let Some(lock_object_rotation) = object_data.get(b"70".as_ref()) {
+                trigger.lock_object_rotation = u8_to_bool(lock_object_rotation);
+            }
             entity.insert(Trigger(Box::new(trigger)));
         }
         _ => (),
