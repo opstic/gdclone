@@ -9,7 +9,7 @@ use crate::level::{
     trigger::{Trigger, TriggerDuration, TriggerFunction},
     Groups, Sections,
 };
-use crate::states::play::Player;
+use crate::state::play::Player;
 use crate::utils::section_from_pos;
 
 #[derive(Clone, Debug, Default)]

@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 
-use crate::loaders::cocos2d_atlas::Cocos2dAtlas;
-use crate::loaders::gdlevel::SaveFile;
-use crate::states::GameState;
+use crate::loader::cocos2d_atlas::Cocos2dAtlas;
+use crate::loader::gdlevel::SaveFile;
+use crate::state::GameState;
 
 pub(crate) struct LoadingStatePlugin;
 

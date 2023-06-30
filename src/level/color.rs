@@ -9,7 +9,7 @@ use crate::level::{
     object::{Object, ObjectColorType},
     Groups,
 };
-use crate::loaders::cocos2d_atlas::Cocos2dAtlasSprite;
+use crate::loader::cocos2d_atlas::Cocos2dAtlasSprite;
 use crate::utils::{hsv_to_rgb, lerp_color, rgb_to_hsv, u8_to_bool, PassHashMap};
 
 #[derive(Default, Resource)]

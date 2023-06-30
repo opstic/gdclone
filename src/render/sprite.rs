@@ -41,7 +41,7 @@ use bytemuck::{Pod, Zeroable};
 use fixedbitset::FixedBitSet;
 
 use crate::level::object::Object;
-use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasSprite, Cocos2dFrames};
+use crate::loader::cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasSprite, Cocos2dFrames};
 use crate::utils::PassHashMap;
 
 #[derive(Default)]

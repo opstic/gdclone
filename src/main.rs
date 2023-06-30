@@ -15,16 +15,16 @@ use bevy::winit::{WinitSettings, WinitWindows};
 use winit::window::Icon;
 
 use level::LevelPlugin;
-use loaders::AssetLoaderPlugin;
+use loader::AssetLoaderPlugin;
 use multi_asset_io::MultiAssetIoPlugin;
 use render::sprite::CustomSpritePlugin;
-use states::{loading::AssetsLoading, play::Player, GameState, StatePlugins};
+use state::{loading::AssetsLoading, play::Player, GameState, StatePlugins};
 
 mod level;
-mod loaders;
+mod loader;
 mod multi_asset_io;
 mod render;
-mod states;
+mod state;
 mod utils;
 
 fn main() {

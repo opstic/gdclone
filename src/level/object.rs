@@ -11,7 +11,7 @@ use bevy::sprite::Anchor;
 use bevy::utils::{default, HashMap, HashSet};
 
 use crate::level::{color::Hsv, trigger, Sections};
-use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasSprite, Cocos2dFrames};
+use crate::loader::cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasSprite, Cocos2dFrames};
 use crate::utils::{section_from_pos, u8_to_bool};
 
 #[derive(Component, Default, Reflect)]

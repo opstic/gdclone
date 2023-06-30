@@ -15,8 +15,8 @@ use color::{BaseColor, ColorChannel, ColorChannels, ColorMod, CopyColor, Hsv};
 use object::Object;
 use trigger::TriggerSystems;
 
-use crate::loaders::cocos2d_atlas::{Cocos2dAtlas, Cocos2dFrames};
-use crate::states::GameState;
+use crate::loader::cocos2d_atlas::{Cocos2dAtlas, Cocos2dFrames};
+use crate::state::GameState;
 use crate::utils::{decompress, decrypt, u8_to_bool, PassHashMap};
 
 pub(crate) mod color;
