@@ -436,6 +436,8 @@ fn extract_cocos2d_sprites(
     cocos2d_frames: Extract<Res<Cocos2dFrames>>,
     camera_query: Extract<Query<&VisibleEntities>>,
 ) {
+    extracted_objects.objects.clear();
+
     for visible_entities in &camera_query {
         for (entity, sprite, transform, object) in
             object_query.iter_many(&visible_entities.entities)
