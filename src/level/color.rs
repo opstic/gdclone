@@ -43,8 +43,12 @@ impl ColorChannels {
                                 let target_color = if target_channel == index {
                                     color.color
                                 } else {
-                                    self.get_color_inner(target_channel, &mut PassHashMap::default(), true)
-                                        .0
+                                    self.get_color_inner(
+                                        target_channel,
+                                        &mut PassHashMap::default(),
+                                        true,
+                                    )
+                                    .0
                                 };
                                 final_color =
                                     lerp_color(&final_color, &hsv.apply(target_color), progress);
@@ -75,7 +79,11 @@ impl ColorChannels {
                             }
                             ColorMod::Hsv(target_channel, hsv, progress) => {
                                 let target_color = self
-                                    .get_color_inner(target_channel, &mut PassHashMap::default(), true)
+                                    .get_color_inner(
+                                        target_channel,
+                                        &mut PassHashMap::default(),
+                                        true,
+                                    )
                                     .0;
                                 final_color =
                                     lerp_color(&final_color, &hsv.apply(target_color), progress);
