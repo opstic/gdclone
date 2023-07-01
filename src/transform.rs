@@ -1,10 +1,11 @@
+use crate::level::AlreadyVisible;
 use crate::loader::cocos2d_atlas::Cocos2dAtlasSprite;
 use bevy::app::{App, CoreSchedule, CoreSet, Plugin, StartupSet};
 use bevy::ecs::schedule::SystemSet;
 use bevy::hierarchy::{Children, Parent, ValidParentCheckPlugin};
 use bevy::prelude::{
     DetectChanges, Entity, GlobalTransform, IntoSystemConfig, IntoSystemSetConfig, Query, Ref,
-    RemovedComponents, Transform, With, Without,
+    ResMut, Transform, With, Without,
 };
 use bevy::render::view::VisibleEntities;
 use bevy::transform::{systems::sync_simple_transforms, TransformSystem};
@@ -64,6 +65,7 @@ pub(crate) fn propagate_atlas_transforms(
     >,
     parent_query: Query<(Entity, Ref<Parent>), With<Cocos2dAtlasSprite>>,
     visible_entities_query: Query<&VisibleEntities>,
+    mut already_visible: ResMut<AlreadyVisible>,
 ) {
     let mut all_visible = PassHashSet::default();
     for visible_entities in &visible_entities_query {
@@ -75,9 +77,19 @@ pub(crate) fn propagate_atlas_transforms(
         );
     }
 
+    let mut newly_visible = PassHashSet::default();
+
+    for entity_index in &all_visible {
+        if already_visible.0.contains(entity_index) {
+            continue;
+        }
+        newly_visible.insert(*entity_index);
+        already_visible.0.insert(*entity_index);
+    }
+
     root_query.par_iter_mut().for_each_mut(
         |(entity, children, transform, mut global_transform)| {
-            let changed = transform.is_changed();
+            let changed = transform.is_changed() || newly_visible.contains(&(entity.index() as u64));
             if changed {
                 *global_transform = GlobalTransform::from(*transform);
             }
@@ -111,6 +123,10 @@ pub(crate) fn propagate_atlas_transforms(
             }
         },
     );
+
+    already_visible
+        .0
+        .retain(|index| all_visible.contains(index));
 }
 
 /// Recursively propagates the transforms for `entity` and all of its descendants.
