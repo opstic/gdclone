@@ -40,6 +40,7 @@ use bevy::utils::{default, FloatOrd, HashMap};
 use bytemuck::{Pod, Zeroable};
 use fixedbitset::FixedBitSet;
 
+use crate::compressed_image::CompressedImage;
 use crate::level::object::Object;
 use crate::loader::cocos2d_atlas::{Cocos2dAtlasSprite, Cocos2dFrames};
 use crate::utils::PassHashMap;
@@ -586,7 +587,7 @@ pub struct ImageBindGroups {
 const QUAD_UV: Vec4 = Vec4::new(1., 0., -1., 1.);
 
 #[allow(clippy::too_many_arguments)]
-pub fn queue_sprites(
+pub(crate) fn queue_sprites(
     mut commands: Commands,
     mut view_entities: Local<FixedBitSet>,
     draw_functions: Res<DrawFunctions<Transparent2d>>,
@@ -598,7 +599,7 @@ pub fn queue_sprites(
     mut pipelines: ResMut<SpecializedRenderPipelines<SpritePipeline>>,
     pipeline_cache: Res<PipelineCache>,
     mut image_bind_groups: ResMut<ImageBindGroups>,
-    gpu_images: Res<RenderAssets<Image>>,
+    gpu_images: Res<RenderAssets<CompressedImage>>,
     msaa: Res<Msaa>,
     combined: (
         ResMut<ExtractedSprites>,

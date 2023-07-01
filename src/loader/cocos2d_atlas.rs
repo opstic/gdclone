@@ -16,12 +16,13 @@ use bevy::sprite::Anchor;
 use bevy::utils::HashMap;
 use serde::{Deserialize, Deserializer};
 
+use crate::compressed_image::CompressedImage;
 use crate::utils::{linear_to_nonlinear, nonlinear_to_linear};
 
 #[derive(Debug, TypeUuid)]
 #[uuid = "f2c8ed94-b8c8-4d9e-99e9-7ba9b7e8603b"]
 pub(crate) struct Cocos2dAtlas {
-    pub(crate) texture: Handle<Image>,
+    pub(crate) texture: Handle<CompressedImage>,
     pub(crate) frames: HashMap<String, Cocos2dFrame>,
 }
 
@@ -164,8 +165,10 @@ impl AssetLoader for Cocos2dAtlasLoader {
                 pixel[2] = (f32_pixel[2] * u8::MAX as f32).round() as u8;
             }
 
+            let compressed_image = CompressedImage::from_image(texture)?;
+
             let texture_handle =
-                load_context.set_labeled_asset("texture", LoadedAsset::new(texture));
+                load_context.set_labeled_asset("texture", LoadedAsset::new(compressed_image));
             let mut frames = HashMap::with_capacity(manifest.frames.len());
             for (frame_name, frame) in manifest.frames {
                 let frame_rect = if frame.texture_rotated {

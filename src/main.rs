@@ -14,12 +14,14 @@ use bevy::window::{PresentMode, WindowMode, WindowResizeConstraints};
 use bevy::winit::{WinitSettings, WinitWindows};
 use winit::window::Icon;
 
+use compressed_image::CompressedImagePlugin;
 use level::LevelPlugin;
 use loader::AssetLoaderPlugin;
 use multi_asset_io::MultiAssetIoPlugin;
 use render::sprite::CustomSpritePlugin;
 use state::{loading::AssetsLoading, play::Player, GameState, StatePlugins};
 
+mod compressed_image;
 mod level;
 mod loader;
 mod multi_asset_io;
@@ -60,6 +62,7 @@ fn main() {
     )
     // .add_plugin(EditorPlugin::default())
     .add_plugin(FrameTimeDiagnosticsPlugin)
+    .add_plugin(CompressedImagePlugin)
     .add_plugin(AssetLoaderPlugin)
     .add_plugin(LevelPlugin)
     .add_state::<GameState>()
