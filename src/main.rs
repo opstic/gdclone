@@ -20,6 +20,7 @@ use loader::AssetLoaderPlugin;
 use multi_asset_io::MultiAssetIoPlugin;
 use render::sprite::CustomSpritePlugin;
 use state::{loading::AssetsLoading, play::Player, GameState, StatePlugins};
+use transform::CustomTransformPlugin;
 
 mod compressed_image;
 mod level;
@@ -27,6 +28,7 @@ mod loader;
 mod multi_asset_io;
 mod render;
 mod state;
+mod transform;
 mod utils;
 
 fn main() {
@@ -56,6 +58,8 @@ fn main() {
                 }),
                 ..default()
             })
+            .disable::<TransformPlugin>()
+            .add_before::<TransformPlugin, CustomTransformPlugin>(CustomTransformPlugin)
             .disable::<SpritePlugin>()
             .add_before::<SpritePlugin, CustomSpritePlugin>(CustomSpritePlugin)
             .add_before::<AssetPlugin, MultiAssetIoPlugin>(MultiAssetIoPlugin),

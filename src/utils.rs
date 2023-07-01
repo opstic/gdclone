@@ -5,6 +5,7 @@ use bevy::utils::{hashbrown, PassHash};
 use crate::level::SECTION_SIZE;
 
 pub type PassHashMap<V> = hashbrown::HashMap<u64, V, PassHash>;
+pub type PassHashSet = hashbrown::HashSet<u64, PassHash>;
 
 #[inline(always)]
 pub(crate) fn u8_to_bool(byte: &[u8]) -> bool {
