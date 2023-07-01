@@ -22,11 +22,11 @@ Q and E to zoom in and out.
 
 ## Screenshots
 
-<img src="https://github.com/opstic/gdclone/raw/main/assets/screenshots/the_eschaton_1.png" width="1280" height="720">
-<img src="https://github.com/opstic/gdclone/raw/main/assets/screenshots/the_eschaton_2.png" width="1280" height="720">
-<img src="https://github.com/opstic/gdclone/raw/main/assets/screenshots/the_eschaton_3.png" width="1280" height="720">
-<img src="https://github.com/opstic/gdclone/raw/main/assets/screenshots/white_space.png" width="1280" height="720">
-<img src="https://github.com/opstic/gdclone/raw/main/assets/screenshots/kocmoc.png" width="1280" height="720">
+<img src="https://github.com/opstic/gdclone/raw/main/assets/screenshots/the_eschaton_1.png" width="1080">
+<img src="https://github.com/opstic/gdclone/raw/main/assets/screenshots/the_eschaton_2.png" width="1080">
+<img src="https://github.com/opstic/gdclone/raw/main/assets/screenshots/the_eschaton_3.png" width="1080">
+<img src="https://github.com/opstic/gdclone/raw/main/assets/screenshots/white_space.png" width="1080">
+<img src="https://github.com/opstic/gdclone/raw/main/assets/screenshots/kocmoc.png" width="1080">
 
 ### Credits
 
