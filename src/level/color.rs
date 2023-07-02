@@ -64,7 +64,7 @@ impl ColorChannels {
                 let (original_color, _) = if *check > 3 {
                     (Color::WHITE, false)
                 } else {
-                    self.get_color_inner(&color.copied_index, seen, false)
+                    self.get_color_inner(&color.copied_index, seen, no_color_mod)
                 };
                 let mut transformed_color = color.hsv.apply(original_color);
                 if !color.copy_opacity {
