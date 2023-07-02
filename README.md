@@ -10,15 +10,19 @@ Built using Bevy engine and Rust.
 
 ## Usage
 
-~~Grab the latest binary from [releases](https://github.com/opstic/gdclone/releases) then just run it.~~
+Grab the latest binary from [releases](https://github.com/opstic/gdclone/releases) then just run it.
 
-**No release yet, sorry :(**
+A GD install and valid CCLocalLevels.dat are required.
 
-*You'll have to build the app yourself for now.*
+**Binaries for Linux aren't available, so you'll need to compile it yourself.**
+
+*Support for web and mobile platforms are planned.*
 
 Controls are WASD to move, use arrow keys to move slower, hold left-shift to move faster.
 
 Q and E to zoom in and out.
+
+Use Esc to exit out of a level.
 
 ## Screenshots
 
@@ -30,7 +34,7 @@ Q and E to zoom in and out.
 
 ### Credits
 
-Thanks to [@maxnut](https://github.com/maxnut) for providing code to extract `object.json`.
+Thanks to [@maxnut](https://github.com/maxnut) for providing part of the code to extract `object.json`.
 
 #### License
 <sub>
