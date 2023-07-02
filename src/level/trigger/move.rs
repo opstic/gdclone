@@ -56,16 +56,16 @@ impl TriggerFunction for MoveTrigger {
             amount = self.easing.sample(self.duration.fraction_progress()) - amount;
         }
         if let Some((group, _, _)) = groups.0.get(&self.target_group) {
+            let mut delta = Vec2::new(self.x_offset, self.y_offset) * amount;
+            if self.lock_x {
+                delta.x += player_translation.x - self.player_previous_translation.x;
+            }
+            if self.lock_y {
+                delta.y += player_translation.y - self.player_previous_translation.y;
+            }
             for entity in &group.entities {
                 if let Ok(mut transform) = object_transform_query.get_mut(*entity) {
                     let initial_section = section_from_pos(transform.translation.xy());
-                    let mut delta = Vec2::new(self.x_offset, self.y_offset) * amount;
-                    if self.lock_x {
-                        delta.x += player_translation.x - self.player_previous_translation.x;
-                    }
-                    if self.lock_y {
-                        delta.y += player_translation.y - self.player_previous_translation.y;
-                    }
                     transform.translation += delta.extend(0.);
                     let after_section = section_from_pos(transform.translation.xy());
                     if initial_section != after_section {
