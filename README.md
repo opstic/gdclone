@@ -34,7 +34,7 @@ Use Esc to exit out of a level.
 
 ### Credits
 
-Thanks to [@maxnut](https://github.com/maxnut) for providing part of the code to extract `object.json`.
+Thanks to [@maxnut](https://github.com/maxnut) for providing part of the original code to extract `object.json`.
 
 #### License
 <sub>
