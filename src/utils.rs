@@ -20,9 +20,6 @@ pub(crate) fn lerp(start: &f32, end: &f32, x: &f32) -> f32 {
 // https://github.com/bevyengine/bevy/issues/6315#issuecomment-1332720260
 #[inline(always)]
 pub(crate) fn linear_to_nonlinear(val: f32) -> f32 {
-    if val <= 0.0 {
-        return val;
-    }
     if val <= 0.0031308 {
         // Linear falloff in dark values
         val * 12.92
@@ -34,9 +31,6 @@ pub(crate) fn linear_to_nonlinear(val: f32) -> f32 {
 
 #[inline(always)]
 pub(crate) fn nonlinear_to_linear(val: f32) -> f32 {
-    if val <= 0.0 {
-        return val;
-    }
     if val <= 0.04045 {
         // Linear falloff in dark values
         val / 12.92
@@ -87,7 +81,7 @@ pub fn hsv_to_rgb((h, s, v): (f32, f32, f32)) -> [f32; 3] {
     let q = v * (1. - (s * h.fract()));
     let t = v * (1. - (s * (1. - h.fract())));
 
-    match (h.floor() as u8) % 6 {
+    match (h as u8) % 6 {
         0 => [v, t, p],
         1 => [q, v, p],
         2 => [p, v, t],
