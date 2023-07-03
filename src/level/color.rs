@@ -199,6 +199,7 @@ pub(crate) fn calculate_object_color(
     groups: Res<Groups>,
     color_channels: Res<ColorChannels>,
 ) {
+    let cached_colors = PassHashMap::default();
     for mut visible_entities in &mut visible_entities_query {
         let mut deactivated_objects = HashSet::new();
         let mut object_iter = object_query.iter_many_mut(&visible_entities.entities);
@@ -207,27 +208,38 @@ pub(crate) fn calculate_object_color(
             let mut color_mod = None;
             for group_id in &object.groups {
                 if let Some((group, base_color_mod, detail_color_mod)) = groups.0.get(group_id) {
-                    if !group.activated {
+                    if !group.activated || group.opacity == 0. {
                         deactivated_objects.insert(entity);
                         continue 'outer;
                     }
                     opacity *= group.opacity;
                     if base_color_mod.is_some() && object.color_type == ObjectColorType::Base {
                         color_mod = *base_color_mod;
-                    }
-                    if detail_color_mod.is_some() && object.color_type == ObjectColorType::Detail {
+                    } else if detail_color_mod.is_some()
+                        && object.color_type == ObjectColorType::Detail
+                    {
                         color_mod = *detail_color_mod;
                     }
                 }
             }
-            let (mut color, blending) = color_channels.get_color(&object.color_channel);
+            let (mut color, blending) =
+                if let Some(color_results) = cached_colors.get(&object.color_channel) {
+                    *color_results
+                } else {
+                    color_channels.get_color(&object.color_channel)
+                };
             if let Some(color_mod) = color_mod {
                 color = match color_mod {
                     ColorMod::Color(target_color, progress) => {
                         lerp_color(&color, &target_color, &progress)
                     }
                     ColorMod::Hsv(target_channel, hsv, progress) => {
-                        let (target_color, _) = color_channels.get_color(&target_channel);
+                        let (target_color, _) =
+                            if let Some(color_results) = cached_colors.get(&target_channel) {
+                                *color_results
+                            } else {
+                                color_channels.get_color(&target_channel)
+                            };
                         lerp_color(&color, &hsv.apply(target_color), &progress)
                     }
                 }
@@ -240,11 +252,16 @@ pub(crate) fn calculate_object_color(
                 color = Color::rgba(0., 0., 0., color.a());
             }
             if blending {
-                let transformed_opacity = (0.175656971639325_f64
-                    * 7.06033051530761_f64.powf(color.a() as f64)
-                    - 0.213355914301931_f64)
-                    .clamp(0., 1.) as f32;
-                color.set_a(transformed_opacity);
+                if object.color_type != ObjectColorType::Black {
+                    let transformed_opacity = (0.175656971639325_f64
+                        * 7.06033051530761_f64.powf(color.a() as f64)
+                        - 0.213355914301931_f64)
+                        .clamp(0., 1.) as f32;
+                    color.set_a(transformed_opacity);
+                } else {
+                    deactivated_objects.insert(entity);
+                    continue 'outer;
+                }
             }
             sprite.color = color;
             sprite.blending = blending;
