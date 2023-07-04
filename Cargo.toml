@@ -20,6 +20,7 @@ bevy = { version = "0.10.0", default-features = false, features = [
     "bevy_sprite",
     "bevy_text",
     "bevy_ui",
+    "dynamic_linking",
     "png",
     "zstd",
     "vorbis",
