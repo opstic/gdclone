@@ -51,14 +51,14 @@ serde = { version = "1.0", features = ['derive'] }
 serde_json = "1.0"
 embed-resource = "2.1"
 
-# Enable only a small amount of optimization in debug mode
-[profile.dev]
-opt-level = 1
-lto = "off"
-
 # Enable high optimizations for dependencies (incl. Bevy), but not for our code:
 [profile.dev.package."*"]
 opt-level = 3
+
+[profile.dev-optimized]
+inherits = "dev"
+opt-level = 1
+lto = "off"
 
 [profile.release]
 debug = true
