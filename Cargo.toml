@@ -13,7 +13,6 @@ base64-simd = "0.8"
 bevy = { version = "0.10", default-features = false, features = [
     "animation",
     "bevy_asset",
-    "bevy_scene",
     "bevy_winit",
     "bevy_core_pipeline",
     "bevy_render",
