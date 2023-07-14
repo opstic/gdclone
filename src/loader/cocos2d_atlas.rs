@@ -17,7 +17,7 @@ use bevy::utils::HashMap;
 use serde::{Deserialize, Deserializer};
 
 use crate::compressed_image::CompressedImage;
-use crate::utils::{linear_to_nonlinear, nonlinear_to_linear};
+use crate::utils::{fast_scale, linear_to_nonlinear, nonlinear_to_linear};
 
 #[derive(Debug, TypeUuid)]
 #[uuid = "f2c8ed94-b8c8-4d9e-99e9-7ba9b7e8603b"]
@@ -137,32 +137,17 @@ impl AssetLoader for Cocos2dAtlasLoader {
             // Premultiply texture
             for pixel in texture.data.chunks_exact_mut(4) {
                 // Convert to f32
-                let mut f32_pixel = [
-                    pixel[0] as f32 / u8::MAX as f32,
-                    pixel[1] as f32 / u8::MAX as f32,
-                    pixel[2] as f32 / u8::MAX as f32,
-                    pixel[3] as f32 / u8::MAX as f32,
-                ];
+                let mut f32_alpha = pixel[3] as f32 / u8::MAX as f32;
 
-                // Non-linear to linear
-                f32_pixel[0] = nonlinear_to_linear(f32_pixel[0]);
-                f32_pixel[1] = nonlinear_to_linear(f32_pixel[1]);
-                f32_pixel[2] = nonlinear_to_linear(f32_pixel[2]);
+                // Linear to non-linear
+                f32_alpha = linear_to_nonlinear(f32_alpha);
+
+                let non_linear_alpha = (f32_alpha * u8::MAX as f32).round() as u8;
 
                 // Pre-multiply
-                f32_pixel[0] *= f32_pixel[3];
-                f32_pixel[1] *= f32_pixel[3];
-                f32_pixel[2] *= f32_pixel[3];
-
-                // Linear back to non-linear
-                f32_pixel[0] = linear_to_nonlinear(f32_pixel[0]);
-                f32_pixel[1] = linear_to_nonlinear(f32_pixel[1]);
-                f32_pixel[2] = linear_to_nonlinear(f32_pixel[2]);
-
-                // Back to u8
-                pixel[0] = (f32_pixel[0] * u8::MAX as f32).round() as u8;
-                pixel[1] = (f32_pixel[1] * u8::MAX as f32).round() as u8;
-                pixel[2] = (f32_pixel[2] * u8::MAX as f32).round() as u8;
+                pixel[0] = fast_scale(pixel[0], non_linear_alpha);
+                pixel[1] = fast_scale(pixel[1], non_linear_alpha);
+                pixel[2] = fast_scale(pixel[2], non_linear_alpha);
             }
 
             let compressed_image = CompressedImage::from_image(texture)?;

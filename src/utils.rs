@@ -41,6 +41,12 @@ pub(crate) fn nonlinear_to_linear(val: f32) -> f32 {
 }
 
 #[inline(always)]
+pub(crate) fn fast_scale(val: u8, x: u8) -> u8 {
+    let r1 = val as u16 * x as u16 + 128;
+    (((r1 >> 8) + r1) >> 8) as u8
+}
+
+#[inline(always)]
 pub fn rgb_to_hsv([r, g, b]: [f32; 3]) -> (f32, f32, f32) {
     let min = r.min(g).min(b);
     let max = r.max(g).max(b);
