@@ -1,7 +1,7 @@
-use bevy::prelude::{Color, Entity, Query, Res, ResMut, Resource};
+use bevy::prelude::{Color, Query, Res, ResMut, Resource};
 use bevy::reflect::Reflect;
 use bevy::render::view::VisibleEntities;
-use bevy::utils::{HashMap, HashSet};
+use bevy::utils::HashMap;
 use serde::Deserialize;
 
 use crate::level::{
@@ -194,81 +194,79 @@ pub(crate) fn update_light_bg(mut color_channels: ResMut<ColorChannels>) {
 }
 
 pub(crate) fn calculate_object_color(
-    mut object_query: Query<(Entity, &Object, &mut Cocos2dAtlasSprite)>,
+    mut object_query: Query<(&Object, &mut Cocos2dAtlasSprite)>,
     mut visible_entities_query: Query<&mut VisibleEntities>,
     groups: Res<Groups>,
     color_channels: Res<ColorChannels>,
 ) {
     let cached_colors = PassHashMap::default();
     for mut visible_entities in &mut visible_entities_query {
-        let mut deactivated_objects = HashSet::new();
-        let mut object_iter = object_query.iter_many_mut(&visible_entities.entities);
-        'outer: while let Some((entity, object, mut sprite)) = object_iter.fetch_next() {
-            let mut opacity = 1.;
-            let mut color_mod = None;
-            for group_id in &object.groups {
-                if let Some((group, base_color_mod, detail_color_mod)) = groups.0.get(group_id) {
-                    if !group.activated || group.opacity == 0. {
-                        deactivated_objects.insert(entity);
-                        continue 'outer;
-                    }
-                    opacity *= group.opacity;
-                    if base_color_mod.is_some() && object.color_type == ObjectColorType::Base {
-                        color_mod = *base_color_mod;
-                    } else if detail_color_mod.is_some()
-                        && object.color_type == ObjectColorType::Detail
+        visible_entities.entities.retain(|entity| {
+            if let Ok((object, mut sprite)) = object_query.get_mut(*entity) {
+                let mut opacity = 1.;
+                let mut color_mod = None;
+                for group_id in &object.groups {
+                    if let Some((group, base_color_mod, detail_color_mod)) = groups.0.get(group_id)
                     {
-                        color_mod = *detail_color_mod;
+                        if !group.activated || group.opacity == 0. {
+                            return false;
+                        }
+                        opacity *= group.opacity;
+                        if base_color_mod.is_some() && object.color_type == ObjectColorType::Base {
+                            color_mod = *base_color_mod;
+                        } else if detail_color_mod.is_some()
+                            && object.color_type == ObjectColorType::Detail
+                        {
+                            color_mod = *detail_color_mod;
+                        }
                     }
                 }
-            }
-            let (mut color, blending) =
-                if let Some(color_results) = cached_colors.get(&object.color_channel) {
-                    *color_results
-                } else {
-                    color_channels.get_color(&object.color_channel)
-                };
-            if let Some(color_mod) = color_mod {
-                color = match color_mod {
-                    ColorMod::Color(target_color, progress) => {
-                        lerp_color(&color, &target_color, &progress)
-                    }
-                    ColorMod::Hsv(target_channel, hsv, progress) => {
-                        let (target_color, _) =
-                            if let Some(color_results) = cached_colors.get(&target_channel) {
-                                *color_results
-                            } else {
-                                color_channels.get_color(&target_channel)
-                            };
-                        lerp_color(&color, &hsv.apply(target_color), &progress)
+                let (mut color, blending) =
+                    if let Some(color_results) = cached_colors.get(&object.color_channel) {
+                        *color_results
+                    } else {
+                        color_channels.get_color(&object.color_channel)
+                    };
+                if let Some(color_mod) = color_mod {
+                    color = match color_mod {
+                        ColorMod::Color(target_color, progress) => {
+                            lerp_color(&color, &target_color, &progress)
+                        }
+                        ColorMod::Hsv(target_channel, hsv, progress) => {
+                            let (target_color, _) =
+                                if let Some(color_results) = cached_colors.get(&target_channel) {
+                                    *color_results
+                                } else {
+                                    color_channels.get_color(&target_channel)
+                                };
+                            lerp_color(&color, &hsv.apply(target_color), &progress)
+                        }
                     }
                 }
-            }
-            if let Some(hsv) = &object.hsv {
-                color = hsv.apply(color);
-            }
-            color.set_a(color.a() * opacity * object.opacity);
-            if object.color_type == ObjectColorType::Black {
-                color = Color::rgba(0., 0., 0., color.a());
-            }
-            if blending {
-                if object.color_type != ObjectColorType::Black {
+                if let Some(hsv) = &object.hsv {
+                    color = hsv.apply(color);
+                }
+                color.set_a(color.a() * opacity * object.opacity);
+                if blending {
+                    if object.color_type == ObjectColorType::Black {
+                        return false;
+                    }
                     let transformed_opacity = (0.175656971639325_f64
                         * 7.06033051530761_f64.powf(color.a() as f64)
                         - 0.213355914301931_f64)
                         .clamp(0., 1.) as f32;
                     color.set_a(transformed_opacity);
-                } else {
-                    deactivated_objects.insert(entity);
-                    continue 'outer;
                 }
+                if object.color_type == ObjectColorType::Black {
+                    color = Color::rgba(0., 0., 0., color.a());
+                }
+                sprite.color = color;
+                sprite.blending = blending;
+                true
+            } else {
+                false
             }
-            sprite.color = color;
-            sprite.blending = blending;
-        }
-        visible_entities
-            .entities
-            .retain(|entity| !deactivated_objects.contains(entity));
+        });
     }
 }
 
