@@ -17,7 +17,7 @@ use bevy::utils::HashMap;
 use serde::{Deserialize, Deserializer};
 
 use crate::compressed_image::CompressedImage;
-use crate::utils::{fast_scale, linear_to_nonlinear, nonlinear_to_linear};
+use crate::utils::{fast_scale, linear_to_nonlinear};
 
 #[derive(Debug, TypeUuid)]
 #[uuid = "f2c8ed94-b8c8-4d9e-99e9-7ba9b7e8603b"]
