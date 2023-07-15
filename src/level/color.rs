@@ -199,7 +199,7 @@ pub(crate) fn calculate_object_color(
     groups: Res<Groups>,
     color_channels: Res<ColorChannels>,
 ) {
-    let cached_colors = PassHashMap::default();
+    let mut cached_colors = PassHashMap::default();
     for mut visible_entities in &mut visible_entities_query {
         visible_entities.entities.retain(|entity| {
             if let Ok((object, mut sprite)) = object_query.get_mut(*entity) {
@@ -225,7 +225,9 @@ pub(crate) fn calculate_object_color(
                     if let Some(color_results) = cached_colors.get(&object.color_channel) {
                         *color_results
                     } else {
-                        color_channels.get_color(&object.color_channel)
+                        let color_results = color_channels.get_color(&object.color_channel);
+                        cached_colors.insert(object.color_channel, color_results);
+                        color_results
                     };
                 if let Some(color_mod) = color_mod {
                     color = match color_mod {
@@ -237,7 +239,9 @@ pub(crate) fn calculate_object_color(
                                 if let Some(color_results) = cached_colors.get(&target_channel) {
                                     *color_results
                                 } else {
-                                    color_channels.get_color(&target_channel)
+                                    let color_results = color_channels.get_color(&target_channel);
+                                    cached_colors.insert(target_channel, color_results);
+                                    color_results
                                 };
                             lerp_color(&color, &hsv.apply(target_color), &progress)
                         }
