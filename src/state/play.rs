@@ -1,8 +1,7 @@
 use std::time::{Instant, SystemTime};
 
 use bevy::prelude::*;
-use discord_sdk::activity;
-use discord_sdk::activity::ActivityBuilder;
+use discord_sdk::{activity, activity::ActivityBuilder};
 
 use crate::discord::CurrentDiscordActivity;
 use crate::level::{
@@ -21,10 +20,11 @@ pub(crate) struct PlayStatePlugin;
 
 impl Plugin for PlayStatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(play_setup.in_schedule(OnEnter(GameState::Play)))
-            .add_system(play_cleanup.in_schedule(OnExit(GameState::Play)))
+        app.add_systems(OnEnter(GameState::Play), play_setup)
+            .add_systems(OnExit(GameState::Play), play_cleanup)
             .add_systems(
-                (move_camera, update_background_color, exit_play).in_set(OnUpdate(GameState::Play)),
+                Update,
+                (move_camera, update_background_color, exit_play).run_if(in_state(GameState::Play)),
             );
     }
 }
@@ -106,7 +106,7 @@ fn move_camera(
     mut projections: Query<&mut OrthographicProjection, With<Camera>>,
 ) {
     let delta = time.delta_seconds();
-    let multiplier = if keys.pressed(KeyCode::LShift) {
+    let multiplier = if keys.pressed(KeyCode::ShiftLeft) {
         40. * delta
     } else {
         20. * delta

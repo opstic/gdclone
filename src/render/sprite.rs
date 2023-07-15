@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 use bevy::app::prelude::*;
-use bevy::asset::{AddAsset, AssetEvent, Assets, Handle, HandleUntyped};
+use bevy::asset::{load_internal_asset, AddAsset, AssetEvent, Assets, Handle, HandleUntyped};
 use bevy::core_pipeline::{
     core_2d::Transparent2d,
     tonemapping::{DebandDither, Tonemapping},
@@ -10,7 +10,7 @@ use bevy::ecs::{
     prelude::*,
     system::{lifetimeless::*, SystemParamItem, SystemState},
 };
-use bevy::log::warn;
+use bevy::log::{info, warn};
 use bevy::math::{Quat, Vec2, Vec4, Vec4Swizzles};
 use bevy::reflect::TypeUuid;
 use bevy::render::{
@@ -26,14 +26,14 @@ use bevy::render::{
     },
     view::{
         ComputedVisibility, ExtractedView, Msaa, ViewTarget, ViewUniform, ViewUniformOffset,
-        ViewUniforms, VisibleEntities,
+        ViewUniforms, VisibilitySystems, VisibleEntities,
     },
-    Extract, ExtractSchedule, RenderApp, RenderSet,
+    Extract, ExtractSchedule, Render, RenderApp, RenderSet,
 };
 use bevy::sprite::{
-    queue_material2d_meshes, Anchor, ColorMaterial, ColorMaterialPlugin, ExtractedSprite,
-    ExtractedSprites, Mesh2dHandle, Mesh2dRenderPlugin, Sprite, SpriteAssetEvents, SpriteSystem,
-    TextureAtlas, TextureAtlasSprite,
+    calculate_bounds_2d, queue_material2d_meshes, Anchor, ColorMaterial, ColorMaterialPlugin,
+    ExtractedSprite, ExtractedSprites, Mesh2dHandle, Mesh2dRenderPlugin, Sprite, SpriteAssetEvents,
+    SpriteSystem, TextureAtlas, TextureAtlasSprite,
 };
 use bevy::transform::components::{GlobalTransform, Transform};
 use bevy::utils::{default, FloatOrd, HashMap};
@@ -53,36 +53,21 @@ pub const SPRITE_SHADER_HANDLE: HandleUntyped =
 
 impl Plugin for CustomSpritePlugin {
     fn build(&self, app: &mut App) {
-        let mut shaders = app.world.resource_mut::<Assets<Shader>>();
-        let sprite_shader = Shader::from_wgsl(include_str!("sprite.wgsl"));
-        shaders.set_untracked(SPRITE_SHADER_HANDLE, sprite_shader);
+        load_internal_asset!(app, SPRITE_SHADER_HANDLE, "sprite.wgsl", Shader::from_wgsl);
         app.add_asset::<TextureAtlas>()
             .register_asset_reflect::<TextureAtlas>()
             .register_type::<Sprite>()
             .register_type::<Anchor>()
             .register_type::<Mesh2dHandle>()
-            .add_plugin(Mesh2dRenderPlugin)
-            .add_plugin(ColorMaterialPlugin);
-
-        let mut fallbacks = Fallbacks::default();
-
-        let render_device = app.world.resource::<RenderDevice>();
-
-        if !render_device
-            .features()
-            .contains(WgpuFeatures::TEXTURE_BINDING_ARRAY)
-        {
-            warn!(
-                "Current GPU does not support texture arrays, switching to fallback implementation"
+            .add_plugins((Mesh2dRenderPlugin, ColorMaterialPlugin))
+            .add_systems(
+                PostUpdate,
+                calculate_bounds_2d.in_set(VisibilitySystems::CalculateBounds),
             );
-            fallbacks.no_texture_array = true;
-        }
 
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
-                .insert_resource(fallbacks)
                 .init_resource::<ImageBindGroups>()
-                .init_resource::<SpritePipeline>()
                 .init_resource::<SpecializedRenderPipelines<SpritePipeline>>()
                 .init_resource::<SpriteMeta>()
                 .init_resource::<ExtractedSprites>()
@@ -90,23 +75,46 @@ impl Plugin for CustomSpritePlugin {
                 .init_resource::<SpriteAssetEvents>()
                 .add_render_command::<Transparent2d, DrawSprite>()
                 .add_systems(
+                    ExtractSchedule,
                     (
                         extract_sprites.in_set(SpriteSystem::ExtractSprites),
                         extract_sprite_events,
-                    )
-                        .in_schedule(ExtractSchedule),
+                    ),
                 )
-                .add_system(
+                .add_systems(
+                    ExtractSchedule,
+                    extract_cocos2d_sprites
+                        .in_set(SpriteSystem::ExtractSprites)
+                        .after(extract_sprites),
+                )
+                .add_systems(
+                    Render,
                     queue_sprites
                         .in_set(RenderSet::Queue)
                         .ambiguous_with(queue_material2d_meshes::<ColorMaterial>),
-                )
-                .add_system(
-                    extract_cocos2d_sprites
-                        .in_schedule(ExtractSchedule)
-                        .in_set(SpriteSystem::ExtractSprites)
-                        .after(extract_sprites),
                 );
+        };
+    }
+
+    fn finish(&self, app: &mut App) {
+        if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
+            let mut fallbacks = Fallbacks::default();
+
+            let render_device = render_app.world.resource::<RenderDevice>();
+
+            if !render_device
+                .features()
+                .contains(WgpuFeatures::TEXTURE_BINDING_ARRAY)
+            {
+                warn!(
+                "Current GPU does not support texture arrays, switching to fallback implementation"
+            );
+                fallbacks.no_texture_array = true;
+            }
+
+            render_app
+                .insert_resource(fallbacks)
+                .init_resource::<SpritePipeline>();
         };
     }
 }
@@ -196,12 +204,7 @@ impl FromWorld for SpritePipeline {
                 &image.data,
                 ImageDataLayout {
                     offset: 0,
-                    bytes_per_row: Some(
-                        std::num::NonZeroU32::new(
-                            image.texture_descriptor.size.width * format_size as u32,
-                        )
-                        .unwrap(),
-                    ),
+                    bytes_per_row: Some(image.texture_descriptor.size.width * format_size as u32),
                     rows_per_image: None,
                 },
                 image.texture_descriptor.size,

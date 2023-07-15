@@ -1,9 +1,9 @@
-use bevy::app::{App, CoreSchedule, CoreSet, Plugin, StartupSet};
+use bevy::app::{App, Plugin, PostStartup, PostUpdate};
 use bevy::ecs::schedule::SystemSet;
 use bevy::hierarchy::{Children, Parent, ValidParentCheckPlugin};
 use bevy::prelude::{
-    DetectChanges, Entity, GlobalTransform, IntoSystemConfig, IntoSystemSetConfig, Query, Ref,
-    ResMut, Transform, With, Without,
+    DetectChanges, Entity, GlobalTransform, IntoSystemConfigs, IntoSystemSetConfig, Local, Query,
+    Ref, RemovedComponents, ResMut, Transform, With, Without,
 };
 use bevy::render::view::VisibleEntities;
 use bevy::transform::{systems::sync_simple_transforms, TransformSystem};
@@ -25,48 +25,61 @@ impl Plugin for CustomTransformPlugin {
 
         app.register_type::<Transform>()
             .register_type::<GlobalTransform>()
-            .add_plugin(ValidParentCheckPlugin::<GlobalTransform>::default())
+            .add_plugins(ValidParentCheckPlugin::<GlobalTransform>::default())
+            .configure_set(
+                PostStartup,
+                PropagateTransformsSet.in_set(TransformSystem::TransformPropagate),
+            )
             // add transform systems to startup so the first update is "correct"
-            .configure_set(TransformSystem::TransformPropagate.in_base_set(CoreSet::PostUpdate))
-            .configure_set(PropagateTransformsSet.in_set(TransformSystem::TransformPropagate))
-            .edit_schedule(CoreSchedule::Startup, |schedule| {
-                schedule.configure_set(
-                    TransformSystem::TransformPropagate.in_base_set(StartupSet::PostStartup),
-                );
-            })
-            // FIXME: https://github.com/bevyengine/bevy/issues/4381
-            // These systems cannot access the same entities,
-            // due to subtle query filtering that is not yet correctly computed in the ambiguity detector
-            .add_startup_system(
-                sync_simple_transforms
-                    .in_set(TransformSystem::TransformPropagate)
-                    .ambiguous_with(PropagateTransformsSet),
+            .add_systems(
+                PostStartup,
+                (
+                    sync_simple_transforms
+                        .in_set(TransformSystem::TransformPropagate)
+                        // FIXME: https://github.com/bevyengine/bevy/issues/4381
+                        // These systems cannot access the same entities,
+                        // due to subtle query filtering that is not yet correctly computed in the ambiguity detector
+                        .ambiguous_with(PropagateTransformsSet),
+                    propagate_transforms.in_set(PropagateTransformsSet),
+                    propagate_atlas_transforms.in_set(PropagateTransformsSet),
+                ),
             )
-            .add_startup_system(propagate_transforms.in_set(PropagateTransformsSet))
-            .add_startup_system(propagate_atlas_transforms.in_set(PropagateTransformsSet))
-            .add_system(
-                sync_simple_transforms
-                    .in_set(TransformSystem::TransformPropagate)
-                    .ambiguous_with(PropagateTransformsSet),
+            .configure_set(
+                PostUpdate,
+                PropagateTransformsSet.in_set(TransformSystem::TransformPropagate),
             )
-            .add_system(propagate_transforms.in_set(PropagateTransformsSet))
-            .add_system(propagate_atlas_transforms.in_set(PropagateTransformsSet));
+            .add_systems(
+                PostUpdate,
+                (
+                    sync_simple_transforms
+                        .in_set(TransformSystem::TransformPropagate)
+                        .ambiguous_with(PropagateTransformsSet),
+                    propagate_transforms.in_set(PropagateTransformsSet),
+                    propagate_atlas_transforms.in_set(PropagateTransformsSet),
+                ),
+            );
     }
 }
 
 pub(crate) fn propagate_atlas_transforms(
     mut root_query: Query<
         (Entity, &Children, Ref<Transform>, &mut GlobalTransform),
-        (With<Cocos2dAtlasSprite>, Without<Parent>),
+        (Without<Parent>, With<Cocos2dAtlasSprite>),
     >,
+    mut orphaned: RemovedComponents<Parent>,
     transform_query: Query<
         (Ref<Transform>, &mut GlobalTransform, Option<&Children>),
-        (With<Cocos2dAtlasSprite>, With<Parent>),
+        (With<Parent>, With<Cocos2dAtlasSprite>),
     >,
     parent_query: Query<(Entity, Ref<Parent>), With<Cocos2dAtlasSprite>>,
+    mut orphaned_entities: Local<Vec<Entity>>,
     visible_entities_query: Query<&VisibleEntities>,
     mut already_visible: ResMut<AlreadyVisible>,
 ) {
+    orphaned_entities.clear();
+    orphaned_entities.extend(orphaned.iter());
+    orphaned_entities.sort_unstable();
+
     let mut all_visible = PassHashSet::default();
     for visible_entities in &visible_entities_query {
         all_visible.extend(
@@ -89,7 +102,7 @@ pub(crate) fn propagate_atlas_transforms(
 
     root_query.par_iter_mut().for_each_mut(
         |(entity, children, transform, mut global_transform)| {
-            let changed = transform.is_changed() || newly_visible.contains(&(entity.index() as u64));
+            let changed = transform.is_changed() || global_transform.is_added() || orphaned_entities.binary_search(&entity).is_ok() || newly_visible.contains(&(entity.index() as u64));
             if changed {
                 *global_transform = GlobalTransform::from(*transform);
             }
@@ -146,7 +159,7 @@ unsafe fn propagate_atlas_recursive(
     parent: &GlobalTransform,
     transform_query: &Query<
         (Ref<Transform>, &mut GlobalTransform, Option<&Children>),
-        (With<Cocos2dAtlasSprite>, With<Parent>),
+        (With<Parent>, With<Cocos2dAtlasSprite>),
     >,
     parent_query: &Query<(Entity, Ref<Parent>), With<Cocos2dAtlasSprite>>,
     entity: Entity,
@@ -184,14 +197,14 @@ unsafe fn propagate_atlas_recursive(
             return;
         };
 
-        changed |= transform.is_changed();
+        changed |= transform.is_changed() || global_transform.is_added();
         if changed {
             *global_transform = parent.mul_transform(*transform);
         }
         (*global_transform, children)
     };
 
-    let Some(children) = children else { return; };
+    let Some(children) = children else { return };
     for (child, actual_parent) in parent_query.iter_many(children) {
         assert_eq!(
             actual_parent.get(), entity,
@@ -223,15 +236,20 @@ pub(crate) fn propagate_transforms(
         (Entity, &Children, Ref<Transform>, &mut GlobalTransform),
         (Without<Parent>, Without<Cocos2dAtlasSprite>),
     >,
+    mut orphaned: RemovedComponents<Parent>,
     transform_query: Query<
         (Ref<Transform>, &mut GlobalTransform, Option<&Children>),
         (With<Parent>, Without<Cocos2dAtlasSprite>),
     >,
     parent_query: Query<(Entity, Ref<Parent>), Without<Cocos2dAtlasSprite>>,
+    mut orphaned_entities: Local<Vec<Entity>>,
 ) {
+    orphaned_entities.clear();
+    orphaned_entities.extend(orphaned.iter());
+    orphaned_entities.sort_unstable();
     root_query.par_iter_mut().for_each_mut(
         |(entity, children, transform, mut global_transform)| {
-            let changed = transform.is_changed();
+            let changed = transform.is_changed() || global_transform.is_added() || orphaned_entities.binary_search(&entity).is_ok();
             if changed {
                 *global_transform = GlobalTransform::from(*transform);
             }
@@ -318,14 +336,14 @@ unsafe fn propagate_recursive(
             return;
         };
 
-        changed |= transform.is_changed();
+        changed |= transform.is_changed() || global_transform.is_added();
         if changed {
             *global_transform = parent.mul_transform(*transform);
         }
         (*global_transform, children)
     };
 
-    let Some(children) = children else { return; };
+    let Some(children) = children else { return };
     for (child, actual_parent) in parent_query.iter_many(children) {
         assert_eq!(
             actual_parent.get(), entity,

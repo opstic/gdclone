@@ -1,12 +1,11 @@
 use std::marker::PhantomData;
 
-use bevy::app::{App, CoreSet, Plugin};
+use bevy::app::{App, Plugin, PostUpdate, Update};
 use bevy::asset::Assets;
 use bevy::log::error;
 use bevy::math::IVec2;
-use bevy::prelude::{Color, Commands, Entity, IntoSystemConfig, OnUpdate, Resource};
-use bevy::render::view;
-use bevy::render::view::VisibilitySystems;
+use bevy::prelude::{in_state, Color, Commands, Entity, IntoSystemConfigs, Resource};
+use bevy::render::{view, view::VisibilitySystems};
 use bevy::utils::{hashbrown, HashMap, HashSet, PassHash};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
@@ -30,31 +29,34 @@ pub(crate) struct LevelPlugin;
 
 impl Plugin for LevelPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(
+        app.add_systems(
+            Update,
             trigger::activate_xpos_triggers
                 .in_set(TriggerSystems::ActivateTriggers)
-                .in_set(OnUpdate(GameState::Play)),
+                .run_if(in_state(GameState::Play)),
         )
-        .add_system(
+        .add_systems(
+            Update,
             trigger::execute_triggers
                 .in_set(TriggerSystems::ExecuteTriggers)
                 .after(TriggerSystems::ActivateTriggers),
         )
-        .add_system(
+        .add_systems(
+            PostUpdate,
             object::update_visibility
                 .in_set(VisibilitySystems::CheckVisibility)
                 .after(view::check_visibility),
         )
-        .add_system(
+        .add_systems(
+            PostUpdate,
             object::propagate_visibility
                 .after(object::update_visibility)
                 .in_set(VisibilitySystems::CheckVisibility),
         )
-        .add_system(color::update_light_bg.in_base_set(CoreSet::PostUpdate))
-        .add_system(
-            color::calculate_object_color
-                .after(object::propagate_visibility)
-                .in_base_set(CoreSet::PostUpdate),
+        .add_systems(PostUpdate, color::update_light_bg)
+        .add_systems(
+            PostUpdate,
+            color::calculate_object_color.after(object::propagate_visibility),
         )
         .register_type::<Object>()
         .init_resource::<ColorChannels>()

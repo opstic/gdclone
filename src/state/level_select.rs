@@ -1,4 +1,4 @@
-use bevy::app::{App, IntoSystemAppConfig, Plugin};
+use bevy::app::{App, Plugin};
 use bevy::asset::{AssetServer, Assets};
 use bevy::ecs::component::Component;
 use bevy::hierarchy::{BuildChildren, DespawnRecursiveExt};
@@ -6,8 +6,7 @@ use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
 use bevy::text::TextStyle;
 use bevy::ui::{
-    AlignSelf, BackgroundColor, FlexDirection, JustifyContent, Node, Overflow, Size, Style, UiRect,
-    Val,
+    AlignSelf, BackgroundColor, FlexDirection, JustifyContent, Node, Overflow, Style, UiRect, Val,
 };
 use discord_sdk::{activity, activity::ActivityBuilder};
 
@@ -19,9 +18,12 @@ pub(crate) struct LevelSelectStatePlugin;
 
 impl Plugin for LevelSelectStatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(select_setup.in_schedule(OnEnter(GameState::LevelSelect)))
-            .add_system(select_cleanup.in_schedule(OnExit(GameState::LevelSelect)))
-            .add_systems((mouse_scroll, button_system).in_set(OnUpdate(GameState::LevelSelect)));
+        app.add_systems(OnEnter(GameState::LevelSelect), select_setup)
+            .add_systems(OnExit(GameState::LevelSelect), select_cleanup)
+            .add_systems(
+                Update,
+                (mouse_scroll, button_system).run_if(in_state(GameState::LevelSelect)),
+            );
     }
 }
 
@@ -51,7 +53,8 @@ fn select_setup(
                 flex_direction: FlexDirection::Column,
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
-                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
                 ..default()
             },
             background_color: Color::NONE.into(),
@@ -66,7 +69,8 @@ fn select_setup(
                 flex_direction: FlexDirection::Column,
                 justify_content: JustifyContent::SpaceBetween,
                 align_items: AlignItems::Center,
-                size: Size::new(Val::Percent(70.0), Val::Percent(80.0)),
+                width: Val::Percent(70.0),
+                height: Val::Percent(80.0),
                 ..default()
             },
             background_color: Color::rgb(0.15, 0.15, 0.15).into(),
@@ -98,8 +102,8 @@ fn select_setup(
             style: Style {
                 flex_direction: FlexDirection::Column,
                 align_self: AlignSelf::Stretch,
-                size: Size::height(Val::Percent(90.)),
-                overflow: Overflow::Hidden,
+                height: Val::Percent(90.),
+                overflow: Overflow::clip_y(),
                 ..default()
             },
             background_color: Color::rgb(0.10, 0.10, 0.10).into(),
@@ -112,9 +116,8 @@ fn select_setup(
         .spawn(NodeBundle {
             style: Style {
                 flex_direction: FlexDirection::Column,
-                max_size: Size::UNDEFINED,
                 align_items: AlignItems::Center,
-                padding: UiRect::new(Val::Px(10.), Val::Px(10.), Val::Px(10.), Val::Undefined),
+                padding: UiRect::new(Val::Px(10.), Val::Px(10.), Val::Px(10.), Val::Px(0.)),
                 ..default()
             },
             ..default()
@@ -134,7 +137,8 @@ fn select_setup(
             .spawn(NodeBundle {
                 style: Style {
                     align_items: AlignItems::Center,
-                    size: Size::new(Val::Percent(100.), Val::Px(125.)),
+                    width: Val::Percent(100.),
+                    height: Val::Px(125.),
                     margin: UiRect::bottom(Val::Px(10.)),
                     padding: UiRect::all(Val::Px(15.)),
                     ..default()
@@ -149,7 +153,8 @@ fn select_setup(
             .spawn(NodeBundle {
                 style: Style {
                     flex_direction: FlexDirection::Column,
-                    size: Size::new(Val::Percent(75.), Val::Percent(100.)),
+                    width: Val::Percent(75.),
+                    height: Val::Percent(100.),
                     align_items: AlignItems::Start,
                     justify_content: JustifyContent::SpaceBetween,
                     ..default()
@@ -175,7 +180,7 @@ fn select_setup(
             .spawn(NodeBundle {
                 style: Style {
                     align_items: AlignItems::Center,
-                    gap: Size::width(Val::Px(15.)),
+                    column_gap: Val::Px(15.),
                     ..default()
                 },
                 ..default()
@@ -221,7 +226,8 @@ fn select_setup(
                     flex_direction: FlexDirection::Column,
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
-                    size: Size::new(Val::Px(75.), Val::Px(50.)),
+                    width: Val::Px(75.),
+                    height: Val::Px(50.),
                     margin: UiRect::left(Val::Auto),
                     ..default()
                 },
@@ -279,7 +285,7 @@ fn mouse_scroll(
 
             scrolling_list.position += dy;
             scrolling_list.position = scrolling_list.position.clamp(-max_scroll, 0.);
-            style.position.top = Val::Px(scrolling_list.position);
+            style.top = Val::Px(scrolling_list.position);
         }
     }
 }
@@ -298,7 +304,7 @@ fn button_system(
 ) {
     for (interaction, mut color, button) in &mut interaction_query {
         match *interaction {
-            Interaction::Clicked => {
+            Interaction::Pressed => {
                 *color = PRESSED_BUTTON.into();
                 info!("Selected button {}", button.level_index);
                 commands.insert_resource(LevelIndex {

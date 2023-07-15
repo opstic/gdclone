@@ -16,6 +16,6 @@ impl Plugin for AssetLoaderPlugin {
             .init_asset_loader::<Cocos2dAtlasLoader>()
             .init_resource::<Cocos2dFrames>()
             .register_type::<Cocos2dAtlasSprite>()
-            .add_system(cocos2d_atlas::add_frames_to_resource);
+            .add_systems(Update, cocos2d_atlas::add_frames_to_resource);
     }
 }

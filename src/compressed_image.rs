@@ -3,7 +3,7 @@ use bevy::asset::AddAsset;
 use bevy::ecs::system::lifetimeless::SRes;
 use bevy::ecs::system::SystemParamItem;
 use bevy::math::Vec2;
-use bevy::prelude::{FromReflect, Image, Reflect};
+use bevy::prelude::{Image, Reflect};
 use bevy::reflect::TypeUuid;
 use bevy::render::{
     render_asset::{PrepareAssetError, PrepareAssetSet, RenderAsset, RenderAssetPlugin},
@@ -18,7 +18,7 @@ pub(crate) struct CompressedImagePlugin;
 
 impl Plugin for CompressedImagePlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(
+        app.add_plugins(
             RenderAssetPlugin::<CompressedImage>::with_prepare_asset_set(
                 PrepareAssetSet::PreAssetPrepare,
             ),
@@ -29,8 +29,9 @@ impl Plugin for CompressedImagePlugin {
     }
 }
 
-#[derive(Reflect, FromReflect, Debug, Clone, TypeUuid)]
+#[derive(Reflect, Debug, Clone, TypeUuid)]
 #[uuid = "d5415aa7-8a56-41d7-ae1f-57999372a7ba"]
+#[reflect_value]
 pub(crate) struct CompressedImage {
     data: Vec<u8>,
 }

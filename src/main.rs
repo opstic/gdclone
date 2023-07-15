@@ -4,12 +4,10 @@
 
 use std::time::Duration;
 
-use bevy::diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin};
+use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy::render::camera::ScalingMode;
-use bevy::render::primitives::Aabb;
-use bevy::render::view::{NoFrustumCulling, VisibilitySystems};
-use bevy::sprite::{Mesh2dHandle, SpritePlugin};
+use bevy::sprite::SpritePlugin;
 use bevy::window::{PresentMode, WindowMode, WindowResizeConstraints};
 use bevy::winit::{WinitSettings, WinitWindows};
 use winit::window::Icon;
@@ -66,18 +64,17 @@ fn main() {
             .add_before::<SpritePlugin, CustomSpritePlugin>(CustomSpritePlugin)
             .add_before::<AssetPlugin, MultiAssetIoPlugin>(MultiAssetIoPlugin),
     )
-    // .add_plugin(EditorPlugin::default())
-    .add_plugin(FrameTimeDiagnosticsPlugin)
-    .add_plugin(CompressedImagePlugin)
-    .add_plugin(AssetLoaderPlugin)
-    .add_plugin(LevelPlugin)
-    .add_plugin(DiscordPlugin)
+    .add_plugins((
+        DiscordPlugin,
+        FrameTimeDiagnosticsPlugin,
+        CompressedImagePlugin,
+        AssetLoaderPlugin,
+        LevelPlugin,
+    ))
     .add_state::<GameState>()
     .add_plugins(StatePlugins)
-    .add_startup_system(setup)
-    .add_system(update_fps)
-    .add_system(toggle_fullscreen)
-    .add_system(calculate_bounds.in_set(VisibilitySystems::CalculateBounds))
+    .add_systems(Startup, setup)
+    .add_systems(Update, (update_fps, toggle_fullscreen))
     .run();
 }
 
@@ -152,7 +149,7 @@ fn setup(
         .insert(FpsText);
 }
 
-fn update_fps(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<FpsText>>) {
+fn update_fps(diagnostics: Res<DiagnosticsStore>, mut query: Query<&mut Text, With<FpsText>>) {
     for mut text in query.iter_mut() {
         if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
             if let Some(average) = fps.average() {
@@ -174,53 +171,5 @@ fn toggle_fullscreen(input: Res<Input<KeyCode>>, mut windows: Query<&mut Window>
         };
 
         info!("Switching window mode to {:?}", window.mode);
-    }
-}
-
-pub(crate) fn calculate_bounds(
-    mut commands: Commands,
-    meshes: Res<Assets<Mesh>>,
-    images: Res<Assets<Image>>,
-    atlases: Res<Assets<TextureAtlas>>,
-    meshes_without_aabb: Query<(Entity, &Mesh2dHandle), (Without<Aabb>, Without<NoFrustumCulling>)>,
-    sprites_without_aabb: Query<
-        (Entity, &Sprite, &Handle<Image>),
-        (Without<Aabb>, Without<NoFrustumCulling>),
-    >,
-    atlases_without_aabb: Query<
-        (Entity, &TextureAtlasSprite, &Handle<TextureAtlas>),
-        (Without<Aabb>, Without<NoFrustumCulling>),
-    >,
-) {
-    for (entity, mesh_handle) in meshes_without_aabb.iter() {
-        if let Some(mesh) = meshes.get(&mesh_handle.0) {
-            if let Some(aabb) = mesh.compute_aabb() {
-                commands.entity(entity).insert(aabb);
-            }
-        }
-    }
-    for (entity, sprite, texture_handle) in sprites_without_aabb.iter() {
-        if let Some(image) = images.get(texture_handle) {
-            let size = sprite.custom_size.unwrap_or_else(|| image.size());
-            let aabb = Aabb {
-                center: (-sprite.anchor.as_vec() * size).extend(0.0).into(),
-                half_extents: (0.5 * size).extend(0.0).into(),
-            };
-            commands.entity(entity).insert(aabb);
-        }
-    }
-    for (entity, atlas_sprite, atlas_handle) in atlases_without_aabb.iter() {
-        if let Some(atlas) = atlases.get(atlas_handle) {
-            if let Some(rect) = atlas.textures.get(atlas_sprite.index) {
-                let size = atlas_sprite
-                    .custom_size
-                    .unwrap_or_else(|| (rect.min - rect.max).abs());
-                let aabb = Aabb {
-                    center: (-atlas_sprite.anchor.as_vec() * size).extend(0.0).into(),
-                    half_extents: (0.5 * size).extend(0.0).into(),
-                };
-                commands.entity(entity).insert(aabb);
-            }
-        }
     }
 }

@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 
-use bevy::asset::{AssetIo, AssetIoError, FileAssetIo, Metadata};
+use bevy::asset::{AssetIo, AssetIoError, ChangeWatcher, FileAssetIo, Metadata};
 use bevy::prelude::*;
 use bevy::utils::{BoxedFuture, HashMap};
 use directories::{BaseDirs, ProjectDirs};
@@ -126,9 +126,9 @@ impl AssetIo for MultiAssetIo {
         }
     }
 
-    fn watch_for_changes(&self) -> Result<(), AssetIoError> {
+    fn watch_for_changes(&self, configuration: &ChangeWatcher) -> Result<(), AssetIoError> {
         for (_, asset_io) in &self.prefixes {
-            asset_io.watch_for_changes()?
+            asset_io.watch_for_changes(configuration)?
         }
         Ok(())
     }
@@ -220,7 +220,7 @@ impl Plugin for MultiAssetIoPlugin {
             "resources".to_string(),
             Box::new(FileAssetIo::new(
                 gd_path.join("Resources"),
-                default_asset_plugin.watch_for_changes,
+                &default_asset_plugin.watch_for_changes,
             )),
         );
 
@@ -275,7 +275,7 @@ impl Plugin for MultiAssetIoPlugin {
             "data".to_string(),
             Box::new(FileAssetIo::new(
                 gd_data_path.clone(),
-                default_asset_plugin.watch_for_changes,
+                &default_asset_plugin.watch_for_changes,
             )),
         );
 

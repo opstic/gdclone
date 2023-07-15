@@ -7,7 +7,7 @@ use bevy::math::Rect;
 use bevy::prelude::{
     Color, Component, EventReader, FromWorld, Image, ResMut, Resource, Vec2, World,
 };
-use bevy::reflect::{Reflect, TypeUuid};
+use bevy::reflect::{Reflect, TypePath, TypeUuid};
 use bevy::render::{
     renderer::RenderDevice,
     texture::{CompressedImageFormats, ImageType},
@@ -19,7 +19,7 @@ use serde::{Deserialize, Deserializer};
 use crate::compressed_image::CompressedImage;
 use crate::utils::{fast_scale, linear_to_nonlinear};
 
-#[derive(Debug, TypeUuid)]
+#[derive(Debug, TypeUuid, TypePath)]
 #[uuid = "f2c8ed94-b8c8-4d9e-99e9-7ba9b7e8603b"]
 pub(crate) struct Cocos2dAtlas {
     pub(crate) texture: Handle<CompressedImage>,

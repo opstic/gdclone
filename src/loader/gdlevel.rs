@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use bevy::asset::{AssetLoader, LoadContext, LoadedAsset};
 use bevy::prelude::*;
-use bevy::reflect::TypeUuid;
+use bevy::reflect::{TypePath, TypeUuid};
 use bevy::utils::BoxedFuture;
 use plist::Dictionary;
 use serde::Deserialize;
@@ -10,7 +10,7 @@ use serde::Deserialize;
 use crate::level::Level;
 use crate::utils::{decompress, decrypt};
 
-#[derive(Debug, Deserialize, TypeUuid)]
+#[derive(Debug, Deserialize, TypeUuid, TypePath)]
 #[uuid = "1303d57b-af74-4318-ac9b-5d9e5519bcf1"]
 pub(crate) struct SaveFile {
     pub(crate) levels: Vec<Level>,

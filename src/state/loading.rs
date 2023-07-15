@@ -8,10 +8,12 @@ pub(crate) struct LoadingStatePlugin;
 
 impl Plugin for LoadingStatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(loading_setup.in_schedule(OnEnter(GameState::Loading)))
-            .add_system(loading_cleanup.in_schedule(OnExit(GameState::Loading)))
-            .add_system(check_assets_ready.in_set(OnUpdate(GameState::Loading)))
-            .add_system(update_asset_text.in_set(OnUpdate(GameState::Loading)));
+        app.add_systems(OnEnter(GameState::Loading), loading_setup)
+            .add_systems(OnExit(GameState::Loading), loading_cleanup)
+            .add_systems(
+                Update,
+                (check_assets_ready, update_asset_text).run_if(in_state(GameState::Loading)),
+            );
     }
 }
 
@@ -45,7 +47,8 @@ fn loading_setup(
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                size: Size::new(Val::Percent(100.), Val::Percent(100.)),
+                width: Val::Percent(100.),
+                height: Val::Percent(100.),
                 ..default()
             },
             ..default()
@@ -55,7 +58,8 @@ fn loading_setup(
             parent
                 .spawn(TextBundle {
                     style: Style {
-                        size: Size::new(Val::Percent(80.), Val::Auto),
+                        width: Val::Percent(80.),
+                        height: Val::Auto,
                         ..default()
                     },
                     text: Text {

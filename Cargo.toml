@@ -11,7 +11,8 @@ readme = "README.md"
 anyhow = "1.0"
 async-compat = "0.2"
 base64-simd = "0.8"
-bevy = { version = "0.10", default-features = false, features = [
+bevy = { version = "0.11", default-features = false, features = [
+    "android_shared_stdcxx",
     "animation",
     "bevy_asset",
     "bevy_winit",
@@ -20,13 +21,13 @@ bevy = { version = "0.10", default-features = false, features = [
     "bevy_sprite",
     "bevy_text",
     "bevy_ui",
+    "default_font",
     "dynamic_linking",
-    "png",
-    "zstd",
-    "vorbis",
-    "x11",
     "filesystem_watcher",
-    "android_shared_stdcxx",
+    "multi-threaded",
+    "png",
+    "webgl2",
+    "x11",
 ] }
 bitflags = "2.3"
 bytemuck = { version = "1.13", features = ["derive"] }

@@ -1,5 +1,5 @@
 use async_compat::Compat;
-use bevy::app::{App, Plugin};
+use bevy::app::{App, Plugin, Update};
 use bevy::log::{error, info};
 use bevy::prelude::{DetectChanges, ResMut, Resource};
 use discord_sdk::activity::ActivityArgs;
@@ -15,7 +15,7 @@ impl Plugin for DiscordPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(DiscordClient::new(DISCORD_APP_ID))
             .init_resource::<CurrentDiscordActivity>()
-            .add_system(update_discord_status);
+            .add_systems(Update, update_discord_status);
     }
 }
 
