@@ -9,7 +9,9 @@ use bevy::ui::{
     AlignSelf, BackgroundColor, FlexDirection, JustifyContent, Node, Overflow, Size, Style, UiRect,
     Val,
 };
+use discord_sdk::{activity, activity::ActivityBuilder};
 
+use crate::discord::CurrentDiscordActivity;
 use crate::loader::gdlevel::SaveFile;
 use crate::state::{loading::GlobalAssets, play::LevelIndex, GameState};
 
@@ -28,7 +30,21 @@ fn select_setup(
     asset_server: Res<AssetServer>,
     global_assets: Res<GlobalAssets>,
     saves: Res<Assets<SaveFile>>,
+    mut discord_activity: ResMut<CurrentDiscordActivity>,
 ) {
+    discord_activity.0 = ActivityBuilder::default()
+        .details(format!(
+            "{} levels loaded",
+            saves.get(&global_assets.save_file).unwrap().levels.len()
+        ))
+        .state("Browsing menus")
+        .assets(activity::Assets::default().large("icon".to_owned(), Some("GDClone".to_owned())))
+        .button(activity::Button {
+            label: "Get GDClone".to_owned(),
+            url: "https://github.com/opstic/gdclone/releases".to_owned(),
+        })
+        .into();
+
     let main_container = commands
         .spawn(NodeBundle {
             style: Style {

@@ -15,6 +15,7 @@ use bevy::winit::{WinitSettings, WinitWindows};
 use winit::window::Icon;
 
 use compressed_image::CompressedImagePlugin;
+use discord::DiscordPlugin;
 use level::LevelPlugin;
 use loader::AssetLoaderPlugin;
 use multi_asset_io::MultiAssetIoPlugin;
@@ -23,6 +24,7 @@ use state::{loading::AssetsLoading, play::Player, GameState, StatePlugins};
 use transform::CustomTransformPlugin;
 
 mod compressed_image;
+mod discord;
 mod level;
 mod loader;
 mod multi_asset_io;
@@ -69,6 +71,7 @@ fn main() {
     .add_plugin(CompressedImagePlugin)
     .add_plugin(AssetLoaderPlugin)
     .add_plugin(LevelPlugin)
+    .add_plugin(DiscordPlugin)
     .add_state::<GameState>()
     .add_plugins(StatePlugins)
     .add_startup_system(setup)

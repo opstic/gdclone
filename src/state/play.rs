@@ -1,7 +1,10 @@
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 
 use bevy::prelude::*;
+use discord_sdk::activity;
+use discord_sdk::activity::ActivityBuilder;
 
+use crate::discord::CurrentDiscordActivity;
 use crate::level::{
     color::ColorChannels,
     object::Object,
@@ -63,6 +66,7 @@ fn play_setup(
     global_assets: Res<GlobalAssets>,
     save_file: Res<Assets<SaveFile>>,
     level_index: Res<LevelIndex>,
+    mut discord_activity: ResMut<CurrentDiscordActivity>,
 ) {
     for mut transform in camera_transforms.iter_mut() {
         transform.translation.x = 0.0;
@@ -78,6 +82,17 @@ fn play_setup(
         .levels
         .get(level_index.index)
         .unwrap();
+
+    discord_activity.0 = ActivityBuilder::default()
+        .state(format!("Playing {}", level.name))
+        .assets(activity::Assets::default().large("icon".to_owned(), Some("GDClone".to_owned())))
+        .button(activity::Button {
+            label: "Get GDClone".to_owned(),
+            url: "https://github.com/opstic/gdclone/releases".to_owned(),
+        })
+        .start_timestamp(SystemTime::now())
+        .into();
+
     info!("Loading {}", level.name);
     let total_start = Instant::now();
     let decompress_start = Instant::now();

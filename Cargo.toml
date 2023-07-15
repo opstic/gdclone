@@ -9,6 +9,7 @@ readme = "README.md"
 
 [dependencies]
 anyhow = "1.0"
+async-compat = "0.2"
 base64-simd = "0.8"
 bevy = { version = "0.10", default-features = false, features = [
     "animation",
@@ -30,6 +31,7 @@ bevy = { version = "0.10", default-features = false, features = [
 bitflags = "2.3"
 bytemuck = { version = "1.13", features = ["derive"] }
 directories = "5.0"
+discord-sdk = "0.3"
 dyn-clone = "1.0"
 fixedbitset = "0.4"
 futures-lite = "1.13"
