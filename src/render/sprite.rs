@@ -10,7 +10,7 @@ use bevy::ecs::{
     prelude::*,
     system::{lifetimeless::*, SystemParamItem, SystemState},
 };
-use bevy::log::{info, warn};
+use bevy::log::warn;
 use bevy::math::{Quat, Vec2, Vec4, Vec4Swizzles};
 use bevy::reflect::TypeUuid;
 use bevy::render::{
