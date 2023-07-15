@@ -1,5 +1,3 @@
-use crate::level::AlreadyVisible;
-use crate::loader::cocos2d_atlas::Cocos2dAtlasSprite;
 use bevy::app::{App, CoreSchedule, CoreSet, Plugin, StartupSet};
 use bevy::ecs::schedule::SystemSet;
 use bevy::hierarchy::{Children, Parent, ValidParentCheckPlugin};
@@ -10,6 +8,8 @@ use bevy::prelude::{
 use bevy::render::view::VisibleEntities;
 use bevy::transform::{systems::sync_simple_transforms, TransformSystem};
 
+use crate::level::AlreadyVisible;
+use crate::loader::cocos2d_atlas::Cocos2dAtlasSprite;
 use crate::utils::PassHashSet;
 
 /// The base plugin for handling [`Transform`] components
@@ -325,7 +325,7 @@ unsafe fn propagate_recursive(
         (*global_transform, children)
     };
 
-    let Some(children) = children else { return };
+    let Some(children) = children else { return; };
     for (child, actual_parent) in parent_query.iter_many(children) {
         assert_eq!(
             actual_parent.get(), entity,

@@ -10,7 +10,7 @@ use bevy::render::view::VisibleEntities;
 use bevy::sprite::Anchor;
 use bevy::utils::{default, HashMap, HashSet};
 
-use crate::level::{color::Hsv, trigger, Sections};
+use crate::level::{color::HsvMod, trigger, Sections};
 use crate::loader::cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasSprite, Cocos2dFrames};
 use crate::utils::{section_from_pos, u8_to_bool};
 
@@ -20,7 +20,7 @@ pub(crate) struct Object {
     pub(crate) z_layer: i8,
     pub(crate) color_channel: u64,
     #[reflect(ignore)]
-    pub(crate) hsv: Option<Hsv>,
+    pub(crate) hsv: Option<HsvMod>,
     pub(crate) groups: Vec<u64>,
     pub(crate) opacity: f32,
     pub(crate) color_type: ObjectColorType,
@@ -217,13 +217,13 @@ pub(crate) fn spawn_object(
         };
 
     let mut base_hsv = if let Some(base_hsv) = object_data.get(b"43".as_ref()) {
-        Some(Hsv::parse(base_hsv)?)
+        Some(HsvMod::parse(base_hsv)?)
     } else {
         None
     };
 
     let mut detail_hsv = if let Some(detail_hsv) = object_data.get(b"44".as_ref()) {
-        Some(Hsv::parse(detail_hsv)?)
+        Some(HsvMod::parse(detail_hsv)?)
     } else {
         None
     };
@@ -301,8 +301,8 @@ fn recursive_spawn_child(
     child: ObjectChild,
     base_color_channel: u64,
     detail_color_channel: u64,
-    base_hsv: Option<Hsv>,
-    detail_hsv: Option<Hsv>,
+    base_hsv: Option<HsvMod>,
+    detail_hsv: Option<HsvMod>,
     z_layer: i8,
     groups: Vec<u64>,
     cocos2d_frames: &Cocos2dFrames,

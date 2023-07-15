@@ -122,7 +122,7 @@ impl ColorChannel {
                 temp_color.blending = u8_to_bool(blending);
             }
             if let Some(hsv) = color_data.get(b"10".as_ref()) {
-                temp_color.hsv = Hsv::parse(hsv)?;
+                temp_color.hsv = HsvMod::parse(hsv)?;
             }
             color = ColorChannel::CopyColor(temp_color);
         } else {
@@ -165,7 +165,7 @@ impl ColorChannel {
 #[derive(Clone, Debug, Copy)]
 pub(crate) enum ColorMod {
     Color(Color, f32),
-    Hsv(u64, Hsv, f32),
+    Hsv(u64, HsvMod, f32),
 }
 
 impl Default for ColorMod {
@@ -282,11 +282,11 @@ pub(crate) struct CopyColor {
     pub(crate) copy_opacity: bool,
     pub(crate) opacity: f32,
     pub(crate) blending: bool,
-    pub(crate) hsv: Hsv,
+    pub(crate) hsv: HsvMod,
 }
 
 #[derive(Debug, Deserialize, Copy, Clone, Reflect)]
-pub(crate) struct Hsv {
+pub(crate) struct HsvMod {
     pub(crate) h: f32,
     pub(crate) s: f32,
     pub(crate) v: f32,
@@ -294,10 +294,10 @@ pub(crate) struct Hsv {
     pub(crate) v_absolute: bool,
 }
 
-impl Hsv {
-    pub(crate) fn parse(hsv_string: &[u8]) -> Result<Hsv, anyhow::Error> {
+impl HsvMod {
+    pub(crate) fn parse(hsv_string: &[u8]) -> Result<HsvMod, anyhow::Error> {
         let hsv_data: [&[u8]; 5] = de::from_slice(hsv_string, b'a')?;
-        Ok(Hsv {
+        Ok(HsvMod {
             h: std::str::from_utf8(hsv_data[0])?.parse()?,
             s: std::str::from_utf8(hsv_data[1])?.parse()?,
             v: std::str::from_utf8(hsv_data[2])?.parse()?,
@@ -325,9 +325,9 @@ impl Hsv {
     }
 }
 
-impl Default for Hsv {
+impl Default for HsvMod {
     fn default() -> Self {
-        Hsv {
+        HsvMod {
             h: 0.,
             s: 1.,
             v: 1.,
@@ -350,7 +350,7 @@ impl Default for CopyColor {
             copy_opacity: false,
             opacity: 1.,
             blending: false,
-            hsv: Hsv::default(),
+            hsv: HsvMod::default(),
         }
     }
 }

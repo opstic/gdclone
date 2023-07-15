@@ -12,7 +12,7 @@ use bevy::utils::{hashbrown, HashMap, PassHash};
 use dyn_clone::DynClone;
 
 use crate::level::{
-    color::{ColorMod, Hsv},
+    color::{ColorMod, HsvMod},
     easing::Easing,
     object::Object,
     trigger::{
@@ -253,7 +253,7 @@ pub(crate) fn setup_trigger(
                 trigger.target_blending = u8_to_bool(blending);
             }
             if let Some(copied_hsv) = object_data.get(b"49".as_ref()) {
-                trigger.copied_hsv = Hsv::parse(copied_hsv)?;
+                trigger.copied_hsv = HsvMod::parse(copied_hsv)?;
             }
             if let Some(copied_channel) = object_data.get(b"50".as_ref()) {
                 trigger.copied_channel = std::str::from_utf8(copied_channel)?.parse()?;
@@ -328,10 +328,10 @@ pub(crate) fn setup_trigger(
                 mod_mode = u8_to_bool(hsv_mode);
             }
             if mod_mode {
-                let mut hsv = Hsv::default();
+                let mut hsv = HsvMod::default();
                 let mut copied_color_id = 0;
                 if let Some(targer_hsv) = object_data.get(b"49".as_ref()) {
-                    hsv = Hsv::parse(targer_hsv)?;
+                    hsv = HsvMod::parse(targer_hsv)?;
                 }
                 if let Some(color_id) = object_data.get(b"50".as_ref()) {
                     copied_color_id = std::str::from_utf8(color_id)?.parse()?;

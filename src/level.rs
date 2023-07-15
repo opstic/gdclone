@@ -11,7 +11,7 @@ use bevy::utils::{hashbrown, HashMap, HashSet, PassHash};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
-use color::{BaseColor, ColorChannel, ColorChannels, ColorMod, CopyColor, Hsv};
+use color::{BaseColor, ColorChannel, ColorChannels, ColorMod, CopyColor, HsvMod};
 use object::Object;
 use trigger::TriggerSystems;
 
@@ -217,7 +217,7 @@ impl<'a> ParsedInnerLevel<'a> {
                     copied_index: 1000,
                     opacity: 1.0,
                     blending: true,
-                    hsv: Hsv {
+                    hsv: HsvMod {
                         s: -20.,
                         s_absolute: true,
                         ..Default::default()

@@ -3,7 +3,7 @@ use bevy::prelude::{Color, Res, ResMut, World};
 use bevy::time::Time;
 
 use crate::level::{
-    color::{BaseColor, ColorChannel, ColorChannels, CopyColor, Hsv},
+    color::{BaseColor, ColorChannel, ColorChannels, CopyColor, HsvMod},
     trigger::{TriggerDuration, TriggerFunction},
 };
 use crate::utils::lerp_color;
@@ -14,7 +14,7 @@ pub(crate) struct ColorTrigger {
     pub(crate) target_channel: u64,
     pub(crate) copied_channel: u64,
     pub(crate) target_color: Color,
-    pub(crate) copied_hsv: Hsv,
+    pub(crate) copied_hsv: HsvMod,
     pub(crate) copy_opacity: bool,
     pub(crate) target_blending: bool,
     pub(crate) original_color: Color,
