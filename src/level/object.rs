@@ -1,4 +1,7 @@
+use std::cell::Cell;
+
 use bevy::asset::Assets;
+use bevy::ecs::system::Local;
 use bevy::hierarchy::{BuildChildren, Children, Parent};
 use bevy::math::{IVec2, Quat, Vec2, Vec3, Vec3Swizzles};
 use bevy::prelude::{
@@ -8,10 +11,12 @@ use bevy::prelude::{
 use bevy::reflect::Reflect;
 use bevy::render::view::VisibleEntities;
 use bevy::sprite::Anchor;
-use bevy::utils::{default, HashMap, HashSet};
+use bevy::utils::{default, HashMap};
+use thread_local::ThreadLocal;
 
 use crate::level::{color::HsvMod, trigger, Sections};
 use crate::loader::cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasSprite, Cocos2dFrames};
+use crate::par_iter_many;
 use crate::utils::{section_from_pos, u8_to_bool};
 
 #[derive(Component, Default, Reflect)]
@@ -54,34 +59,40 @@ pub(crate) fn update_visibility(
 }
 
 pub(crate) fn propagate_visibility(
+    mut thread_visible_children: Local<ThreadLocal<Cell<Vec<Entity>>>>,
     root_query: Query<&Children, (With<Cocos2dAtlasSprite>, Without<Parent>)>,
     children_query: Query<&Children, With<Cocos2dAtlasSprite>>,
     mut visible_entities_query: Query<&mut VisibleEntities>,
 ) {
-    let mut children_of_child = HashSet::new();
     for mut visible_entities in &mut visible_entities_query {
-        for children in root_query.iter_many(&visible_entities.entities) {
-            for child in children {
-                children_of_child.extend(recursive_get_child(child, &children_query));
-            }
+        par_iter_many::par_iter_many(&root_query, &visible_entities.entities).for_each(
+            |children| {
+                let cell = thread_visible_children.get_or_default();
+                let mut visible_children = cell.take();
+                for child in children {
+                    visible_children.append(&mut recursive_get_child(child, &children_query))
+                }
+                cell.set(visible_children);
+            },
+        );
+
+        for cell in thread_visible_children.iter_mut() {
+            visible_entities.entities.append(cell.get_mut());
         }
-        visible_entities
-            .entities
-            .extend(std::mem::take(&mut children_of_child));
     }
 }
 
 fn recursive_get_child(
     child: &Entity,
     children_query: &Query<&Children, With<Cocos2dAtlasSprite>>,
-) -> HashSet<Entity> {
-    let mut children_of_child = HashSet::new();
+) -> Vec<Entity> {
+    let mut children_of_child: Vec<Entity> = Vec::new();
     if let Ok(children) = children_query.get(*child) {
         for child in children {
-            children_of_child.extend(recursive_get_child(child, children_query));
+            children_of_child.append(&mut recursive_get_child(child, children_query));
         }
     }
-    children_of_child.insert(*child);
+    children_of_child.push(*child);
     children_of_child
 }
 

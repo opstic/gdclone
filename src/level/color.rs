@@ -1,8 +1,11 @@
-use bevy::prelude::{Color, Query, Res, ResMut, Resource};
+use std::cell::Cell;
+
+use bevy::prelude::{Color, Local, Query, Res, ResMut, Resource};
 use bevy::reflect::Reflect;
 use bevy::render::view::VisibleEntities;
 use bevy::utils::HashMap;
 use serde::Deserialize;
+use thread_local::ThreadLocal;
 
 use crate::level::{
     de,
@@ -10,6 +13,7 @@ use crate::level::{
     Groups,
 };
 use crate::loader::cocos2d_atlas::Cocos2dAtlasSprite;
+use crate::par_iter_many;
 use crate::utils::{hsv_to_rgb, lerp_color, rgb_to_hsv, u8_to_bool, PassHashMap};
 
 #[derive(Default, Resource)]
@@ -194,22 +198,23 @@ pub(crate) fn update_light_bg(mut color_channels: ResMut<ColorChannels>) {
 }
 
 pub(crate) fn calculate_object_color(
+    mut thread_cached_colors: Local<ThreadLocal<Cell<PassHashMap<(Color, bool)>>>>,
     mut object_query: Query<(&Object, &mut Cocos2dAtlasSprite)>,
-    mut visible_entities_query: Query<&mut VisibleEntities>,
+    visible_entities_query: Query<&VisibleEntities>,
     groups: Res<Groups>,
     color_channels: Res<ColorChannels>,
 ) {
-    let mut cached_colors = PassHashMap::default();
-    for mut visible_entities in &mut visible_entities_query {
-        visible_entities.entities.retain(|entity| {
-            if let Ok((object, mut sprite)) = object_query.get_mut(*entity) {
+    for visible_entities in &visible_entities_query {
+        par_iter_many::par_iter_many_mut(&mut object_query, &visible_entities.entities)
+            .for_each_mut(|(object, mut sprite)| {
                 let mut opacity = 1.;
                 let mut color_mod = None;
                 for group_id in &object.groups {
                     if let Some((group, base_color_mod, detail_color_mod)) = groups.0.get(group_id)
                     {
                         if !group.activated || group.opacity == 0. {
-                            return false;
+                            sprite.color.set_a(0.);
+                            return;
                         }
                         opacity *= group.opacity;
                         if base_color_mod.is_some() && object.color_type == ObjectColorType::Base {
@@ -221,6 +226,9 @@ pub(crate) fn calculate_object_color(
                         }
                     }
                 }
+
+                let cell = thread_cached_colors.get_or_default();
+                let mut cached_colors = cell.take();
                 let (mut color, blending) =
                     if let Some(color_results) = cached_colors.get(&object.color_channel) {
                         *color_results
@@ -247,13 +255,20 @@ pub(crate) fn calculate_object_color(
                         }
                     }
                 }
+                cell.set(cached_colors);
+
                 if let Some(hsv) = &object.hsv {
                     color = hsv.apply(color);
                 }
                 color.set_a(color.a() * opacity * object.opacity);
+                if color.a() == 0. {
+                    sprite.color.set_a(0.);
+                    return;
+                }
                 if blending {
                     if object.color_type == ObjectColorType::Black {
-                        return false;
+                        sprite.color.set_a(0.);
+                        return;
                     }
                     let transformed_opacity = (0.175656971639325_f64
                         * 7.06033051530761_f64.powf(color.a() as f64)
@@ -266,11 +281,11 @@ pub(crate) fn calculate_object_color(
                 }
                 sprite.color = color;
                 sprite.blending = blending;
-                true
-            } else {
-                false
-            }
-        });
+            });
+    }
+
+    for cell in &mut thread_cached_colors {
+        cell.get_mut().clear();
     }
 }
 

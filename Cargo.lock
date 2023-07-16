@@ -1908,6 +1908,7 @@ dependencies = [
  "serde",
  "serde_json",
  "steamlocate",
+ "thread_local",
  "winit",
  "zune-inflate",
 ]

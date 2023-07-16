@@ -446,6 +446,9 @@ fn extract_cocos2d_sprites(
         for (entity, sprite, transform, object) in
             object_query.iter_many(&visible_entities.entities)
         {
+            if sprite.color.a() == 0. {
+                continue;
+            }
             if let Some((frame, image_handle_id)) = cocos2d_frames.frames.get(sprite.index) {
                 let rect = Some(frame.rect);
 

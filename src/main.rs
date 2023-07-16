@@ -26,6 +26,7 @@ mod discord;
 mod level;
 mod loader;
 mod multi_asset_io;
+mod par_iter_many;
 mod render;
 mod state;
 mod transform;
