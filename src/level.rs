@@ -39,24 +39,32 @@ impl Plugin for LevelPlugin {
             Update,
             trigger::execute_triggers
                 .in_set(TriggerSystems::ExecuteTriggers)
-                .after(TriggerSystems::ActivateTriggers),
+                .after(TriggerSystems::ActivateTriggers)
+                .run_if(in_state(GameState::Play)),
         )
         .add_systems(
             PostUpdate,
             object::update_visibility
                 .in_set(VisibilitySystems::CheckVisibility)
-                .after(view::check_visibility),
+                .after(view::check_visibility)
+                .run_if(in_state(GameState::Play)),
         )
         .add_systems(
             PostUpdate,
             object::propagate_visibility
                 .after(object::update_visibility)
-                .in_set(VisibilitySystems::CheckVisibility),
+                .in_set(VisibilitySystems::CheckVisibility)
+                .run_if(in_state(GameState::Play)),
         )
-        .add_systems(PostUpdate, color::update_light_bg)
         .add_systems(
             PostUpdate,
-            color::calculate_object_color.after(object::propagate_visibility),
+            color::update_light_bg.run_if(in_state(GameState::Play)),
+        )
+        .add_systems(
+            PostUpdate,
+            color::calculate_object_color
+                .after(object::propagate_visibility)
+                .run_if(in_state(GameState::Play)),
         )
         .register_type::<Object>()
         .init_resource::<ColorChannels>()
