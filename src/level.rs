@@ -177,7 +177,6 @@ impl<'a> ParsedInnerLevel<'a> {
         commands: &mut Commands,
         sections: &mut Sections,
         cocos2d_frames: &Cocos2dFrames,
-        cocos2d_atlases: &Assets<Cocos2dAtlas>,
         low_detail: bool,
     ) -> Result<(), anyhow::Error> {
         sections.0.clear();
@@ -262,7 +261,6 @@ impl<'a> ParsedInnerLevel<'a> {
                 parsed_groups.clone(),
                 sections,
                 cocos2d_frames,
-                cocos2d_atlases,
             ) {
                 Ok(entity) => entity,
                 Err(e) => {

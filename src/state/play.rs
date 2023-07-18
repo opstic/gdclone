@@ -39,7 +39,6 @@ fn play_setup(
     mut projections: Query<&mut OrthographicProjection, With<Camera>>,
     mut commands: Commands,
     cocos2d_frames: Res<Cocos2dFrames>,
-    cocos2d_atlases: Res<Assets<Cocos2dAtlas>>,
     mut sections: ResMut<Sections>,
     global_assets: Res<GlobalAssets>,
     save_file: Res<Assets<SaveFile>>,
@@ -81,13 +80,7 @@ fn play_setup(
             info!("Parsing took {:?}", parse_start.elapsed());
             let spawn_start = Instant::now();
             parsed_level
-                .spawn_level(
-                    &mut commands,
-                    &mut sections,
-                    &cocos2d_frames,
-                    &cocos2d_atlases,
-                    false,
-                )
+                .spawn_level(&mut commands, &mut sections, &cocos2d_frames, false)
                 .unwrap();
             info!("Spawning took {:?}", spawn_start.elapsed());
             info!("Spawned {:?} objects", parsed_level.objects());

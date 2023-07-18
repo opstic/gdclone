@@ -171,7 +171,6 @@ pub(crate) fn spawn_object(
     groups: Vec<u64>,
     sections: &mut Sections,
     cocos2d_frames: &Cocos2dFrames,
-    cocos2d_atlases: &Assets<Cocos2dAtlas>,
 ) -> Result<Entity, anyhow::Error> {
     let mut object = Object::default();
     let mut transform = Transform::default();
@@ -300,7 +299,6 @@ pub(crate) fn spawn_object(
             object_z_layer,
             groups.clone(),
             cocos2d_frames,
-            cocos2d_atlases,
         );
         commands.entity(entity).add_child(child_entity);
     }
@@ -317,7 +315,6 @@ fn recursive_spawn_child(
     z_layer: i8,
     groups: Vec<u64>,
     cocos2d_frames: &Cocos2dFrames,
-    cocos2d_atlases: &Assets<Cocos2dAtlas>,
 ) -> Entity {
     let mut object = Object {
         groups: groups.clone(),
@@ -382,7 +379,6 @@ fn recursive_spawn_child(
             z_layer,
             groups.clone(),
             cocos2d_frames,
-            cocos2d_atlases,
         );
         commands.entity(entity).add_child(child_entity);
     }
