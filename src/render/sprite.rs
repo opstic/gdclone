@@ -934,7 +934,7 @@ fn create_image_bind_group(
                 },
                 BindGroupEntry {
                     binding: 1,
-                    resource: BindingResource::Sampler(&samplers[0]),
+                    resource: BindingResource::Sampler(samplers[0]),
                 },
             ],
             label: Some("sprite_material_bind_group"),
