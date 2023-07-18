@@ -180,13 +180,9 @@ impl<'a> ParsedInnerLevel<'a> {
         low_detail: bool,
     ) -> Result<(), anyhow::Error> {
         sections.0.clear();
-        let mut colors: PassHashMap<(ColorChannel, Option<ColorMod>)> =
-            hashbrown::HashMap::with_hasher(PassHash);
+        let mut colors: PassHashMap<(ColorChannel, Option<ColorMod>)> = PassHashMap::default();
         let mut groups: PassHashMap<(Group, Option<ColorMod>, Option<ColorMod>)> =
-            hashbrown::HashMap::with_capacity_and_hasher(
-                (self.objects.len() / 500).min(500),
-                PassHash,
-            );
+            PassHashMap::with_capacity_and_hasher((self.objects.len() / 500).min(500), PassHash);
         if let Some(colors_string) = self.start_object.get(b"kS38".as_ref()) {
             let parsed_colors: Vec<&[u8]> = de::from_slice(colors_string, b'|')?;
             colors.reserve(parsed_colors.len().saturating_sub(colors.capacity()));
