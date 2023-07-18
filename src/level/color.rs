@@ -1,6 +1,6 @@
 use std::cell::Cell;
 
-use bevy::prelude::{Color, Local, Query, Res, ResMut, Resource};
+use bevy::prelude::{Color, Entity, Local, Query, Res, ResMut, Resource};
 use bevy::reflect::Reflect;
 use bevy::render::view::VisibleEntities;
 use bevy::utils::HashMap;
@@ -198,22 +198,27 @@ pub(crate) fn update_light_bg(mut color_channels: ResMut<ColorChannels>) {
 }
 
 pub(crate) fn calculate_object_color(
+    mut thread_to_be_removed: Local<ThreadLocal<Cell<Vec<Entity>>>>,
+    mut to_be_removed: Local<Vec<Entity>>,
     mut thread_cached_colors: Local<ThreadLocal<Cell<PassHashMap<(Color, bool)>>>>,
-    mut object_query: Query<(&Object, &mut Cocos2dAtlasSprite)>,
-    visible_entities_query: Query<&VisibleEntities>,
+    mut object_query: Query<(Entity, &Object, &mut Cocos2dAtlasSprite)>,
+    mut visible_entities_query: Query<&mut VisibleEntities>,
     groups: Res<Groups>,
     color_channels: Res<ColorChannels>,
 ) {
-    for visible_entities in &visible_entities_query {
+    for mut visible_entities in &mut visible_entities_query {
         par_iter_many::par_iter_many_mut(&mut object_query, &visible_entities.entities)
-            .for_each_mut(|(object, mut sprite)| {
+            .for_each_mut(|(entity, object, mut sprite)| {
                 let mut opacity = 1.;
                 let mut color_mod = None;
                 for group_id in &object.groups {
                     if let Some((group, base_color_mod, detail_color_mod)) = groups.0.get(group_id)
                     {
                         if !group.activated || group.opacity == 0. {
-                            sprite.color.set_a(0.);
+                            let cell = thread_to_be_removed.get_or_default();
+                            let mut to_be_removed = cell.take();
+                            to_be_removed.push(entity);
+                            cell.set(to_be_removed);
                             return;
                         }
                         opacity *= group.opacity;
@@ -262,12 +267,18 @@ pub(crate) fn calculate_object_color(
                 }
                 color.set_a(color.a() * opacity * object.opacity);
                 if color.a() == 0. {
-                    sprite.color.set_a(0.);
+                    let cell = thread_to_be_removed.get_or_default();
+                    let mut to_be_removed = cell.take();
+                    to_be_removed.push(entity);
+                    cell.set(to_be_removed);
                     return;
                 }
                 if blending {
                     if object.color_type == ObjectColorType::Black {
-                        sprite.color.set_a(0.);
+                        let cell = thread_to_be_removed.get_or_default();
+                        let mut to_be_removed = cell.take();
+                        to_be_removed.push(entity);
+                        cell.set(to_be_removed);
                         return;
                     }
                     let transformed_opacity = (0.175656971639325_f64
@@ -282,6 +293,15 @@ pub(crate) fn calculate_object_color(
                 sprite.color = color;
                 sprite.blending = blending;
             });
+
+        to_be_removed.clear();
+        for cell in thread_to_be_removed.iter_mut() {
+            to_be_removed.append(cell.get_mut());
+        }
+        radsort::sort_by_key(&mut to_be_removed, |entity| entity.index());
+        visible_entities
+            .entities
+            .retain(|entity| to_be_removed.binary_search(entity).is_err())
     }
 
     for cell in &mut thread_cached_colors {

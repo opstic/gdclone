@@ -16,7 +16,7 @@ use trigger::TriggerSystems;
 
 use crate::loader::cocos2d_atlas::{Cocos2dAtlas, Cocos2dFrames};
 use crate::state::GameState;
-use crate::utils::{decompress, decrypt, u8_to_bool, PassHashMap, PassHashSet};
+use crate::utils::{decompress, decrypt, u8_to_bool, PassHashMap};
 
 pub(crate) mod color;
 pub(crate) mod de;
@@ -70,7 +70,6 @@ impl Plugin for LevelPlugin {
         .init_resource::<ColorChannels>()
         .init_resource::<Groups>()
         .init_resource::<Sections>()
-        .init_resource::<AlreadyVisible>()
         .init_resource::<trigger::ExecutingTriggers>();
     }
 }
@@ -167,9 +166,6 @@ impl Sections {
         self.0.entry(*index).or_default()
     }
 }
-
-#[derive(Default, Resource)]
-pub(crate) struct AlreadyVisible(pub(crate) PassHashSet);
 
 impl<'a> ParsedInnerLevel<'a> {
     pub(crate) fn objects(&self) -> usize {

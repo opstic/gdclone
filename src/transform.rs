@@ -3,14 +3,12 @@ use bevy::ecs::schedule::SystemSet;
 use bevy::hierarchy::{Children, Parent, ValidParentCheckPlugin};
 use bevy::prelude::{
     DetectChanges, Entity, GlobalTransform, IntoSystemConfigs, IntoSystemSetConfig, Local, Query,
-    Ref, RemovedComponents, ResMut, Transform, With, Without,
+    Ref, RemovedComponents, Transform, With, Without,
 };
 use bevy::render::view::VisibleEntities;
 use bevy::transform::{systems::sync_simple_transforms, TransformSystem};
 
-use crate::level::AlreadyVisible;
 use crate::loader::cocos2d_atlas::Cocos2dAtlasSprite;
-use crate::utils::PassHashSet;
 
 /// The base plugin for handling [`Transform`] components
 #[derive(Default)]
@@ -74,40 +72,39 @@ pub(crate) fn propagate_atlas_transforms(
     parent_query: Query<(Entity, Ref<Parent>), With<Cocos2dAtlasSprite>>,
     mut orphaned_entities: Local<Vec<Entity>>,
     visible_entities_query: Query<&VisibleEntities>,
-    mut already_visible: ResMut<AlreadyVisible>,
+    mut all_visible: Local<Vec<Entity>>,
+    mut newly_visible: Local<Vec<Entity>>,
+    mut already_visible: Local<Vec<Entity>>,
 ) {
     orphaned_entities.clear();
     orphaned_entities.extend(orphaned.iter());
     orphaned_entities.sort_unstable();
 
-    let mut all_visible = PassHashSet::default();
+    all_visible.clear();
     for visible_entities in &visible_entities_query {
-        all_visible.extend(
-            visible_entities
-                .entities
-                .iter()
-                .map(|entity| entity.index() as u64),
-        );
+        all_visible.append(&mut visible_entities.entities.clone());
     }
+    all_visible.sort_unstable();
 
-    let mut newly_visible = PassHashSet::default();
+    already_visible.retain(|entity| all_visible.binary_search(entity).is_ok());
 
-    for entity_index in &all_visible {
-        if already_visible.0.contains(entity_index) {
+    newly_visible.clear();
+    for entity in &all_visible {
+        if already_visible.binary_search(entity).is_ok() {
             continue;
         }
-        newly_visible.insert(*entity_index);
-        already_visible.0.insert(*entity_index);
+        newly_visible.push(*entity);
+        already_visible.push(*entity);
     }
 
     root_query.par_iter_mut().for_each_mut(
         |(entity, children, transform, mut global_transform)| {
-            let changed = transform.is_changed() || global_transform.is_added() || orphaned_entities.binary_search(&entity).is_ok() || newly_visible.contains(&(entity.index() as u64));
+            let changed = transform.is_changed() || global_transform.is_added() || newly_visible.binary_search(&entity).is_ok() || orphaned_entities.binary_search(&entity).is_ok();
             if changed {
                 *global_transform = GlobalTransform::from(*transform);
             }
 
-            if !all_visible.contains(&(entity.index() as u64)) {
+            if all_visible.binary_search(&entity).is_err() {
                 return;
             }
 
@@ -136,10 +133,6 @@ pub(crate) fn propagate_atlas_transforms(
             }
         },
     );
-
-    already_visible
-        .0
-        .retain(|index| all_visible.contains(index));
 }
 
 /// Recursively propagates the transforms for `entity` and all of its descendants.
