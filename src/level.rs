@@ -1,12 +1,11 @@
 use std::marker::PhantomData;
 
 use bevy::app::{App, Plugin, PostUpdate, Update};
-use bevy::asset::Assets;
 use bevy::log::error;
 use bevy::math::IVec2;
 use bevy::prelude::{in_state, Color, Commands, Entity, IntoSystemConfigs, Resource};
 use bevy::render::{view, view::VisibilitySystems};
-use bevy::utils::{hashbrown, HashMap, HashSet, PassHash};
+use bevy::utils::{HashMap, HashSet, PassHash};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
@@ -14,7 +13,7 @@ use color::{BaseColor, ColorChannel, ColorChannels, ColorMod, CopyColor, HsvMod}
 use object::Object;
 use trigger::TriggerSystems;
 
-use crate::loader::cocos2d_atlas::{Cocos2dAtlas, Cocos2dFrames};
+use crate::loader::cocos2d_atlas::Cocos2dFrames;
 use crate::state::GameState;
 use crate::utils::{decompress, decrypt, u8_to_bool, PassHashMap};
 

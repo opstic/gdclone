@@ -197,7 +197,7 @@ unsafe fn propagate_atlas_recursive(
         (*global_transform, children)
     };
 
-    let Some(children) = children else { return };
+    let Some(children) = children else { return; };
     for (child, actual_parent) in parent_query.iter_many(children) {
         assert_eq!(
             actual_parent.get(), entity,
@@ -336,7 +336,7 @@ unsafe fn propagate_recursive(
         (*global_transform, children)
     };
 
-    let Some(children) = children else { return };
+    let Some(children) = children else { return; };
     for (child, actual_parent) in parent_query.iter_many(children) {
         assert_eq!(
             actual_parent.get(), entity,

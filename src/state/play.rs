@@ -10,10 +10,7 @@ use crate::level::{
     trigger::ExecutingTriggers,
     {Groups, Sections},
 };
-use crate::loader::{
-    cocos2d_atlas::{Cocos2dAtlas, Cocos2dFrames},
-    gdlevel::SaveFile,
-};
+use crate::loader::{cocos2d_atlas::Cocos2dFrames, gdlevel::SaveFile};
 use crate::state::{loading::GlobalAssets, GameState};
 
 pub(crate) struct PlayStatePlugin;

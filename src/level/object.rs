@@ -1,6 +1,5 @@
 use std::cell::Cell;
 
-use bevy::asset::Assets;
 use bevy::ecs::system::Local;
 use bevy::hierarchy::{BuildChildren, Children, Parent};
 use bevy::math::{IVec2, Quat, Vec2, Vec3, Vec3Swizzles};
@@ -15,7 +14,7 @@ use bevy::utils::{default, HashMap};
 use thread_local::ThreadLocal;
 
 use crate::level::{color::HsvMod, trigger, Sections};
-use crate::loader::cocos2d_atlas::{Cocos2dAtlas, Cocos2dAtlasSprite, Cocos2dFrames};
+use crate::loader::cocos2d_atlas::{Cocos2dAtlasSprite, Cocos2dFrames};
 use crate::par_iter_many;
 use crate::utils::{section_from_pos, u8_to_bool};
 
