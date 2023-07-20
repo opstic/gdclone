@@ -84,7 +84,7 @@ struct FpsText;
 
 const ICON: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/assets/branding/icon.png"
+    "/assets/branding/icon_small.png"
 ));
 
 fn setup(
