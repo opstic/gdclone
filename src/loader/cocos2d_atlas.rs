@@ -17,7 +17,7 @@ use bevy::utils::HashMap;
 use serde::{Deserialize, Deserializer};
 
 use crate::compressed_image::CompressedImage;
-use crate::utils::{fast_scale, linear_to_nonlinear};
+use crate::utils::fast_scale;
 
 #[derive(Debug, TypeUuid, TypePath)]
 #[uuid = "f2c8ed94-b8c8-4d9e-99e9-7ba9b7e8603b"]
@@ -136,18 +136,9 @@ impl AssetLoader for Cocos2dAtlasLoader {
 
             // Premultiply texture
             for pixel in texture.data.chunks_exact_mut(4) {
-                // Convert to f32
-                let mut f32_alpha = pixel[3] as f32 / u8::MAX as f32;
-
-                // Linear to non-linear
-                f32_alpha = linear_to_nonlinear(f32_alpha);
-
-                let non_linear_alpha = (f32_alpha * u8::MAX as f32).round() as u8;
-
-                // Pre-multiply
-                pixel[0] = fast_scale(pixel[0], non_linear_alpha);
-                pixel[1] = fast_scale(pixel[1], non_linear_alpha);
-                pixel[2] = fast_scale(pixel[2], non_linear_alpha);
+                pixel[0] = fast_scale(pixel[0], pixel[3]);
+                pixel[1] = fast_scale(pixel[1], pixel[3]);
+                pixel[2] = fast_scale(pixel[2], pixel[3]);
             }
 
             let compressed_image = CompressedImage::from_image(texture)?;

@@ -793,7 +793,7 @@ pub(crate) fn queue_sprites(
                 }
 
                 // Store the vertex data and add the item to the render phase
-                let mut instance_color = extracted_sprite.color.as_linear_rgba_f32();
+                let mut instance_color = extracted_sprite.color.as_rgba_f32();
 
                 // Premultiply color
                 instance_color = [

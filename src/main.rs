@@ -17,6 +17,7 @@ use discord::DiscordPlugin;
 use level::LevelPlugin;
 use loader::AssetLoaderPlugin;
 use multi_asset_io::MultiAssetIoPlugin;
+use render::remove_srgb::RemoveSrgbPlugin;
 use render::sprite::CustomSpritePlugin;
 use state::{loading::AssetsLoading, play::Player, GameState, StatePlugins};
 use transform::CustomTransformPlugin;
@@ -66,6 +67,7 @@ fn main() {
             .add_before::<AssetPlugin, MultiAssetIoPlugin>(MultiAssetIoPlugin),
     )
     .add_plugins((
+        RemoveSrgbPlugin,
         DiscordPlugin,
         FrameTimeDiagnosticsPlugin,
         CompressedImagePlugin,

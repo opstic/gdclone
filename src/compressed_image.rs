@@ -78,7 +78,7 @@ impl RenderAsset for CompressedImage {
             &image.data,
             ImageType::Extension("png"),
             supported_compressed_formats,
-            true,
+            false,
         )
         .unwrap();
 
