@@ -1,5 +1,6 @@
 use bevy::math::{IVec2, Vec2};
 use bevy::prelude::Color;
+use bevy::tasks::ComputeTaskPool;
 use bevy::utils::{hashbrown, PassHash};
 use libdeflater::Decompressor;
 
@@ -110,11 +111,11 @@ pub(crate) fn lerp_color(start: &Color, end: &Color, x: &f32) -> Color {
 
 #[inline(always)]
 pub(crate) fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, anyhow::Error> {
-    let invalid_byte_end = bytes
+    let invalid_bytes_end = bytes
         .iter()
         .rposition(|byte| *byte == key.unwrap_or_default())
         .unwrap_or(bytes.len());
-    let invalid_byte_start = bytes[..invalid_byte_end]
+    let invalid_bytes_start = bytes[..invalid_bytes_end]
         .iter()
         .rposition(|byte| {
             !(*byte == key.unwrap_or_default()
@@ -122,17 +123,51 @@ pub(crate) fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, anyhow::
         })
         .unwrap_or(bytes.len() - 1)
         + 1;
-    let mut result =
-        Vec::with_capacity(base64_simd::URL_SAFE.estimated_decoded_length(bytes.len()));
-    result.extend(match key {
-        Some(key) => bytes[..invalid_byte_start]
-            .iter()
-            .map(|byte| *byte ^ key)
-            .collect::<Vec<u8>>(),
-        None => bytes[..invalid_byte_start].to_vec(),
+
+    let Some(key) = key else {
+        return Ok(base64_simd::URL_SAFE.decode_to_vec(&bytes[..invalid_bytes_start])?);
+    };
+
+    let task_pool = ComputeTaskPool::get();
+
+    let actual_encoded_len = bytes[..invalid_bytes_start]
+        .iter()
+        .rposition(|byte| *byte != b'=' ^ key)
+        .unwrap_or_default();
+
+    let mut decode_output = vec![0; actual_encoded_len / 4 * 3 + actual_encoded_len % 4];
+
+    let mut thread_chunk_size = decode_output.len() / task_pool.thread_num();
+    thread_chunk_size -= thread_chunk_size % 192;
+
+    task_pool.scope(|scope| {
+        for (current_chunk, chunk) in decode_output.chunks_mut(thread_chunk_size).enumerate() {
+            scope.spawn(async move {
+                let mut encoded_start = current_chunk * thread_chunk_size;
+                encoded_start = encoded_start / 3 * 4;
+                let encoded_end =
+                    (encoded_start + thread_chunk_size / 3 * 4).min(invalid_bytes_start);
+                let encoded = &bytes[encoded_start..encoded_end];
+
+                let mut temp = [0; 256];
+
+                for (encoded_chunk, decoded_chunk) in encoded.chunks(256).zip(chunk.chunks_mut(192))
+                {
+                    let len = temp.len().min(encoded_chunk.len());
+                    let temp = &mut temp[..len];
+                    temp.copy_from_slice(encoded_chunk);
+                    for byte in &mut *temp {
+                        *byte ^= key;
+                    }
+                    base64_simd::URL_SAFE
+                        .decode(temp, base64_simd::Out::from_slice(decoded_chunk))
+                        .unwrap();
+                }
+            })
+        }
     });
-    base64_simd::URL_SAFE.decode_inplace(&mut result)?;
-    Ok(result)
+
+    Ok(decode_output)
 }
 
 #[inline(always)]
