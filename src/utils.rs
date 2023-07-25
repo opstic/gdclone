@@ -1,6 +1,7 @@
 use bevy::math::{IVec2, Vec2};
 use bevy::prelude::Color;
 use bevy::utils::{hashbrown, PassHash};
+use libdeflater::Decompressor;
 
 use crate::level::SECTION_SIZE;
 
@@ -136,15 +137,27 @@ pub(crate) fn decrypt(bytes: &[u8], key: Option<u8>) -> Result<Vec<u8>, anyhow::
 
 #[inline(always)]
 pub(crate) fn decompress(bytes: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
-    match zune_inflate::DeflateDecoder::new(bytes).decode_gzip() {
-        Ok(decompressed) => Ok(decompressed),
-        Err(_) => {
-            // Older versions of GD uses zlib instead
-            zune_inflate::DeflateDecoder::new(bytes)
-                .decode_zlib()
-                .map_err(anyhow::Error::new)
-        }
+    let decompressed_size_data = &bytes[bytes.len() - 4..];
+    let mut decompressed_size: u32 = decompressed_size_data[0] as u32;
+    decompressed_size |= (decompressed_size_data[1] as u32) << 8;
+    decompressed_size |= (decompressed_size_data[2] as u32) << 16;
+    decompressed_size |= (decompressed_size_data[3] as u32) << 24;
+
+    let mut decompressed = Vec::new();
+    decompressed.resize(decompressed_size as usize, 0);
+
+    let mut decompressor = Decompressor::new();
+
+    if decompressor
+        .gzip_decompress(bytes, &mut decompressed)
+        .is_err()
+    {
+        decompressed.clear();
+        decompressed.resize(decompressed_size as usize, 0);
+        decompressor.zlib_decompress(bytes, &mut decompressed)?;
     }
+
+    Ok(decompressed)
 }
 
 #[inline(always)]
