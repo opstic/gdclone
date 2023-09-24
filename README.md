@@ -38,9 +38,5 @@ Thanks to [@maxnut](https://github.com/maxnut) for providing part of the origina
 
 #### License
 <sub>
-Copyright (C) 2022-2023 Opstic
-</sub>
-<br />
-<sub>
-ALL RIGHTS RESERVED.
+Licensed under the Mozilla Public License 2.0
 </sub>
