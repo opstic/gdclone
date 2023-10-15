@@ -1,6 +1,6 @@
 # NOTICE
 
-This project is currently on haitus, due to the limitations of Bevy engine on performance, I will attempt to create a custom game engine first to improve performance and then continue the project there.
+This project is currently on haitus (not dead), due to the limitations of Bevy engine on performance, I will attempt to create a custom game engine first to improve performance and then continue the project there.
 
 In the mean time, go take a look at [GDRender](https://github.com/maxnut/gdrender), [I helped a lot with the project over there](https://github.com/maxnut/gdrender#credits) and it's currently much more feature complete than the current GDClone. But efforts are expected to merge once the haitus ends.
 
