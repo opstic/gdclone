@@ -1,0 +1,58 @@
+[package]
+name = "gdclone"
+version = "0.1.0"
+authors = ["Opstic"]
+edition = "2021"
+repository = "https://github.com/opstic/gdclone"
+homepage = "https://github.com/opstic/gdclone"
+
+[dependencies]
+anyhow = "1.0"
+base64-simd = "0.8"
+bevy = { version = "0.12", default-features = false, features = [
+    "android_shared_stdcxx",
+    "bevy_asset",
+    "bevy_audio",
+    "bevy_core_pipeline",
+    "bevy_gizmos",
+    "bevy_render",
+    "bevy_text",
+    "bevy_ui",
+    "bevy_winit",
+    "default_font",
+#    "dynamic_linking",
+    "multi-threaded",
+    "mp3",
+    "png",
+    "webgl2",
+    "x11",
+] }
+libdeflater = "1.19"
+memchr = "2.5"
+plist = { git = "https://github.com/opstic/rust-plist" }
+quick-xml = { version = "0.31", features = ["serialize"] }
+serde = "1.0"
+serde_json = "1.0"
+
+[build-dependencies]
+serde = { version = "1.0", features = ['derive'] }
+serde_json = "1.0"
+embed-resource = "2.1"
+
+# Enable high optimizations for dependencies (incl. Bevy), but not for our code:
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev-optimized]
+inherits = "dev"
+opt-level = 1
+lto = "off"
+
+[profile.release]
+debug = true
+#lto = "fat"
+split-debuginfo = "packed"
+
+[profile.web-release]
+inherits = "release"
+opt-level = "z"
