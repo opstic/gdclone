@@ -1,6 +1,6 @@
 # NOTICE
 
-This project is currently no longer on haitus, check the [rewrite branch]((/opstic/gdclone/tree/rewrite)) for progress.
+This project is currently no longer on haitus, check the [rewrite branch](https://github.com/opstic/gdclone/tree/rewrite) for progress.
 
 In the mean time, go take a look at [GDRender](https://github.com/maxnut/gdrender), [I helped a lot with the project over there](https://github.com/maxnut/gdrender#credits) and it's currently much more feature complete than the current GDClone. But efforts are expected to merge.
 
