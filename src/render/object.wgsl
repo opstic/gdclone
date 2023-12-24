@@ -14,17 +14,16 @@ struct VertexInput {
     @location(2) i_model_transpose_col2: vec4<f32>,
     @location(3) i_color: vec4<f32>,
     @location(4) i_uv_offset_scale: vec4<f32>,
-#ifndef NO_TEXTURE_ARRAY
     @location(5) i_texture_index: u32,
-#endif
+    @location(6) i_padding: vec3<u32>,
     @builtin(vertex_index) index: u32,
 }
 
 struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
     @location(0) uv: vec2<f32>,
-    @location(1) color: vec4<f32>,
+    @location(1) @interpolate(flat) color: vec4<f32>,
     @location(2) texture_index: u32,
-    @builtin(position) position: vec4<f32>,
 };
 
 @vertex

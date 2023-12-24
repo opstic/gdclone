@@ -44,7 +44,7 @@ enum ColorChannelKind {
     },
 }
 
-#[derive(Debug, Deserialize, Copy, Clone, Reflect)]
+#[derive(Component, Debug, Deserialize, Copy, Clone, Reflect)]
 pub(crate) struct HsvMod {
     pub(crate) h: f32,
     pub(crate) s: f32,

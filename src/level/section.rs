@@ -1,15 +1,21 @@
+use std::hash::Hash;
 use std::ops::Range;
 
-use bevy::math::{IVec2, Vec2, Vec3Swizzles};
+use bevy::ecs::query::{ReadOnlyWorldQuery, WorldQuery};
+use bevy::hierarchy::{Children, Parent};
+use bevy::math::{Vec2, Vec3Swizzles};
 use bevy::prelude::{
-    Changed, Component, DetectChangesMut, Entity, Query, ResMut, Resource, Transform,
+    Changed, Component, Entity, Mut, Query, ResMut, Resource, Transform, With, Without,
 };
-use dashmap::{DashMap, DashSet};
+use dashmap::DashMap;
+use indexmap::IndexSet;
 
 use crate::utils::U64Hash;
 
 #[derive(Default, Resource)]
-pub(crate) struct GlobalSections(pub(crate) DashMap<IVec2, DashSet<Entity, U64Hash>>);
+pub(crate) struct GlobalSections(
+    pub(crate) DashMap<SectionIndex, IndexSet<Entity, U64Hash>, U64Hash>,
+);
 
 #[derive(Default, Resource)]
 pub(crate) struct VisibleGlobalSections {
@@ -17,56 +23,104 @@ pub(crate) struct VisibleGlobalSections {
     pub(crate) y: Range<i32>,
 }
 
-#[derive(Component)]
+#[derive(Copy, Clone, Component)]
 pub(crate) struct Section {
-    pub(crate) current: IVec2,
-    pub(crate) old: Option<IVec2>,
+    pub(crate) current: SectionIndex,
+    pub(crate) old: SectionIndex,
 }
 
-impl Section {
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(crate) struct SectionIndex {
+    pub(crate) x: i32,
+    pub(crate) y: i32,
+}
+
+impl SectionIndex {
     const SIZE: f32 = 200.;
 
-    #[inline(always)]
-    pub(crate) fn index_from_pos(pos: Vec2) -> IVec2 {
-        IVec2::new((pos.x / Self::SIZE) as i32, (pos.y / Self::SIZE) as i32)
+    #[inline]
+    pub(crate) fn new(x: i32, y: i32) -> Self {
+        Self { x, y }
+    }
+
+    #[inline]
+    pub(crate) fn from_pos(pos: Vec2) -> Self {
+        Self {
+            x: (pos.x * (1. / Self::SIZE)) as i32,
+            y: (pos.y * (1. / Self::SIZE)) as i32,
+        }
+    }
+}
+
+impl Hash for SectionIndex {
+    #[inline]
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        ((unsafe { std::mem::transmute::<i32, u32>(self.x) } as u64) << 32
+            | unsafe { std::mem::transmute::<i32, u32>(self.y) } as u64)
+            .hash(state)
     }
 }
 
 pub(crate) fn update_entity_section(
-    mut entities: Query<(&Transform, &mut Section), Changed<Transform>>,
+    mut entities: Query<(&Transform, &mut Section), (Without<Parent>, Changed<Transform>)>,
 ) {
     entities
         .par_iter_mut()
         .for_each(|(transform, mut section)| {
-            let new_section = Section::index_from_pos(transform.translation.xy());
+            let new_section = SectionIndex::from_pos(transform.translation.xy());
             if section.current != new_section {
-                section.old = Some(section.current);
+                section.old = section.current;
                 section.current = new_section;
             }
         });
 }
 
-pub(crate) fn update_global_sections(
-    global_sections: ResMut<GlobalSections>,
-    mut section_changed_entities: Query<(Entity, &mut Section), Changed<Section>>,
+pub(crate) fn propagate_section_change(
+    section_changed_entities: Query<(&Section, &Children), (Changed<Section>, Without<Parent>)>,
+    children_query: Query<(&mut Section, Option<&Children>), With<Parent>>,
 ) {
     section_changed_entities
-        .par_iter_mut()
-        .for_each(|(entity, mut section)| {
-            let section = section.bypass_change_detection();
-            if let Some(old) = section.old {
-                if let Some(global_section) = global_sections.0.get(&old) {
-                    global_section.remove(&entity);
-                }
-                section.old = None;
+        .par_iter()
+        .for_each(|(section, children)| unsafe {
+            propagate_section_recursive(children, &children_query, section)
+        });
+}
+
+unsafe fn propagate_section_recursive<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery>(
+    children: &Children,
+    children_query: &'w Query<'w, 's, Q, F>,
+    parent_section: &Section,
+) where
+    Q: WorldQuery<Item<'w>=(Mut<'w, Section>, Option<&'w Children>)>,
+{
+    for child_entity in children {
+        let Ok((mut section, children)) = children_query.get_unchecked(*child_entity) else {
+            continue;
+        };
+
+        *section = *parent_section;
+
+        let Some(children) = children else {
+            continue;
+        };
+
+        propagate_section_recursive(children, children_query, parent_section);
+    }
+}
+
+pub(crate) fn update_global_sections(
+    global_sections: ResMut<GlobalSections>,
+    section_changed_entities: Query<(Entity, &Section), Changed<Section>>,
+) {
+    section_changed_entities
+        .par_iter()
+        .for_each(|(entity, section)| {
+            if let Some(mut global_section) = global_sections.0.get_mut(&section.old) {
+                global_section.remove(&entity);
             }
 
-            let Some(global_section) = global_sections.0.get(&section.current) else {
-                let global_section_entry = global_sections.0.entry(section.current);
-                global_section_entry.or_default().insert(entity);
-                return;
-            };
-
+            let global_section_entry = global_sections.0.entry(section.current);
+            let mut global_section = global_section_entry.or_default();
             global_section.insert(entity);
         });
 }

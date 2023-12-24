@@ -1,10 +1,10 @@
 use bevy::app::{App, PluginGroup, Startup, Update};
-use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::DefaultPlugins;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::hierarchy::BuildChildren;
 use bevy::prelude::{
-    Camera2dBundle, Color, Commands, Component, NodeBundle, Query, Res, TextBundle, With,
+    Camera2dBundle, Color, Commands, Component, NodeBundle, Query, Res,
+    TextBundle, With,
 };
 use bevy::text::{Text, TextSection, TextStyle};
 use bevy::ui::{PositionType, Style, UiRect, Val, ZIndex};
@@ -45,10 +45,9 @@ fn main() {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn(Camera2dBundle {
-        tonemapping: Tonemapping::None,
-        ..default()
-    });
+    let mut camera_bundle = Camera2dBundle::default();
+    camera_bundle.projection.scale = 7.;
+    commands.spawn(camera_bundle);
 
     let fps_container = commands
         .spawn(NodeBundle {

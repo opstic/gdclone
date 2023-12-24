@@ -1,6 +1,6 @@
 use std::hash::BuildHasher;
 
-use bevy::log::{error, info};
+use bevy::log::{info, warn};
 use bevy::tasks::AsyncComputeTaskPool;
 use bevy::utils::EntityHasher;
 use libdeflater::Decompressor;
@@ -49,7 +49,9 @@ pub(crate) fn decrypt<const KEY: u8>(bytes: &[u8]) -> Result<Vec<u8>, anyhow::Er
         .iter()
         .rposition(|byte| *byte != base64_padding)
         .map(|found_index| found_index + invalid_bytes_start - RPOSITION_LIMIT)
-        .unwrap_or_default();
+        .ok_or(anyhow::Error::msg(
+            "Data contains nothing but Base64 padding????",
+        ))?;
 
     let mut decode_output = vec![0; actual_encoded_len / 4 * 3 + actual_encoded_len % 4];
 
@@ -110,7 +112,7 @@ pub(crate) fn decompress(bytes: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
     let gzip_decompress_result = decompressor.gzip_decompress(bytes, &mut decompressed);
 
     if let Err(decompression_error) = gzip_decompress_result {
-        error!("Decompression failed: {}", decompression_error);
+        warn!("Gzip decompression failed: {:?}", decompression_error);
         info!("Attempting zlib decompression...");
         decompressed.clear();
         decompressed.resize(decompressed_size as usize, 0);
