@@ -91,7 +91,7 @@ unsafe fn propagate_section_recursive<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQue
     children_query: &'w Query<'w, 's, Q, F>,
     parent_section: &Section,
 ) where
-    Q: WorldQuery<Item<'w>=(Mut<'w, Section>, Option<&'w Children>)>,
+    Q: WorldQuery<Item<'w> = (Mut<'w, Section>, Option<&'w Children>)>,
 {
     for child_entity in children {
         let Ok((mut section, children)) = children_query.get_unchecked(*child_entity) else {

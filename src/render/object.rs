@@ -3,32 +3,16 @@ use std::num::NonZeroU32;
 use std::ops::Range;
 
 use bevy::app::{App, Plugin};
-use bevy::asset::{AssetId, Assets, Handle, load_internal_asset};
+use bevy::asset::{load_internal_asset, AssetId, Assets, Handle};
 use bevy::core::{Pod, Zeroable};
 use bevy::core_pipeline::core_2d::Transparent2d;
-use bevy::ecs::system::{SystemParamItem, SystemState};
 use bevy::ecs::system::lifetimeless::{Read, SRes};
+use bevy::ecs::system::{SystemParamItem, SystemState};
 use bevy::log::{info_span, warn};
 use bevy::math::{Affine3A, Quat, Rect, Vec2, Vec4};
 use bevy::prelude::{
     Color, Commands, Component, Entity, FromWorld, GlobalTransform, Image, IntoSystemConfigs,
     Local, Msaa, Query, Res, ResMut, Resource, Shader, World,
-};
-use bevy::render::{
-    Extract,
-    ExtractSchedule,
-    mesh::PrimitiveTopology,
-    Render,
-    render_resource::{
-        BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState,
-        BufferBindingType, ColorTargetState, ColorWrites, FragmentState, FrontFace,
-        ImageCopyTexture, ImageDataLayout, MultisampleState, Origin3d, PolygonMode, PrimitiveState,
-        RenderPipelineDescriptor, SamplerBindingType, ShaderStages, ShaderType,
-        SpecializedRenderPipeline, SpecializedRenderPipelines, TextureAspect, TextureFormat,
-        TextureSampleType, TextureViewDescriptor, TextureViewDimension, VertexBufferLayout,
-        VertexFormat, VertexState, VertexStepMode,
-    },
-    RenderApp, renderer::{RenderDevice, RenderQueue}, RenderSet, texture::{BevyDefault, DefaultImageSampler, GpuImage, ImageSampler, TextureFormatPixelInfo}, view::ViewUniform,
 };
 use bevy::render::render_asset::RenderAssets;
 use bevy::render::render_phase::{
@@ -39,17 +23,33 @@ use bevy::render::render_resource::{
     BindGroup, BindGroupEntries, BufferUsages, BufferVec, PipelineCache, WgpuFeatures,
 };
 use bevy::render::view::{ViewUniformOffset, ViewUniforms};
+use bevy::render::{
+    mesh::PrimitiveTopology,
+    render_resource::{
+        BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState,
+        BufferBindingType, ColorTargetState, ColorWrites, FragmentState, FrontFace,
+        ImageCopyTexture, ImageDataLayout, MultisampleState, Origin3d, PolygonMode, PrimitiveState,
+        RenderPipelineDescriptor, SamplerBindingType, ShaderStages, ShaderType,
+        SpecializedRenderPipeline, SpecializedRenderPipelines, TextureAspect, TextureFormat,
+        TextureSampleType, TextureViewDescriptor, TextureViewDimension, VertexBufferLayout,
+        VertexFormat, VertexState, VertexStepMode,
+    },
+    renderer::{RenderDevice, RenderQueue},
+    texture::{BevyDefault, DefaultImageSampler, GpuImage, ImageSampler, TextureFormatPixelInfo},
+    view::ViewUniform,
+    Extract, ExtractSchedule, Render, RenderApp, RenderSet,
+};
 use bevy::tasks::ComputeTaskPool;
-use bevy::utils::{FloatOrd, HashMap};
 use bevy::utils::syncunsafecell::SyncUnsafeCell;
+use bevy::utils::{FloatOrd, HashMap};
 
 use crate::asset::{cocos2d_atlas::Cocos2dAtlas, compressed_image::CompressedImage};
+use crate::level::section::SectionIndex;
 use crate::level::{
-    LevelWorld,
     object::Object,
     section::{GlobalSections, VisibleGlobalSections},
+    LevelWorld,
 };
-use crate::level::section::SectionIndex;
 
 #[derive(Default)]
 pub(crate) struct ObjectRenderPlugin;
@@ -669,10 +669,10 @@ pub fn prepare_objects(
                     .layers
                     .iter()
                     .find(|(layer_index, _)| layer_index.0 == item_layer_index.0)
-                    else {
-                        batch_image_handle = AssetId::invalid();
-                        continue;
-                    };
+                else {
+                    batch_image_handle = AssetId::invalid();
+                    continue;
+                };
 
                 let extracted_layer = unsafe { &*extracted_layer.get() };
 
@@ -723,11 +723,11 @@ pub fn prepare_objects(
 
                         let transform = extracted_object.transform.affine()
                             * Affine3A::from_scale_rotation_translation(
-                            quad_size.extend(1.0),
-                            Quat::IDENTITY,
-                            (quad_size * (-extracted_object.anchor - Vec2::splat(0.5)))
-                                .extend(0.0),
-                        );
+                                quad_size.extend(1.0),
+                                Quat::IDENTITY,
+                                (quad_size * (-extracted_object.anchor - Vec2::splat(0.5)))
+                                    .extend(0.0),
+                            );
 
                         // Store the vertex data and add the item to the render phase
                         *buffer_entry = ObjectInstance::from(

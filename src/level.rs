@@ -9,7 +9,7 @@ use bevy::hierarchy::BuildWorldChildren;
 use bevy::log::{info, warn};
 use bevy::math::{Quat, Vec3Swizzles};
 use bevy::prelude::{
-    Commands, Component, default, IntoSystemConfigs, Query, Res, ResMut, Resource, Time, Transform,
+    default, Commands, Component, IntoSystemConfigs, Query, Res, ResMut, Resource, Time, Transform,
     TransformBundle, With, World,
 };
 use bevy::tasks::{AsyncComputeTaskPool, Task};
@@ -17,16 +17,16 @@ use bevy::time::TimePlugin;
 use bevy::utils::HashMap;
 use bevy_enum_filter::prelude::AddEnumFilter;
 use futures_lite::future;
-use serde::{Deserialize, Deserializer};
 use serde::de::Error;
+use serde::{Deserialize, Deserializer};
 
+use crate::level::section::{propagate_section_change, SectionIndex, VisibleGlobalSections};
+use crate::level::transform::update_transform;
 use crate::level::{
     color::ColorKind,
     object::Object,
-    section::{GlobalSections, Section, update_entity_section, update_global_sections},
+    section::{update_entity_section, update_global_sections, GlobalSections, Section},
 };
-use crate::level::section::{propagate_section_change, SectionIndex, VisibleGlobalSections};
-use crate::level::transform::update_transform;
 use crate::utils::{decompress, decrypt};
 
 mod color;
@@ -267,8 +267,8 @@ fn move_test(mut ent: Query<&mut Transform, (With<Section>, With<MoveMarker>)>, 
 struct Group {}
 
 fn decrypt_inner_level<'de, D>(deserializer: D) -> Result<Option<Vec<u8>>, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let s: String = Deserialize::deserialize(deserializer).unwrap();
     Ok(Some(decrypt::<0>(s.as_bytes()).map_err(Error::custom)?))
@@ -327,7 +327,7 @@ impl DecompressedInnerLevel {
             {
                 scope.spawn(async move {
                     for (object_string, parsed_object) in
-                    object_strings_chunk.iter().zip(parsed_object_chunk)
+                        object_strings_chunk.iter().zip(parsed_object_chunk)
                     {
                         match de::from_slice(object_string, b',') {
                             Ok(parsed) => *parsed_object = parsed,

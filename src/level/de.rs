@@ -1,12 +1,12 @@
-use std::{fmt, str};
 use std::borrow::Cow;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::num::{ParseFloatError, ParseIntError};
 use std::str::Utf8Error;
+use std::{fmt, str};
 
-use serde::{Deserialize, Deserializer};
 use serde::de::{DeserializeSeed, MapAccess, SeqAccess, Visitor};
+use serde::{Deserialize, Deserializer};
 
 #[derive(Clone, Debug)]
 pub(crate) enum DeError {
@@ -67,8 +67,8 @@ impl From<fmt::Error> for DeError {
 
 impl serde::de::Error for DeError {
     fn custom<T>(msg: T) -> Self
-        where
-            T: Display,
+    where
+        T: Display,
     {
         DeError::Custom(msg.to_string())
     }
@@ -106,16 +106,16 @@ impl<'a> Reader<'a> for SliceReader<'a> {
 }
 
 pub(crate) fn from_slice<'de, T>(b: &'de [u8], sep: u8) -> Result<T, DeError>
-    where
-        T: Deserialize<'de>,
+where
+    T: Deserialize<'de>,
 {
     let mut de = SeparatorDeserializer::from_slice(b, sep);
     T::deserialize(&mut de)
 }
 
 struct SeparatorDeserializer<'de, R>
-    where
-        R: Reader<'de>,
+where
+    R: Reader<'de>,
 {
     reader: R,
     separator: u8,
@@ -132,8 +132,8 @@ impl<'de> SeparatorDeserializer<'de, SliceReader<'de>> {
 }
 
 impl<'de, R> SeparatorDeserializer<'de, R>
-    where
-        R: Reader<'de>,
+where
+    R: Reader<'de>,
 {
     fn new(reader: R, sep: u8) -> Self {
         SeparatorDeserializer {
@@ -168,14 +168,14 @@ impl<'de, R> SeparatorDeserializer<'de, R>
 }
 
 impl<'de, 'a, R> SeqAccess<'de> for &'a mut SeparatorDeserializer<'de, R>
-    where
-        R: Reader<'de>,
+where
+    R: Reader<'de>,
 {
     type Error = DeError;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
-        where
-            T: DeserializeSeed<'de>,
+    where
+        T: DeserializeSeed<'de>,
     {
         match self.peek() {
             Some(_) => seed.deserialize(&mut **self).map(Some),
@@ -189,14 +189,14 @@ impl<'de, 'a, R> SeqAccess<'de> for &'a mut SeparatorDeserializer<'de, R>
 }
 
 impl<'de, 'a, R> MapAccess<'de> for &'a mut SeparatorDeserializer<'de, R>
-    where
-        R: Reader<'de>,
+where
+    R: Reader<'de>,
 {
     type Error = DeError;
 
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error>
-        where
-            K: DeserializeSeed<'de>,
+    where
+        K: DeserializeSeed<'de>,
     {
         match self.peek() {
             Some(a) => {
@@ -216,8 +216,8 @@ impl<'de, 'a, R> MapAccess<'de> for &'a mut SeparatorDeserializer<'de, R>
     }
 
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
-        where
-            V: DeserializeSeed<'de>,
+    where
+        V: DeserializeSeed<'de>,
     {
         seed.deserialize(&mut **self)
     }
@@ -239,8 +239,8 @@ macro_rules! deserialize_type {
 }
 
 impl<'de, 'a, R> Deserializer<'de> for &'a mut SeparatorDeserializer<'de, R>
-    where
-        R: Reader<'de>,
+where
+    R: Reader<'de>,
 {
     type Error = DeError;
 
@@ -258,8 +258,8 @@ impl<'de, 'a, R> Deserializer<'de> for &'a mut SeparatorDeserializer<'de, R>
     deserialize_type!(deserialize_f64 => visit_f64);
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         if !self.initial {
             self.initial = true;
@@ -270,22 +270,22 @@ impl<'de, 'a, R> Deserializer<'de> for &'a mut SeparatorDeserializer<'de, R>
     }
 
     fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         visitor.visit_bool(matches!(self.next().unwrap(), b"1"))
     }
 
     fn deserialize_char<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         self.deserialize_str(visitor)
     }
 
     fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         match self.read_string()? {
             Cow::Borrowed(s) => visitor.visit_borrowed_str(s),
@@ -294,29 +294,29 @@ impl<'de, 'a, R> Deserializer<'de> for &'a mut SeparatorDeserializer<'de, R>
     }
 
     fn deserialize_string<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         self.deserialize_str(visitor)
     }
 
     fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         visitor.visit_borrowed_bytes(self.next().unwrap_or_default())
     }
 
     fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         self.deserialize_bytes(visitor)
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         match self.peek() {
             Some(b) => {
@@ -331,8 +331,8 @@ impl<'de, 'a, R> Deserializer<'de> for &'a mut SeparatorDeserializer<'de, R>
     }
 
     fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         self.next();
         visitor.visit_unit()
@@ -343,8 +343,8 @@ impl<'de, 'a, R> Deserializer<'de> for &'a mut SeparatorDeserializer<'de, R>
         _name: &'static str,
         visitor: V,
     ) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         self.deserialize_unit(visitor)
     }
@@ -354,22 +354,22 @@ impl<'de, 'a, R> Deserializer<'de> for &'a mut SeparatorDeserializer<'de, R>
         _name: &'static str,
         _visitor: V,
     ) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         todo!()
     }
 
     fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         visitor.visit_seq(self)
     }
 
     fn deserialize_tuple<V>(self, _len: usize, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         self.deserialize_seq(visitor)
     }
@@ -380,15 +380,15 @@ impl<'de, 'a, R> Deserializer<'de> for &'a mut SeparatorDeserializer<'de, R>
         _len: usize,
         _visitor: V,
     ) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         todo!()
     }
 
     fn deserialize_map<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         self.deserialize_struct("", &[], visitor)
     }
@@ -399,8 +399,8 @@ impl<'de, 'a, R> Deserializer<'de> for &'a mut SeparatorDeserializer<'de, R>
         _fields: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         visitor.visit_map(self)
     }
@@ -411,22 +411,22 @@ impl<'de, 'a, R> Deserializer<'de> for &'a mut SeparatorDeserializer<'de, R>
         _variants: &'static [&'static str],
         _visitor: V,
     ) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         todo!()
     }
 
     fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         self.deserialize_str(visitor)
     }
 
     fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
+    where
+        V: Visitor<'de>,
     {
         self.deserialize_unit(visitor)
     }

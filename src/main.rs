@@ -1,15 +1,14 @@
 use bevy::app::{App, PluginGroup, Startup, Update};
-use bevy::DefaultPlugins;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::hierarchy::BuildChildren;
 use bevy::prelude::{
-    Camera2dBundle, Color, Commands, Component, NodeBundle, Query, Res,
-    TextBundle, With,
+    Camera2dBundle, Color, Commands, Component, NodeBundle, Query, Res, TextBundle, With,
 };
 use bevy::text::{Text, TextSection, TextStyle};
 use bevy::ui::{PositionType, Style, UiRect, Val, ZIndex};
 use bevy::utils::default;
 use bevy::window::{PresentMode, Window, WindowPlugin};
+use bevy::DefaultPlugins;
 
 use crate::asset::AssetPlugin;
 use crate::level::LevelPlugin;

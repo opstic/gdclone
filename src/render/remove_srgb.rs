@@ -1,5 +1,5 @@
 use bevy::app::{App, Plugin};
-use bevy::asset::{Handle, load_internal_asset};
+use bevy::asset::{load_internal_asset, Handle};
 use bevy::core_pipeline::{core_2d, fullscreen_vertex_shader::fullscreen_shader_vertex_state};
 use bevy::ecs::query::QueryItem;
 use bevy::prelude::{FromWorld, Resource, Shader, World};
@@ -12,10 +12,10 @@ use bevy::render::{
         RenderPassDescriptor, RenderPipelineDescriptor, Sampler, SamplerBindingType,
         SamplerDescriptor, ShaderStages, TextureFormat, TextureSampleType, TextureViewDimension,
     },
-    RenderApp,
     renderer::{RenderContext, RenderDevice},
     texture::BevyDefault,
     view::ViewTarget,
+    RenderApp,
 };
 
 pub const REMOVE_SRGB_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(57293847162839275647);
@@ -110,9 +110,9 @@ impl ViewNode for RemoveSrgbNode {
 
         // Get the pipeline from the cache
         let Some(pipeline) = pipeline_cache.get_render_pipeline(remove_srgb_pipeline.pipeline_id)
-            else {
-                return Ok(());
-            };
+        else {
+            return Ok(());
+        };
 
         // This will start a new "post process write", obtaining two texture
         // views from the view target - a `source` and a `destination`.

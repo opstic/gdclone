@@ -1,15 +1,15 @@
 use std::path::Path;
 
-use bevy::asset::{Asset, AssetLoader, AsyncReadExt, BoxedFuture, Handle, io::Reader, LoadContext};
+use bevy::asset::{io::Reader, Asset, AssetLoader, AsyncReadExt, BoxedFuture, Handle, LoadContext};
 use bevy::log::info;
 use bevy::math::{Rect, Vec2};
 use bevy::prelude::{FromWorld, Image, World};
 use bevy::reflect::TypePath;
+use bevy::render::color::SrgbColorSpace;
 use bevy::render::{
     renderer::RenderDevice,
     texture::{CompressedImageFormats, ImageSampler, ImageType},
 };
-use bevy::render::color::SrgbColorSpace;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::utils::{HashMap, Instant};
 use serde::{Deserialize, Deserializer};
@@ -134,7 +134,7 @@ impl AssetLoader for Cocos2dAtlasLoader {
                 &manifest.metadata.real_texture_file_name,
                 self.supported_compressed_formats,
             )
-                .await?;
+            .await?;
 
             let texture_future: Task<Result<CompressedImage, anyhow::Error>> =
                 async_compute.spawn(async move {
@@ -214,12 +214,12 @@ async fn load_texture<'a>(
         true,
         ImageSampler::Default,
     )
-        .unwrap())
+    .unwrap())
 }
 
 fn to_vec2<'de, D>(deserializer: D) -> Result<Vec2, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let s: String = Deserialize::deserialize(deserializer)?;
     let split_str: Vec<f32> = s
@@ -234,8 +234,8 @@ fn to_vec2<'de, D>(deserializer: D) -> Result<Vec2, D::Error>
 }
 
 fn to_rect<'de, D>(deserializer: D) -> Result<Rect, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let s: String = Deserialize::deserialize(deserializer)?;
     let dimensions: Vec<f32> = s

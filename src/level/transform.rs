@@ -42,7 +42,7 @@ unsafe fn propagate_transform_recursive<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQ
     parent_transform: &GlobalTransform,
 ) where
     Q: WorldQuery<
-        Item<'w>=(
+        Item<'w> = (
             &'w Transform,
             Mut<'w, GlobalTransform>,
             Option<&'w Children>,
@@ -51,9 +51,9 @@ unsafe fn propagate_transform_recursive<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQ
 {
     for child in children {
         let Ok((transform, mut global_transform, children)) = children_query.get_unchecked(*child)
-            else {
-                continue;
-            };
+        else {
+            continue;
+        };
 
         *global_transform = parent_transform.mul_transform(*transform);
 
