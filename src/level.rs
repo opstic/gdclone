@@ -23,7 +23,7 @@ use serde::{Deserialize, Deserializer};
 use crate::level::section::{propagate_section_change, SectionIndex, VisibleGlobalSections};
 use crate::level::transform::update_transform;
 use crate::level::{
-    color::ColorKind,
+    color::ObjectColorKind,
     object::Object,
     section::{update_entity_section, update_global_sections, GlobalSections, Section},
 };
@@ -58,7 +58,7 @@ fn spawn_level_world(mut commands: Commands) {
 
         sub_app.add_plugins((TimePlugin, FrameCountPlugin));
 
-        sub_app.add_enum_filter::<ColorKind>();
+        sub_app.add_enum_filter::<ObjectColorKind>();
 
         sub_app.add_systems(Update, move_test);
 
@@ -76,7 +76,7 @@ fn spawn_level_world(mut commands: Commands) {
 
         let mut world = sub_app.world;
 
-        let mut save_file = File::open("assets/peaceful.txt").unwrap();
+        let mut save_file = File::open("assets/theeschaton.txt").unwrap();
         let mut save_data = Vec::new();
         let _ = save_file.read_to_end(&mut save_data);
         let start_a = Instant::now();
@@ -92,135 +92,141 @@ fn spawn_level_world(mut commands: Commands) {
 
         let global_sections = GlobalSections::default();
 
-        let start_a = Instant::now();
-        for object_data in &parsed.objects[..100_000] {
-            let mut transform = Transform::default();
-            if let Some(x) = object_data.get(b"2".as_ref()) {
-                transform.translation.x = std::str::from_utf8(x).unwrap().parse().unwrap();
+        for object_data in &parsed.objects {
+            if let Err(error) = object::spawn_object(&mut world, object_data, &global_sections) {
+                warn!("Failed to spawn object: {:?}", error);
             }
-            if let Some(y) = object_data.get(b"3".as_ref()) {
-                transform.translation.y = std::str::from_utf8(y).unwrap().parse().unwrap();
-            }
-            if let Some(rotation) = object_data.get(b"6".as_ref()) {
-                transform.rotation = Quat::from_rotation_z(
-                    -std::str::from_utf8(rotation)
-                        .unwrap()
-                        .parse::<f32>()
-                        .unwrap()
-                        .to_radians(),
-                );
-            }
-
-            let section_index = SectionIndex::from_pos(transform.translation.xy());
-            let object_section = Section {
-                current: section_index,
-                old: section_index,
-            };
-
-            let mut object = Object::default();
-
-            if let Some(z_layer) = object_data.get(b"24".as_ref()) {
-                object.z_layer = std::str::from_utf8(z_layer).unwrap().parse().unwrap();
-            } else {
-                object.z_layer = 0;
-            }
-
-            if let Some(id) = object_data.get(b"1".as_ref()) {
-                object.id = std::str::from_utf8(id).unwrap().parse().unwrap();
-            }
-
-            let global_section_entry = global_sections.0.entry(object_section.current);
-
-            let entity = world
-                .spawn(TransformBundle {
-                    local: transform,
-                    ..default()
-                })
-                .insert(object_section)
-                .insert(object.clone())
-                .insert(MoveMarker)
-                .id();
-
-            let mut global_section = global_section_entry.or_default();
-
-            for _ in 0..3 {
-                let child = world
-                    .spawn(TransformBundle::default())
-                    .insert(object_section)
-                    .insert(object.clone())
-                    .id();
-
-                world.entity_mut(entity).add_child(child);
-
-                global_section.insert(child);
-            }
-
-            global_section.insert(entity);
         }
 
-        for object_data in &parsed.objects[100_000..] {
-            let mut transform = Transform::default();
-            if let Some(x) = object_data.get(b"2".as_ref()) {
-                transform.translation.x = std::str::from_utf8(x).unwrap().parse().unwrap();
-            }
-            if let Some(y) = object_data.get(b"3".as_ref()) {
-                transform.translation.y = std::str::from_utf8(y).unwrap().parse().unwrap();
-            }
-            if let Some(rotation) = object_data.get(b"6".as_ref()) {
-                transform.rotation = Quat::from_rotation_z(
-                    -std::str::from_utf8(rotation)
-                        .unwrap()
-                        .parse::<f32>()
-                        .unwrap()
-                        .to_radians(),
-                );
-            }
-
-            let section_index = SectionIndex::from_pos(transform.translation.xy());
-            let object_section = Section {
-                current: section_index,
-                old: section_index,
-            };
-
-            let mut object = Object::default();
-
-            if let Some(z_layer) = object_data.get(b"24".as_ref()) {
-                object.z_layer = std::str::from_utf8(z_layer).unwrap().parse().unwrap();
-            } else {
-                object.z_layer = 0;
-            }
-
-            if let Some(id) = object_data.get(b"1".as_ref()) {
-                object.id = std::str::from_utf8(id).unwrap().parse().unwrap();
-            }
-
-            let global_section_entry = global_sections.0.entry(object_section.current);
-
-            let entity = world
-                .spawn(TransformBundle {
-                    local: transform,
-                    ..default()
-                })
-                .insert(object_section)
-                .insert(object.clone())
-                .id();
-
-            let mut global_section = global_section_entry.or_default();
-
-            for _ in 0..4 {
-                let child = world
-                    .spawn(TransformBundle::default())
-                    .insert(object_section)
-                    .insert(object.clone())
-                    .id();
-
-                world.entity_mut(entity).add_child(child);
-
-                global_section.insert(child);
-            }
-
-            global_section.insert(entity);
-        }
+        // let start_a = Instant::now();
+        // for object_data in &parsed.objects[..100_000] {
+        //     let mut transform = Transform::default();
+        //     if let Some(x) = object_data.get(b"2".as_ref()) {
+        //         transform.translation.x = std::str::from_utf8(x).unwrap().parse().unwrap();
+        //     }
+        //     if let Some(y) = object_data.get(b"3".as_ref()) {
+        //         transform.translation.y = std::str::from_utf8(y).unwrap().parse().unwrap();
+        //     }
+        //     if let Some(rotation) = object_data.get(b"6".as_ref()) {
+        //         transform.rotation = Quat::from_rotation_z(
+        //             -std::str::from_utf8(rotation)
+        //                 .unwrap()
+        //                 .parse::<f32>()
+        //                 .unwrap()
+        //                 .to_radians(),
+        //         );
+        //     }
+        //
+        //     let section_index = SectionIndex::from_pos(transform.translation.xy());
+        //     let object_section = Section {
+        //         current: section_index,
+        //         old: section_index,
+        //     };
+        //
+        //     let mut object = Object::default();
+        //
+        //     if let Some(z_layer) = object_data.get(b"24".as_ref()) {
+        //         object.z_layer = std::str::from_utf8(z_layer).unwrap().parse().unwrap();
+        //     } else {
+        //         object.z_layer = 0;
+        //     }
+        //
+        //     if let Some(id) = object_data.get(b"1".as_ref()) {
+        //         object.id = std::str::from_utf8(id).unwrap().parse().unwrap();
+        //     }
+        //
+        //     let global_section_entry = global_sections.0.entry(object_section.current);
+        //
+        //     let entity = world
+        //         .spawn(TransformBundle {
+        //             local: transform,
+        //             ..default()
+        //         })
+        //         .insert(object_section)
+        //         .insert(object.clone())
+        //         .insert(MoveMarker)
+        //         .id();
+        //
+        //     let mut global_section = global_section_entry.or_default();
+        //
+        //     for _ in 0..3 {
+        //         let child = world
+        //             .spawn(TransformBundle::default())
+        //             .insert(object_section)
+        //             .insert(object.clone())
+        //             .id();
+        //
+        //         world.entity_mut(entity).add_child(child);
+        //
+        //         global_section.insert(child);
+        //     }
+        //
+        //     global_section.insert(entity);
+        // }
+        //
+        // for object_data in &parsed.objects[100_000..] {
+        //     let mut transform = Transform::default();
+        //     if let Some(x) = object_data.get(b"2".as_ref()) {
+        //         transform.translation.x = std::str::from_utf8(x).unwrap().parse().unwrap();
+        //     }
+        //     if let Some(y) = object_data.get(b"3".as_ref()) {
+        //         transform.translation.y = std::str::from_utf8(y).unwrap().parse().unwrap();
+        //     }
+        //     if let Some(rotation) = object_data.get(b"6".as_ref()) {
+        //         transform.rotation = Quat::from_rotation_z(
+        //             -std::str::from_utf8(rotation)
+        //                 .unwrap()
+        //                 .parse::<f32>()
+        //                 .unwrap()
+        //                 .to_radians(),
+        //         );
+        //     }
+        //
+        //     let section_index = SectionIndex::from_pos(transform.translation.xy());
+        //     let object_section = Section {
+        //         current: section_index,
+        //         old: section_index,
+        //     };
+        //
+        //     let mut object = Object::default();
+        //
+        //     if let Some(z_layer) = object_data.get(b"24".as_ref()) {
+        //         object.z_layer = std::str::from_utf8(z_layer).unwrap().parse().unwrap();
+        //     } else {
+        //         object.z_layer = 0;
+        //     }
+        //
+        //     if let Some(id) = object_data.get(b"1".as_ref()) {
+        //         object.id = std::str::from_utf8(id).unwrap().parse().unwrap();
+        //     }
+        //
+        //     let global_section_entry = global_sections.0.entry(object_section.current);
+        //
+        //     let entity = world
+        //         .spawn(TransformBundle {
+        //             local: transform,
+        //             ..default()
+        //         })
+        //         .insert(object_section)
+        //         .insert(object.clone())
+        //         .id();
+        //
+        //     let mut global_section = global_section_entry.or_default();
+        //
+        //     for _ in 0..4 {
+        //         let child = world
+        //             .spawn(TransformBundle::default())
+        //             .insert(object_section)
+        //             .insert(object.clone())
+        //             .id();
+        //
+        //         world.entity_mut(entity).add_child(child);
+        //
+        //         global_section.insert(child);
+        //     }
+        //
+        //     global_section.insert(entity);
+        // }
 
         let section_count = global_sections.0.len();
 

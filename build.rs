@@ -134,12 +134,12 @@ fn write_object(object_data: ObjectData, output: &mut String) {
 
     if let Some(color_type) = &object_data.color_type {
         write_value_raw(
-            "color_type",
-            &format!("ObjectColorType::{}", color_type),
+            "color_kind",
+            &format!("ObjectColorKind::{}", color_type),
             output,
         );
     } else {
-        write_value_raw("color_type", "ObjectColorType::None", output);
+        write_value_raw("color_kind", "ObjectColorKind::None", output);
     }
 
     if let Some(swap_base_detail) = object_data.swap_base_detail {
@@ -203,12 +203,12 @@ fn write_child(child: &Child, output: &mut String) {
 
     if let Some(color_type) = &child.color_type {
         write_value_raw(
-            "color_type",
-            &format!("ObjectColorType::{}", color_type),
+            "color_kind",
+            &format!("ObjectColorKind::{}", color_type),
             output,
         );
     } else {
-        write_value_raw("color_type", "ObjectColorType::None", output);
+        write_value_raw("color_kind", "ObjectColorKind::None", output);
     }
 
     if let Some(opacity) = child.opacity {

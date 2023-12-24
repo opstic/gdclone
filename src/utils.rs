@@ -21,7 +21,12 @@ impl BuildHasher for U64Hash {
 }
 
 #[inline(always)]
-pub(crate) fn fast_scale(val: u8, x: u8) -> u8 {
+pub(crate) const fn u8_to_bool(byte: &[u8]) -> bool {
+    matches!(byte, b"1")
+}
+
+#[inline(always)]
+pub(crate) const fn fast_scale(val: u8, x: u8) -> u8 {
     let r1 = val as u16 * x as u16 + 128;
     (((r1 >> 8) + r1) >> 8) as u8
 }
