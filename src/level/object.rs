@@ -1,11 +1,13 @@
 use crate::asset::cocos2d_atlas::{Cocos2dFrame, Cocos2dFrames};
 use crate::level::color::HsvMod;
-use crate::level::section::{GlobalSections, SectionIndex};
-use crate::utils::u8_to_bool;
+use crate::level::section::{GlobalSections, Section, SectionIndex};
+use crate::utils::{u8_to_bool, U64Hash};
 use bevy::asset::Handle;
+use bevy::hierarchy::BuildWorldChildren;
 use bevy::math::{Quat, Vec2, Vec3, Vec3Swizzles};
 use bevy::prelude::{Component, Entity, GlobalTransform, Transform, World};
-use bevy::utils::HashMap;
+use bevy::utils::{default, HashMap};
+use indexmap::IndexSet;
 
 use crate::level::color::{ObjectColor, ObjectColorKind};
 
@@ -87,14 +89,13 @@ include!(concat!(env!("OUT_DIR"), "/generated_object.rs"));
 pub(crate) struct Object {
     pub(crate) id: u64,
     pub(crate) frame: Cocos2dFrame,
-    frame_name: String,
     flip_x: bool,
     flip_y: bool,
     pub(crate) z_layer: i32,
 }
 
 pub(crate) fn spawn_object(
-    commands: &mut World,
+    world: &mut World,
     object_data: &HashMap<&[u8], &[u8]>,
     global_sections: &GlobalSections,
     cocos2d_frames: &Cocos2dFrames,
@@ -111,7 +112,6 @@ pub(crate) fn spawn_object(
         .get(&object.id)
         .unwrap_or(&ObjectDefaultData::DEFAULT);
 
-    object.frame_name = object_default_data.texture.to_string();
     object_color.opacity = object_default_data.opacity;
 
     if let Some(x) = object_data.get(b"2".as_ref()) {
@@ -192,10 +192,10 @@ pub(crate) fn spawn_object(
         ObjectColorKind::None => {}
     }
 
-    let Some(frame_index) = cocos2d_frames.index.get(&object.frame_name) else {
+    let Some(frame_index) = cocos2d_frames.index.get(object_default_data.texture) else {
         return Err(anyhow::Error::msg(format!(
             "Cannot find texture with name \"{}\"",
-            object.frame_name
+            object_default_data.texture
         )));
     };
 
@@ -205,19 +205,128 @@ pub(crate) fn spawn_object(
 
     let object_id = object.id;
     let object_z_layer = object.z_layer;
-    let mut entity = commands
-        .spawn(object)
-        .insert(transform)
-        .insert(GlobalTransform::default())
-        .insert(object_color)
-        .insert(Handle::Weak(*image_asset_id))
+    let mut entity = world
+        .spawn((
+            object,
+            object_color,
+            Section::from_section_index(SectionIndex::from_pos(transform.translation.xy())),
+            transform,
+            GlobalTransform::default(),
+            Handle::Weak(*image_asset_id),
+        ))
         .id();
 
-    global_sections
+    let mut global_section = global_sections
         .0
         .entry(SectionIndex::from_pos(transform.translation.xy()))
-        .or_default()
-        .insert(entity);
+        .or_default();
+
+    global_section.insert(entity);
+
+    recursive_spawn_children(
+        world,
+        object_default_data.children,
+        base_color_channel,
+        detail_color_channel,
+        base_hsv,
+        detail_hsv,
+        object_z_layer,
+        &mut global_section,
+        cocos2d_frames,
+        entity,
+    )?;
 
     Ok(entity)
+}
+
+fn recursive_spawn_children(
+    world: &mut World,
+    children: &[ObjectChild],
+    base_color_channel: u64,
+    detail_color_channel: u64,
+    base_hsv: Option<HsvMod>,
+    detail_hsv: Option<HsvMod>,
+    z_layer: i32,
+    mut global_section: &mut IndexSet<Entity, U64Hash>,
+    cocos2d_frames: &Cocos2dFrames,
+    parent_entity: Entity,
+) -> Result<(), anyhow::Error> {
+    for child in children {
+        let mut object = Object {
+            z_layer,
+            ..default()
+        };
+        let mut object_color = ObjectColor::default();
+
+        match child.color_kind {
+            ObjectColorKind::Base => {
+                object_color.channel_id = base_color_channel;
+                object_color.hsv = base_hsv;
+            }
+            ObjectColorKind::Detail => {
+                object_color.channel_id = detail_color_channel;
+                object_color.hsv = detail_hsv;
+            }
+            ObjectColorKind::Black => {
+                object_color.channel_id = if base_color_channel != u64::MAX {
+                    base_color_channel
+                } else {
+                    detail_color_channel
+                };
+            }
+            ObjectColorKind::None => {}
+        }
+
+        object_color.opacity = child.opacity;
+
+        let flip = Vec2::new(
+            if child.flip_x { -1. } else { 1. },
+            if child.flip_y { -1. } else { 1. },
+        );
+        let transform = Transform {
+            translation: child.offset.xy().extend(child.offset.z / 999.),
+            rotation: Quat::from_rotation_z(child.rotation.to_radians()),
+            scale: (child.scale * flip).extend(0.),
+        };
+
+        let Some(frame_index) = cocos2d_frames.index.get(child.texture) else {
+            return Err(anyhow::Error::msg(format!(
+                "Cannot find texture with name \"{}\"",
+                child.texture
+            )));
+        };
+
+        let (frame, image_asset_id) = &cocos2d_frames.frames[*frame_index];
+
+        object.frame = *frame;
+
+        let child_entity = world
+            .spawn((
+                object,
+                object_color,
+                Section::default(),
+                transform,
+                GlobalTransform::default(),
+                Handle::Weak(*image_asset_id),
+            ))
+            .id();
+
+        world.entity_mut(parent_entity).add_child(child_entity);
+
+        global_section.insert(child_entity);
+
+        recursive_spawn_children(
+            world,
+            child.children,
+            base_color_channel,
+            detail_color_channel,
+            base_hsv,
+            detail_hsv,
+            z_layer,
+            global_section,
+            cocos2d_frames,
+            child_entity,
+        )?;
+    }
+    Ok(())
 }

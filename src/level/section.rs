@@ -23,13 +23,22 @@ pub(crate) struct VisibleGlobalSections {
     pub(crate) y: Range<i32>,
 }
 
-#[derive(Copy, Clone, Component)]
+#[derive(Copy, Clone, Component, Default)]
 pub(crate) struct Section {
     pub(crate) current: SectionIndex,
     pub(crate) old: SectionIndex,
 }
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+impl Section {
+    pub(crate) fn from_section_index(index: SectionIndex) -> Section {
+        Section {
+            current: index,
+            old: SectionIndex::new(0, 0),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Default, Eq, PartialEq)]
 pub(crate) struct SectionIndex {
     pub(crate) x: i32,
     pub(crate) y: i32,
