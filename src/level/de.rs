@@ -184,7 +184,7 @@ where
     }
 
     fn size_hint(&self) -> Option<usize> {
-        self.reader.len().map(|n| n / 3)
+        self.reader.len().map(|n| n / 2)
     }
 }
 
@@ -223,7 +223,7 @@ where
     }
 
     fn size_hint(&self) -> Option<usize> {
-        self.reader.len().map(|n| n / 3)
+        self.reader.len().map(|n| n / 2)
     }
 }
 
