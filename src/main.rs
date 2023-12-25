@@ -2,7 +2,8 @@ use bevy::app::{App, PluginGroup, Startup, Update};
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::hierarchy::BuildChildren;
 use bevy::prelude::{
-    Camera2dBundle, Color, Commands, Component, NodeBundle, Query, Res, TextBundle, With,
+    Camera2dBundle, ClearColor, Color, Commands, Component, NodeBundle, Query, Res, TextBundle,
+    With,
 };
 use bevy::text::{Text, TextSection, TextStyle};
 use bevy::ui::{PositionType, Style, UiRect, Val, ZIndex};
@@ -45,7 +46,7 @@ fn main() {
 
 fn setup(mut commands: Commands) {
     let mut camera_bundle = Camera2dBundle::default();
-    camera_bundle.projection.scale = 7.;
+    camera_bundle.projection.scale = 1.;
     commands.spawn(camera_bundle);
 
     let fps_container = commands
@@ -82,6 +83,8 @@ fn setup(mut commands: Commands) {
         .id();
 
     commands.entity(fps_container).add_child(fps_text);
+
+    commands.insert_resource(ClearColor(Color::BLACK));
 }
 
 #[derive(Component)]

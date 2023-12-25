@@ -21,6 +21,7 @@ pub(crate) struct ObjectColor {
     pub(crate) channel_id: u64,
     pub(crate) hsv: Option<HsvMod>,
     pub(crate) opacity: f32,
+    pub(crate) color: Color,
 }
 
 #[derive(Default, Copy, Clone, Component, EnumFilter)]

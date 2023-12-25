@@ -1,14 +1,15 @@
 use std::hash::Hash;
 use std::num::NonZeroU32;
 use std::ops::Range;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use bevy::app::{App, Plugin};
-use bevy::asset::{load_internal_asset, AssetId, Assets, Handle};
+use bevy::asset::{load_internal_asset, AssetContainer, AssetId, Handle};
 use bevy::core::{Pod, Zeroable};
 use bevy::core_pipeline::core_2d::Transparent2d;
 use bevy::ecs::system::lifetimeless::{Read, SRes};
 use bevy::ecs::system::{SystemParamItem, SystemState};
-use bevy::log::{info_span, warn};
+use bevy::log::warn;
 use bevy::math::{Affine3A, Quat, Rect, Vec2, Vec4};
 use bevy::prelude::{
     Color, Commands, Component, Entity, FromWorld, GlobalTransform, Image, IntoSystemConfigs,
@@ -20,7 +21,8 @@ use bevy::render::render_phase::{
     SetItemPipeline, TrackedRenderPass,
 };
 use bevy::render::render_resource::{
-    BindGroup, BindGroupEntries, BufferUsages, BufferVec, PipelineCache, WgpuFeatures,
+    BindGroup, BindGroupEntries, BindGroupEntry, BindingResource, BufferUsages, BufferVec,
+    PipelineCache, Sampler, TextureView, WgpuFeatures,
 };
 use bevy::render::view::{ViewUniformOffset, ViewUniforms};
 use bevy::render::{
@@ -42,7 +44,9 @@ use bevy::render::{
 use bevy::tasks::ComputeTaskPool;
 use bevy::utils::syncunsafecell::SyncUnsafeCell;
 use bevy::utils::{FloatOrd, HashMap};
+use futures_lite::StreamExt;
 
+use crate::asset::cocos2d_atlas::Cocos2dFrames;
 use crate::asset::{cocos2d_atlas::Cocos2dAtlas, compressed_image::CompressedImage};
 use crate::level::section::SectionIndex;
 use crate::level::{
@@ -95,8 +99,6 @@ impl Plugin for ObjectRenderPlugin {
             );
                 fallbacks.no_texture_array = true;
             }
-
-            fallbacks.no_texture_array = true;
 
             render_app
                 .insert_resource(fallbacks)
@@ -328,6 +330,7 @@ pub struct ExtractedObject {
     flip_y: bool,
     anchor: Vec2,
     z_layer: i32,
+    rotated: bool,
 }
 
 #[derive(Eq, PartialEq)]
@@ -361,7 +364,7 @@ struct ExtractSystemStateCache {
                 (
                     &'static GlobalTransform,
                     &'static Object,
-                    // &'static Handle<CompressedImage>,
+                    &'static Handle<CompressedImage>,
                 ),
             >,
         )>,
@@ -371,7 +374,6 @@ struct ExtractSystemStateCache {
 pub(crate) fn extract_objects(
     mut extract_system_state_cache: ResMut<ExtractSystemStateCache>,
     mut extracted_layers: ResMut<ExtractedLayers>,
-    texture_atlases: Extract<Res<Assets<Cocos2dAtlas>>>,
     level_world: Extract<Res<LevelWorld>>,
 ) {
     let LevelWorld::World(world) = &**level_world else {
@@ -406,11 +408,7 @@ pub(crate) fn extract_objects(
             let mut system_state: SystemState<(
                 Res<GlobalSections>,
                 Res<VisibleGlobalSections>,
-                Query<(
-                    &GlobalTransform,
-                    &Object,
-                    // &Handle<CompressedImage>,
-                )>,
+                Query<(&GlobalTransform, &Object, &Handle<CompressedImage>)>,
             )> = SystemState::new(world_mut);
 
             extract_system_state_cache.cached_system_state = Some(system_state);
@@ -438,7 +436,7 @@ pub(crate) fn extract_objects(
                 continue;
             };
 
-            for (transform, object) in objects.iter_many(global_section.value()) {
+            for (transform, object, image_handle) in objects.iter_many(global_section.value()) {
                 let extracted_layer = if let Some((_, extracted_layer)) = extracted_layers
                     .layers
                     .iter_mut()
@@ -459,13 +457,14 @@ pub(crate) fn extract_objects(
                 extracted_layer.push(ExtractedObject {
                     transform: *transform,
                     color: Color::WHITE,
-                    rect: None,
+                    rect: Some(object.frame.rect),
                     custom_size: None,
-                    image_handle_id: AssetId::default(),
+                    image_handle_id: image_handle.id(),
                     flip_x: false,
                     flip_y: false,
-                    anchor: Vec2::ZERO,
+                    anchor: object.frame.anchor,
                     z_layer: object.z_layer,
+                    rotated: object.frame.rotated,
                 });
             }
         }
@@ -499,7 +498,7 @@ impl ObjectInstance {
                 transpose_model_3x3.z_axis.extend(transform.translation.z),
             ],
             // i_color: color.as_linear_rgba_f32(),
-            i_color: [1.; 4],
+            i_color: [0.25, 0.25, 0.25, 0.],
             i_uv_offset_scale: uv_offset_scale.to_array(),
             i_texture_index: texture_index,
             _padding: [0; 3],
@@ -524,12 +523,12 @@ impl Default for ObjectMeta {
 
 #[derive(Default, Component, PartialEq, Eq, Clone)]
 pub struct ObjectBatch {
-    pub(crate) image_handle_id: AssetId<CompressedImage>,
+    pub(crate) bind_group_index: usize,
     pub(crate) range: Range<u32>,
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn queue_objects(
+pub(crate) fn queue_objects(
     draw_functions: Res<DrawFunctions<Transparent2d>>,
     object_pipeline: Res<ObjectPipeline>,
     mut pipelines: ResMut<SpecializedRenderPipelines<ObjectPipeline>>,
@@ -580,7 +579,9 @@ pub fn queue_objects(
     // Sort the layers
     compute_task_pool.scope(|scope| {
         for (_, extracted_layer) in extracted_layers.layers.iter() {
+            // let a = info_span!("queue_objects: layer sort task");
             scope.spawn(async move {
+                // let _a = a.enter();
                 radsort::sort_by_cached_key(
                     unsafe { &mut *extracted_layer.get() },
                     |extracted_object| extracted_object.transform.translation().z,
@@ -592,7 +593,7 @@ pub fn queue_objects(
 
 #[derive(Resource, Default)]
 pub struct ImageBindGroups {
-    values: HashMap<AssetId<CompressedImage>, BindGroup>,
+    values: Vec<(Vec<AssetId<CompressedImage>>, BindGroup)>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -609,6 +610,8 @@ pub fn prepare_objects(
     extracted_layers: Res<ExtractedLayers>,
     mut phases: Query<&mut RenderPhase<Transparent2d>>,
 ) {
+    image_bind_groups.values.clear();
+
     let Some(view_binding) = view_uniforms.uniforms.binding() else {
         return;
     };
@@ -628,30 +631,25 @@ pub fn prepare_objects(
     let mut index = 0;
 
     for mut transparent_phase in &mut phases {
-        let mut batch_item_index = 0;
-        let mut batch_image_size = Vec2::ZERO;
-        let mut batch_image_handle = AssetId::invalid();
-
-        let gpu_image = &object_pipeline.dummy_white_gpu_image;
-
-        batch_image_size = Vec2::new(gpu_image.size.x, gpu_image.size.y);
-        batch_image_handle = AssetId::default();
-        image_bind_groups
-            .values
-            .entry(batch_image_handle)
-            .or_insert_with(|| {
-                render_device.create_bind_group(
-                    "object_material_bind_group",
-                    &object_pipeline.material_layout,
-                    &BindGroupEntries::sequential((&gpu_image.texture_view, &gpu_image.sampler)),
-                )
-            });
-
         let mut instance_mut_ref = &mut instance_buffer_values[..];
+
+        let image_group_index = AtomicUsize::new(0);
+        let dummy_image = &object_pipeline.dummy_white_gpu_image;
+        let image_group = SyncUnsafeCell::new(
+            [(
+                AssetId::invalid(),
+                Vec2::new(dummy_image.size.x, dummy_image.size.y),
+                &dummy_image.texture_view,
+                &dummy_image.sampler,
+            ); 16],
+        );
 
         let compute_task_pool = ComputeTaskPool::get();
 
         compute_task_pool.scope(|scope| {
+            let image_group = &image_group;
+            let image_group_index = &image_group_index;
+            let gpu_images = &gpu_images;
             // Iterate through the phase items and detect when successive sprites that can be batched.
             // Spawn an entity with a `SpriteBatch` component for each possible batch.
             // Compatible items share the same entity.
@@ -659,7 +657,6 @@ pub fn prepare_objects(
                 let item = &transparent_phase.items[item_index];
 
                 if item.entity.generation() != 55555 {
-                    batch_image_handle = AssetId::invalid();
                     continue;
                 }
 
@@ -670,7 +667,6 @@ pub fn prepare_objects(
                     .iter()
                     .find(|(layer_index, _)| layer_index.0 == item_layer_index.0)
                 else {
-                    batch_image_handle = AssetId::invalid();
                     continue;
                 };
 
@@ -682,12 +678,47 @@ pub fn prepare_objects(
 
                 assert_eq!(extracted_layer.len(), this_chunk.len());
 
-                let a = info_span!("prepare_objects: layer task");
+                // let a = info_span!("prepare_objects: layer task");
                 scope.spawn(async move {
-                    let _a = a.enter();
+                    // let _a = a.enter();
+                    let image_group = unsafe { &mut *image_group.get() };
                     for (extracted_object, buffer_entry) in extracted_layer.iter().zip(this_chunk) {
+                        let (texture_index, current_image_size) =
+                            match image_group.iter().position(|(asset_id, _, _, _)| {
+                                *asset_id == extracted_object.image_handle_id
+                            }) {
+                                Some(index) => {
+                                    let image_group_entry = &image_group[index];
+                                    (index, image_group_entry.1)
+                                }
+                                None => {
+                                    if let Some(gpu_image) =
+                                        gpu_images.get(extracted_object.image_handle_id)
+                                    {
+                                        let new_index =
+                                            image_group_index.fetch_add(1, Ordering::Relaxed);
+                                        if new_index < 16 {
+                                            let current_image_size =
+                                                Vec2::new(gpu_image.size.x, gpu_image.size.y);
+                                            image_group[new_index] = (
+                                                extracted_object.image_handle_id,
+                                                current_image_size,
+                                                &gpu_image.texture_view,
+                                                &gpu_image.sampler,
+                                            );
+                                            (new_index, current_image_size)
+                                        } else {
+                                            panic!();
+                                        }
+                                    } else {
+                                        // The texture is not ready yet
+                                        continue;
+                                    }
+                                }
+                            };
+
                         // By default, the size of the quad is the size of the texture
-                        let mut quad_size = batch_image_size;
+                        let mut quad_size = current_image_size;
 
                         // Calculate vertex data for this item
                         let mut uv_offset_scale: Vec4;
@@ -696,10 +727,10 @@ pub fn prepare_objects(
                         if let Some(rect) = extracted_object.rect {
                             let rect_size = rect.size();
                             uv_offset_scale = Vec4::new(
-                                rect.min.x / batch_image_size.x,
-                                rect.max.y / batch_image_size.y,
-                                rect_size.x / batch_image_size.x,
-                                -rect_size.y / batch_image_size.y,
+                                rect.min.x / current_image_size.x,
+                                rect.max.y / current_image_size.y,
+                                rect_size.x / current_image_size.x,
+                                -rect_size.y / current_image_size.y,
                             );
                             quad_size = rect_size;
                         } else {
@@ -719,12 +750,18 @@ pub fn prepare_objects(
                         if let Some(custom_size) = extracted_object.custom_size {
                             quad_size = custom_size;
                         }
-                        quad_size = Vec2::new(50., 50.);
+
+                        // Texture atlas scale factor
+                        quad_size /= 4.;
 
                         let transform = extracted_object.transform.affine()
                             * Affine3A::from_scale_rotation_translation(
                                 quad_size.extend(1.0),
-                                Quat::IDENTITY,
+                                if extracted_object.rotated {
+                                    Quat::from_rotation_z(90_f32.to_radians())
+                                } else {
+                                    Quat::IDENTITY
+                                },
                                 (quad_size * (-extracted_object.anchor - Vec2::splat(0.5)))
                                     .extend(0.0),
                             );
@@ -734,7 +771,7 @@ pub fn prepare_objects(
                             &transform,
                             &extracted_object.color,
                             &uv_offset_scale,
-                            0,
+                            texture_index as u32,
                         );
                     }
                 });
@@ -742,7 +779,7 @@ pub fn prepare_objects(
                 batches.push((
                     item_index,
                     ObjectBatch {
-                        image_handle_id: batch_image_handle,
+                        bind_group_index: 0,
                         range: index..index + (extracted_layer.len() as u32),
                     },
                 ));
@@ -755,6 +792,11 @@ pub fn prepare_objects(
             let batch_id = commands.spawn(std::mem::take(batch)).id();
             transparent_phase.items[*item_index].entity = batch_id;
         }
+
+        image_bind_groups.values.push((
+            vec![],
+            create_image_bind_group(&image_group.into_inner(), &object_pipeline, &render_device),
+        ));
     }
 
     object_meta
@@ -762,6 +804,32 @@ pub fn prepare_objects(
         .write_buffer(&render_device, &render_queue);
 
     *previous_len = batches.len();
+}
+
+fn create_image_bind_group(
+    image_handles: &[(AssetId<CompressedImage>, Vec2, &TextureView, &Sampler)],
+    object_pipeline: &ObjectPipeline,
+    render_device: &RenderDevice,
+) -> BindGroup {
+    let (texture_views, samplers): (Vec<_>, Vec<_>) = image_handles
+        .iter()
+        .map(|(_, _, texture_view, sampler)| (&***texture_view, &***sampler))
+        .unzip();
+
+    render_device.create_bind_group(
+        Some("object_material_bind_group"),
+        &object_pipeline.material_layout,
+        &[
+            BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::TextureViewArray(&texture_views),
+            },
+            BindGroupEntry {
+                binding: 1,
+                resource: BindingResource::SamplerArray(&samplers),
+            },
+        ],
+    )
 }
 
 pub type DrawObject = (
@@ -782,12 +850,12 @@ impl<P: PhaseItem, const I: usize> RenderCommand<P> for SetObjectViewBindGroup<I
         _item: &P,
         view_uniform: &'_ ViewUniformOffset,
         _entity: (),
-        sprite_meta: SystemParamItem<'w, '_, Self::Param>,
+        object_meta: SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
         pass.set_bind_group(
             I,
-            sprite_meta.into_inner().view_bind_group.as_ref().unwrap(),
+            object_meta.into_inner().view_bind_group.as_ref().unwrap(),
             &[view_uniform.offset],
         );
         RenderCommandResult::Success
@@ -810,14 +878,7 @@ impl<P: PhaseItem, const I: usize> RenderCommand<P> for SetObjectTextureBindGrou
     ) -> RenderCommandResult {
         let image_bind_groups = image_bind_groups.into_inner();
 
-        pass.set_bind_group(
-            I,
-            image_bind_groups
-                .values
-                .get(&batch.image_handle_id)
-                .unwrap(),
-            &[],
-        );
+        pass.set_bind_group(I, &image_bind_groups.values[batch.bind_group_index].1, &[]);
         RenderCommandResult::Success
     }
 }
@@ -833,11 +894,11 @@ impl<P: PhaseItem> RenderCommand<P> for DrawObjectBatch {
         _item: &P,
         _view: (),
         batch: &'_ ObjectBatch,
-        sprite_meta: SystemParamItem<'w, '_, Self::Param>,
+        object_meta: SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
-        let sprite_meta = sprite_meta.into_inner();
-        pass.set_vertex_buffer(0, sprite_meta.instance_buffer.buffer().unwrap().slice(..));
+        let object_meta = object_meta.into_inner();
+        pass.set_vertex_buffer(0, object_meta.instance_buffer.buffer().unwrap().slice(..));
         pass.draw(1..7, batch.range.clone());
         RenderCommandResult::Success
     }

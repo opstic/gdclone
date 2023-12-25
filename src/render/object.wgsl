@@ -43,6 +43,7 @@ fn vertex(in: VertexInput) -> VertexOutput {
     )) * vec4<f32>(vertex_position, 1.0);
     out.uv = vec2<f32>(vertex_position.xy) * in.i_uv_offset_scale.zw + in.i_uv_offset_scale.xy;
     out.color = in.i_color;
+    out.texture_index = in.i_texture_index;
 
     return out;
 }

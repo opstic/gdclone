@@ -1,6 +1,8 @@
+use crate::asset::cocos2d_atlas::{Cocos2dFrame, Cocos2dFrames};
 use crate::level::color::HsvMod;
 use crate::level::section::{GlobalSections, SectionIndex};
 use crate::utils::u8_to_bool;
+use bevy::asset::Handle;
 use bevy::math::{Quat, Vec2, Vec3, Vec3Swizzles};
 use bevy::prelude::{Component, Entity, GlobalTransform, Transform, World};
 use bevy::utils::HashMap;
@@ -84,6 +86,7 @@ include!(concat!(env!("OUT_DIR"), "/generated_object.rs"));
 #[derive(Clone, Component, Default)]
 pub(crate) struct Object {
     pub(crate) id: u64,
+    pub(crate) frame: Cocos2dFrame,
     frame_name: String,
     flip_x: bool,
     flip_y: bool,
@@ -94,6 +97,7 @@ pub(crate) fn spawn_object(
     commands: &mut World,
     object_data: &HashMap<&[u8], &[u8]>,
     global_sections: &GlobalSections,
+    cocos2d_frames: &Cocos2dFrames,
 ) -> Result<Entity, anyhow::Error> {
     let mut object = Object::default();
     let mut object_color = ObjectColor::default();
@@ -106,6 +110,9 @@ pub(crate) fn spawn_object(
     let object_default_data = OBJECT_DEFAULT_DATA
         .get(&object.id)
         .unwrap_or(&ObjectDefaultData::DEFAULT);
+
+    object.frame_name = object_default_data.texture.to_string();
+    object_color.opacity = object_default_data.opacity;
 
     if let Some(x) = object_data.get(b"2".as_ref()) {
         transform.translation.x = std::str::from_utf8(x)?.parse()?;
@@ -127,7 +134,6 @@ pub(crate) fn spawn_object(
     } else {
         transform.translation.z = object_default_data.default_z_order as f32;
     }
-    transform.translation.z = (transform.translation.z + 999.) / (999. + 10000.) * 999.;
     if let Some(scale) = object_data.get(b"32".as_ref()) {
         transform.scale = Vec2::splat(std::str::from_utf8(scale)?.parse()?).extend(0.);
     }
@@ -186,7 +192,16 @@ pub(crate) fn spawn_object(
         ObjectColorKind::None => {}
     }
 
-    object_color.opacity = object_default_data.opacity;
+    let Some(frame_index) = cocos2d_frames.index.get(&object.frame_name) else {
+        return Err(anyhow::Error::msg(format!(
+            "Cannot find texture with name \"{}\"",
+            object.frame_name
+        )));
+    };
+
+    let (frame, image_asset_id) = &cocos2d_frames.frames[*frame_index];
+
+    object.frame = *frame;
 
     let object_id = object.id;
     let object_z_layer = object.z_layer;
@@ -195,7 +210,7 @@ pub(crate) fn spawn_object(
         .insert(transform)
         .insert(GlobalTransform::default())
         .insert(object_color)
-        .insert(object_default_data.color_kind)
+        .insert(Handle::Weak(*image_asset_id))
         .id();
 
     global_sections

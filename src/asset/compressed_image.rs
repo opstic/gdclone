@@ -68,8 +68,8 @@ impl RenderAsset for CompressedImage {
         image: Self::ExtractedAsset,
         (render_device, render_queue, default_sampler): &mut SystemParamItem<Self::Param>,
     ) -> Result<Self::PreparedAsset, PrepareAssetError<Self::ExtractedAsset>> {
+        let mut decompressed_image = Vec::with_capacity(image.data.len() * 3);
         let mut zstd_decoder = Decoder::new(Cursor::new(image.data)).unwrap();
-        let mut decompressed_image = Vec::new();
         zstd_decoder.read_to_end(&mut decompressed_image).unwrap();
 
         let texture = render_device.create_texture_with_data(

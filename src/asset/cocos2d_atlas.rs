@@ -1,9 +1,12 @@
 use std::path::Path;
 
-use bevy::asset::{io::Reader, Asset, AssetLoader, AsyncReadExt, BoxedFuture, Handle, LoadContext};
+use bevy::asset::{
+    io::Reader, Asset, AssetEvent, AssetId, AssetLoader, Assets, AsyncReadExt, BoxedFuture, Handle,
+    LoadContext,
+};
 use bevy::log::info;
 use bevy::math::{Rect, Vec2};
-use bevy::prelude::{FromWorld, Image, World};
+use bevy::prelude::{EventReader, FromWorld, Image, ResMut, Resource, World};
 use bevy::reflect::TypePath;
 use bevy::render::color::SrgbColorSpace;
 use bevy::render::{
@@ -22,7 +25,37 @@ pub struct Cocos2dAtlas {
     frames: HashMap<String, Cocos2dFrame>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Resource, Default)]
+pub(crate) struct Cocos2dFrames {
+    pub(crate) index: HashMap<String, usize>,
+    pub(crate) frames: Vec<(Cocos2dFrame, AssetId<CompressedImage>)>,
+}
+
+pub(crate) fn move_frames_to_resource(
+    mut frames: ResMut<Cocos2dFrames>,
+    mut atlas_events: EventReader<AssetEvent<Cocos2dAtlas>>,
+    mut atlases: ResMut<Assets<Cocos2dAtlas>>,
+) {
+    for atlas_event in atlas_events.iter() {
+        match atlas_event {
+            AssetEvent::Added { id } => {
+                if let Some(atlas) = atlases.get_mut(*id) {
+                    for (texture_name, frame_info) in std::mem::take(&mut atlas.frames) {
+                        let frame_index = frames.frames.len();
+                        frames.index.insert(texture_name, frame_index);
+                        frames.frames.push((frame_info, atlas.texture.id()));
+                    }
+                }
+            }
+            AssetEvent::Removed { .. } => {
+                // TODO: Remove the frames
+            }
+            _ => (),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default)]
 pub(crate) struct Cocos2dFrame {
     pub(crate) rect: Rect,
     pub(crate) anchor: Vec2,
@@ -160,9 +193,15 @@ impl AssetLoader for Cocos2dAtlasLoader {
                                     linear_g *= alpha;
                                     linear_b *= alpha;
 
-                                    pixel[0] = (linear_r * u8::MAX as f32) as u8;
-                                    pixel[1] = (linear_g * u8::MAX as f32) as u8;
-                                    pixel[2] = (linear_b * u8::MAX as f32) as u8;
+                                    pixel[0] = (linear_r.linear_to_nonlinear_srgb()
+                                        * u8::MAX as f32)
+                                        as u8;
+                                    pixel[1] = (linear_g.linear_to_nonlinear_srgb()
+                                        * u8::MAX as f32)
+                                        as u8;
+                                    pixel[2] = (linear_b.linear_to_nonlinear_srgb()
+                                        * u8::MAX as f32)
+                                        as u8;
                                 }
                             });
                         }
