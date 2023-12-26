@@ -23,8 +23,8 @@ var screen_texture: texture_2d<f32>;
 @group(0) @binding(1)
 var texture_sampler: sampler;
 
-fn srgb_to_rgb_simple(color: vec3<f32>) -> vec3<f32> {
-    return pow(color, vec3<f32>(2.2));
+fn srgb_to_rgb(color: vec3<f32>) -> vec3<f32> {
+    return pow((color + 0.055) / 1.055, vec3<f32>(2.4));
 }
 
 @fragment
@@ -32,7 +32,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     // Un-srgb the resulting image
     let color = textureSample(screen_texture, texture_sampler, in.uv);
     return vec4<f32>(
-        srgb_to_rgb_simple(color.rgb),
+        srgb_to_rgb(color.rgb),
         color.a
     );
 }
