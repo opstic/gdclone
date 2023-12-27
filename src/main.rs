@@ -1,6 +1,7 @@
 #![allow(clippy::type_complexity, clippy::too_many_arguments)]
 
 use bevy::app::{App, PluginGroup, Startup, Update};
+use bevy::core_pipeline::tonemapping::{DebandDither, Tonemapping};
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::hierarchy::BuildChildren;
 use bevy::prelude::{
@@ -48,6 +49,8 @@ fn main() {
 
 fn setup(mut commands: Commands) {
     let mut camera_bundle = Camera2dBundle::default();
+    camera_bundle.tonemapping = Tonemapping::None;
+    camera_bundle.deband_dither = DebandDither::Disabled;
     camera_bundle.projection.scale = 1.;
     commands.spawn(camera_bundle);
 
