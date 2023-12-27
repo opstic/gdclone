@@ -18,7 +18,7 @@ use crate::utils::{hsv_to_rgb, rgb_to_hsv, u8_to_bool, U64Hash};
 pub(crate) struct GlobalColorChannels(pub(crate) DashMap<u64, Entity, U64Hash>);
 
 #[derive(Component)]
-pub(crate) enum ColorChannel {
+pub(crate) enum GlobalColorChannel {
     Base {
         color: Color,
         blending: bool,
@@ -32,8 +32,8 @@ pub(crate) enum ColorChannel {
     },
 }
 
-impl ColorChannel {
-    pub(crate) fn parse(color_string: &[u8]) -> Result<(u64, ColorChannel), anyhow::Error> {
+impl GlobalColorChannel {
+    pub(crate) fn parse(color_string: &[u8]) -> Result<(u64, GlobalColorChannel), anyhow::Error> {
         let color_data: AHashMap<&[u8], &[u8]> = de::from_slice(color_string, b'_')?;
         let index = std::str::from_utf8(
             color_data
@@ -67,7 +67,7 @@ impl ColorChannel {
             } else {
                 None
             };
-            ColorChannel::Copy {
+            GlobalColorChannel::Copy {
                 copied_index,
                 copy_opacity,
                 opacity,
@@ -93,7 +93,7 @@ impl ColorChannel {
             } else {
                 false
             };
-            ColorChannel::Base {
+            GlobalColorChannel::Base {
                 color: temp_color,
                 blending,
             }
@@ -102,9 +102,9 @@ impl ColorChannel {
     }
 }
 
-impl Default for ColorChannel {
+impl Default for GlobalColorChannel {
     fn default() -> Self {
-        ColorChannel::Base {
+        GlobalColorChannel::Base {
             color: Color::WHITE,
             blending: false,
         }
@@ -117,14 +117,14 @@ pub(crate) fn construct_color_channel_hierarchy(
 ) {
     let mut channels_to_add: hashbrown::HashMap<u64, Vec<Entity>, U64Hash> =
         hashbrown::HashMap::with_hasher(U64Hash);
-    let mut query = world.query::<&ColorChannel>();
+    let mut query = world.query::<&GlobalColorChannel>();
     for entry_ref in global_color_channels.0.iter() {
         let color_channel_entity = *entry_ref.value();
         let Ok(color_channel) = query.get(world, color_channel_entity) else {
             continue;
         };
         match color_channel {
-            ColorChannel::Copy { copied_index, .. } => {
+            GlobalColorChannel::Copy { copied_index, .. } => {
                 let copying_entity = if let Some(entity) = global_color_channels.0.get(copied_index)
                 {
                     *entity
@@ -139,12 +139,14 @@ pub(crate) fn construct_color_channel_hierarchy(
                     .entity_mut(copying_entity)
                     .add_child(color_channel_entity);
             }
-            ColorChannel::Base { .. } => continue,
+            GlobalColorChannel::Base { .. } => continue,
         }
     }
     for (index, dependent_entities) in channels_to_add {
-        let mut blank_color_channel_entity =
-            world.spawn((ColorChannel::default(), ColorChannelCalculated::default()));
+        let mut blank_color_channel_entity = world.spawn((
+            GlobalColorChannel::default(),
+            ColorChannelCalculated::default(),
+        ));
         for entity in dependent_entities {
             blank_color_channel_entity.add_child(entity);
         }
@@ -160,7 +162,7 @@ pub(crate) struct ColorChannelCalculated(Color, bool);
 pub(crate) fn update_color_channel_calculated(
     mut root_color_channels: Query<
         (
-            Ref<ColorChannel>,
+            Ref<GlobalColorChannel>,
             &mut ColorChannelCalculated,
             Option<&Children>,
         ),
@@ -168,7 +170,7 @@ pub(crate) fn update_color_channel_calculated(
     >,
     child_color_channels: Query<
         (
-            Ref<ColorChannel>,
+            Ref<GlobalColorChannel>,
             &mut ColorChannelCalculated,
             Option<&Children>,
         ),
@@ -179,7 +181,7 @@ pub(crate) fn update_color_channel_calculated(
         |(color_channel, mut color_channel_calculated, children)| {
             let should_update = color_channel.is_changed();
 
-            let ColorChannel::Base { color, blending } = *color_channel else {
+            let GlobalColorChannel::Base { color, blending } = *color_channel else {
                 warn!("Root color channel is a copy channel???");
                 return;
             };
@@ -213,7 +215,7 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
 ) where
     Q: WorldQuery<
         Item<'w> = (
-            Ref<'w, ColorChannel>,
+            Ref<'w, GlobalColorChannel>,
             Mut<'w, ColorChannelCalculated>,
             Option<&'w Children>,
         ),
@@ -227,7 +229,7 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
 
         let should_update = should_update || color_channel.is_changed();
 
-        let ColorChannel::Copy {
+        let GlobalColorChannel::Copy {
             copy_opacity,
             opacity,
             blending,

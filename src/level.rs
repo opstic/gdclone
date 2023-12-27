@@ -21,7 +21,7 @@ use serde::{Deserialize, Deserializer};
 
 use crate::asset::cocos2d_atlas::Cocos2dFrames;
 use crate::asset::TestAssets;
-use crate::level::color::{ColorChannel, ColorChannelCalculated, GlobalColorChannels};
+use crate::level::color::{ColorChannelCalculated, GlobalColorChannel, GlobalColorChannels};
 use crate::level::section::{propagate_section_change, VisibleGlobalSections};
 use crate::level::transform::update_transform;
 use crate::level::{
@@ -122,7 +122,7 @@ fn spawn_level_world(
             1010,
             world
                 .spawn((
-                    ColorChannel::Base {
+                    GlobalColorChannel::Base {
                         color: Color::BLACK,
                         blending: false,
                     },
@@ -139,7 +139,7 @@ fn spawn_level_world(
                 .try_reserve(parsed_colors.len())
                 .unwrap();
             for color_string in parsed_colors {
-                let (index, color_channel) = match ColorChannel::parse(color_string) {
+                let (index, color_channel) = match GlobalColorChannel::parse(color_string) {
                     Ok(result) => result,
                     Err(error) => {
                         warn!("Failed to parse color channel: {:?}", error);
