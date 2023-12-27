@@ -3,18 +3,14 @@ use std::io::Read;
 use std::marker::PhantomData;
 use std::time::Instant;
 
-use crate::asset::cocos2d_atlas::{Cocos2dFrame, Cocos2dFrames};
-use crate::asset::TestAssets;
-use bevy::app::{App, Main, Plugin, PostUpdate, Startup, Update};
+use bevy::app::{App, Main, Plugin, PostUpdate, Update};
 use bevy::asset::{AssetServer, LoadState};
 use bevy::core::FrameCountPlugin;
-use bevy::hierarchy::BuildWorldChildren;
 use bevy::log::{info, warn};
-use bevy::math::{Quat, Vec3Swizzles};
 use bevy::prelude::{
-    default, Commands, Component, IntoSystemConfigs, Query, Res, ResMut, Resource, Time, Transform,
-    TransformBundle, With, World,
+    Component, IntoSystemConfigs, Query, Res, ResMut, Resource, Time, Transform, With, World,
 };
+use bevy::render::color::Color;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::time::TimePlugin;
 use bevy::utils::HashMap;
@@ -23,16 +19,19 @@ use futures_lite::future;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
-use crate::level::section::{propagate_section_change, SectionIndex, VisibleGlobalSections};
+use crate::asset::cocos2d_atlas::Cocos2dFrames;
+use crate::asset::TestAssets;
+use crate::level::color::{ColorChannel, ColorChannelCalculated, GlobalColorChannels};
+use crate::level::section::{propagate_section_change, VisibleGlobalSections};
 use crate::level::transform::update_transform;
 use crate::level::{
     color::ObjectColorKind,
-    object::Object,
+    color::{update_color_channel_calculated, update_object_color},
     section::{update_entity_section, update_global_sections, GlobalSections, Section},
 };
 use crate::utils::{decompress, decrypt};
 
-mod color;
+pub(crate) mod color;
 mod de;
 pub(crate) mod object;
 pub(crate) mod section;
@@ -88,18 +87,22 @@ fn spawn_level_world(
         sub_app.add_systems(
             PostUpdate,
             (
+                update_color_channel_calculated,
                 update_entity_section.before(update_global_sections),
                 propagate_section_change
                     .after(update_entity_section)
                     .before(update_global_sections),
                 update_global_sections,
                 update_transform.after(update_global_sections),
+                update_object_color
+                    .after(update_global_sections)
+                    .after(update_color_channel_calculated),
             ),
         );
 
         let mut world = sub_app.world;
 
-        let mut save_file = File::open("assets/theeschaton.txt").unwrap();
+        let mut save_file = File::open("assets/devoreur1.txt").unwrap();
         let mut save_data = Vec::new();
         let _ = save_file.read_to_end(&mut save_data);
         let start_all = Instant::now();
@@ -113,13 +116,57 @@ fn spawn_level_world(
         let parsed = decom_inner_level.parse().unwrap();
         info!("Parsing took {:?}", start.elapsed());
 
+        let mut global_color_channels = GlobalColorChannels::default();
+
+        global_color_channels.0.insert(
+            1010,
+            world
+                .spawn((
+                    ColorChannel::Base {
+                        color: Color::BLACK,
+                        blending: false,
+                    },
+                    ColorChannelCalculated::default(),
+                ))
+                .id(),
+        );
+
+        start = Instant::now();
+        if let Some(colors_string) = parsed.start_object.get(b"kS38".as_ref()) {
+            let parsed_colors: Vec<&[u8]> = de::from_slice(colors_string, b'|').unwrap();
+            global_color_channels
+                .0
+                .try_reserve(parsed_colors.len())
+                .unwrap();
+            for color_string in parsed_colors {
+                let (index, color_channel) = match ColorChannel::parse(color_string) {
+                    Ok(result) => result,
+                    Err(error) => {
+                        warn!("Failed to parse color channel: {:?}", error);
+                        continue;
+                    }
+                };
+                let color_channel_entity = world
+                    .spawn((color_channel, ColorChannelCalculated::default()))
+                    .id();
+
+                global_color_channels.0.insert(index, color_channel_entity);
+            }
+        }
+        color::construct_color_channel_hierarchy(&mut world, &mut global_color_channels);
+        info!("Color channel parsing took {:?}", start.elapsed());
+
         let global_sections = GlobalSections::default();
 
         start = Instant::now();
         for object_data in &parsed.objects {
-            if let Err(error) =
-                object::spawn_object(&mut world, object_data, &global_sections, &cocos2d_frames)
-            {
+            if let Err(error) = object::spawn_object(
+                &mut world,
+                object_data,
+                &global_sections,
+                &global_color_channels,
+                &cocos2d_frames,
+            ) {
                 warn!("Failed to spawn object: {:?}", error);
             }
         }
@@ -130,6 +177,7 @@ fn spawn_level_world(
 
         world.insert_resource(global_sections);
         world.insert_resource(VisibleGlobalSections { x: 0..6, y: 0..8 });
+        world.insert_resource(global_color_channels);
 
         info!("{} sections used", section_count);
 

@@ -8,7 +8,6 @@ use bevy::log::info;
 use bevy::math::{Rect, Vec2};
 use bevy::prelude::{EventReader, FromWorld, Image, ResMut, Resource, World};
 use bevy::reflect::TypePath;
-use bevy::render::color::SrgbColorSpace;
 use bevy::render::{
     renderer::RenderDevice,
     texture::{CompressedImageFormats, ImageSampler, ImageType},
@@ -18,6 +17,7 @@ use bevy::utils::{HashMap, Instant};
 use serde::{Deserialize, Deserializer};
 
 use crate::asset::compressed_image::CompressedImage;
+use crate::utils::fast_scale;
 
 #[derive(Asset, TypePath, Debug)]
 pub struct Cocos2dAtlas {
@@ -36,7 +36,7 @@ pub(crate) fn move_frames_to_resource(
     mut atlas_events: EventReader<AssetEvent<Cocos2dAtlas>>,
     mut atlases: ResMut<Assets<Cocos2dAtlas>>,
 ) {
-    for atlas_event in atlas_events.iter() {
+    for atlas_event in atlas_events.read() {
         match atlas_event {
             AssetEvent::Added { id } => {
                 if let Some(atlas) = atlases.get_mut(*id) {
@@ -154,7 +154,7 @@ impl AssetLoader for Cocos2dAtlasLoader {
                         frame_name,
                         Cocos2dFrame {
                             rect: frame_rect,
-                            anchor: anchor * 2.,
+                            anchor,
                             rotated: frame.texture_rotated,
                         },
                     );
@@ -180,32 +180,16 @@ impl AssetLoader for Cocos2dAtlasLoader {
                         for chunk in texture.data.chunks_mut(thread_chunk_size) {
                             scope.spawn(async move {
                                 for pixel in chunk.chunks_exact_mut(4) {
-                                    let mut linear_r = (pixel[0] as f32 / u8::MAX as f32)
-                                        .nonlinear_to_linear_srgb();
-                                    let mut linear_g = (pixel[1] as f32 / u8::MAX as f32)
-                                        .nonlinear_to_linear_srgb();
-                                    let mut linear_b = (pixel[2] as f32 / u8::MAX as f32)
-                                        .nonlinear_to_linear_srgb();
-
-                                    let alpha = pixel[3] as f32 / u8::MAX as f32;
-
-                                    linear_r *= alpha;
-                                    linear_g *= alpha;
-                                    linear_b *= alpha;
-
-                                    pixel[0] = (linear_r.linear_to_nonlinear_srgb()
-                                        * u8::MAX as f32)
-                                        as u8;
-                                    pixel[1] = (linear_g.linear_to_nonlinear_srgb()
-                                        * u8::MAX as f32)
-                                        as u8;
-                                    pixel[2] = (linear_b.linear_to_nonlinear_srgb()
-                                        * u8::MAX as f32)
-                                        as u8;
+                                    pixel[0] = fast_scale(pixel[0], pixel[3]);
+                                    pixel[1] = fast_scale(pixel[1], pixel[3]);
+                                    pixel[2] = fast_scale(pixel[2], pixel[3]);
                                 }
                             });
                         }
                     });
+
+                    texture.texture_descriptor.format =
+                        texture.texture_descriptor.format.remove_srgb_suffix();
 
                     Ok(CompressedImage::from(texture))
                 });

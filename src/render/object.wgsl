@@ -63,6 +63,10 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
 #else
     var color = textureSample(sprite_texture, sprite_sampler, in.uv);
 #endif
+
+#ifdef SQUARE_ALPHA
+    color = color * color.a;
+#endif
     color = in.color * color;
 
     return color;

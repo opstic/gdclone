@@ -1,15 +1,15 @@
-use crate::asset::cocos2d_atlas::{Cocos2dFrame, Cocos2dFrames};
-use crate::level::color::HsvMod;
-use crate::level::section::{GlobalSections, Section, SectionIndex};
-use crate::utils::{u8_to_bool, U64Hash};
 use bevy::asset::Handle;
 use bevy::hierarchy::BuildWorldChildren;
 use bevy::math::{Quat, Vec2, Vec3, Vec3Swizzles};
-use bevy::prelude::{Component, Entity, GlobalTransform, Transform, World};
+use bevy::prelude::{Color, Component, Entity, GlobalTransform, Transform, World};
 use bevy::utils::{default, HashMap};
 use indexmap::IndexSet;
 
+use crate::asset::cocos2d_atlas::{Cocos2dFrame, Cocos2dFrames};
+use crate::level::color::{GlobalColorChannels, HsvMod};
 use crate::level::color::{ObjectColor, ObjectColorKind};
+use crate::level::section::{GlobalSections, Section, SectionIndex};
+use crate::utils::{u8_to_bool, U64Hash};
 
 struct ObjectDefaultData {
     texture: &'static str,
@@ -89,8 +89,9 @@ include!(concat!(env!("OUT_DIR"), "/generated_object.rs"));
 pub(crate) struct Object {
     pub(crate) id: u64,
     pub(crate) frame: Cocos2dFrame,
-    flip_x: bool,
-    flip_y: bool,
+    pub(crate) anchor: Vec2,
+    pub(crate) flip_x: bool,
+    pub(crate) flip_y: bool,
     pub(crate) z_layer: i32,
 }
 
@@ -98,6 +99,7 @@ pub(crate) fn spawn_object(
     world: &mut World,
     object_data: &HashMap<&[u8], &[u8]>,
     global_sections: &GlobalSections,
+    global_color_channels: &GlobalColorChannels,
     cocos2d_frames: &Cocos2dFrames,
 ) -> Result<Entity, anyhow::Error> {
     let mut object = Object::default();
@@ -112,7 +114,8 @@ pub(crate) fn spawn_object(
         .get(&object.id)
         .unwrap_or(&ObjectDefaultData::DEFAULT);
 
-    object_color.opacity = object_default_data.opacity;
+    object_color.object_opacity = object_default_data.opacity;
+    object_color.object_color_kind = object_default_data.color_kind;
 
     if let Some(x) = object_data.get(b"2".as_ref()) {
         transform.translation.x = std::str::from_utf8(x)?.parse()?;
@@ -183,6 +186,7 @@ pub(crate) fn spawn_object(
             object_color.hsv = detail_hsv;
         }
         ObjectColorKind::Black => {
+            object_color.color = Color::BLACK;
             object_color.channel_id = if base_color_channel != u64::MAX {
                 base_color_channel
             } else {
@@ -190,6 +194,10 @@ pub(crate) fn spawn_object(
             };
         }
         ObjectColorKind::None => {}
+    }
+
+    if let Some(color_channel_entity) = global_color_channels.0.get(&object_color.channel_id) {
+        object_color.channel_entity = *color_channel_entity;
     }
 
     let Some(frame_index) = cocos2d_frames.index.get(object_default_data.texture) else {
@@ -232,6 +240,7 @@ pub(crate) fn spawn_object(
         detail_hsv,
         object_z_layer,
         &mut global_section,
+        global_color_channels,
         cocos2d_frames,
         entity,
     )?;
@@ -248,6 +257,7 @@ fn recursive_spawn_children(
     detail_hsv: Option<HsvMod>,
     z_layer: i32,
     mut global_section: &mut IndexSet<Entity, U64Hash>,
+    global_color_channels: &GlobalColorChannels,
     cocos2d_frames: &Cocos2dFrames,
     parent_entity: Entity,
 ) -> Result<(), anyhow::Error> {
@@ -268,6 +278,7 @@ fn recursive_spawn_children(
                 object_color.hsv = detail_hsv;
             }
             ObjectColorKind::Black => {
+                object_color.color = Color::BLACK;
                 object_color.channel_id = if base_color_channel != u64::MAX {
                     base_color_channel
                 } else {
@@ -277,7 +288,8 @@ fn recursive_spawn_children(
             ObjectColorKind::None => {}
         }
 
-        object_color.opacity = child.opacity;
+        object_color.object_opacity = child.opacity;
+        object_color.object_color_kind = child.color_kind;
 
         let flip = Vec2::new(
             if child.flip_x { -1. } else { 1. },
@@ -288,6 +300,12 @@ fn recursive_spawn_children(
             rotation: Quat::from_rotation_z(child.rotation.to_radians()),
             scale: (child.scale * flip).extend(0.),
         };
+
+        object.anchor = child.anchor * flip;
+
+        if let Some(color_channel_entity) = global_color_channels.0.get(&object_color.channel_id) {
+            object_color.channel_entity = *color_channel_entity;
+        }
 
         let Some(frame_index) = cocos2d_frames.index.get(child.texture) else {
             return Err(anyhow::Error::msg(format!(
@@ -324,6 +342,7 @@ fn recursive_spawn_children(
             detail_hsv,
             z_layer,
             global_section,
+            global_color_channels,
             cocos2d_frames,
             child_entity,
         )?;

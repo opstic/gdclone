@@ -32,6 +32,58 @@ pub(crate) const fn fast_scale(val: u8, x: u8) -> u8 {
 }
 
 #[inline(always)]
+pub(crate) fn rgb_to_hsv([r, g, b]: [f32; 3]) -> (f32, f32, f32) {
+    let min = r.min(g).min(b);
+    let max = r.max(g).max(b);
+
+    let delta = max - min;
+
+    let mut h = if r == max {
+        // Between yellow & magenta
+        (g - b) / delta
+    } else if g == max {
+        // Between cyan & yellow
+        2. + (b - r) / delta
+    } else {
+        // Between magenta & cyan
+        4. + (r - g) / delta
+    };
+
+    // To degrees
+    h *= 60.;
+
+    h = h.rem_euclid(360.);
+
+    (h, if max == 0. { 0. } else { delta / max }, max)
+}
+
+#[inline(always)]
+pub(crate) fn hsv_to_rgb((h, s, v): (f32, f32, f32)) -> [f32; 3] {
+    if h.is_nan() {
+        return [v, v, v];
+    }
+
+    let h = h.rem_euclid(360.);
+    let s = s.clamp(0., 1.);
+    let v = v.clamp(0., 1.);
+
+    let h = h / 60.;
+    let p = v * (1. - s);
+    let q = v * (1. - (s * h.fract()));
+    let t = v * (1. - (s * (1. - h.fract())));
+
+    match (h as u8) % 6 {
+        0 => [v, t, p],
+        1 => [q, v, p],
+        2 => [p, v, t],
+        3 => [p, q, v],
+        4 => [t, p, v],
+        5 => [v, p, q],
+        _ => unreachable!(),
+    }
+}
+
+#[inline(always)]
 pub(crate) fn decrypt<const KEY: u8>(bytes: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
     const BUFFER_SIZE: usize = 512;
     const RPOSITION_LIMIT: usize = 8;

@@ -80,7 +80,7 @@ fn main() {
     for (k, v) in hashmap {
         let mut object_string = String::new();
         write_object(v, &mut object_string);
-        phf_map.entry(k, &*object_string);
+        phf_map.entry(k, &object_string);
     }
 
     writeln!(

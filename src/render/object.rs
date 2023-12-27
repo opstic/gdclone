@@ -4,29 +4,30 @@ use std::ops::Range;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use bevy::app::{App, Plugin};
-use bevy::asset::{load_internal_asset, AssetContainer, AssetId, Handle};
+use bevy::asset::{load_internal_asset, AssetId, Handle};
 use bevy::core::{Pod, Zeroable};
 use bevy::core_pipeline::core_2d::Transparent2d;
-use bevy::ecs::system::lifetimeless::{Read, SRes};
-use bevy::ecs::system::{SystemParamItem, SystemState};
+use bevy::ecs::system::{
+    lifetimeless::{Read, SRes},
+    SystemParamItem, SystemState,
+};
 use bevy::log::warn;
 use bevy::math::{Affine3A, Quat, Rect, Vec2, Vec4};
 use bevy::prelude::{
     Color, Commands, Component, Entity, FromWorld, GlobalTransform, Image, IntoSystemConfigs,
-    Local, Msaa, Query, Res, ResMut, Resource, Shader, World,
+    Local, Msaa, Query, Res, ResMut, Resource, Shader, Transform, World,
 };
-use bevy::render::render_asset::RenderAssets;
-use bevy::render::render_phase::{
-    AddRenderCommand, DrawFunctions, PhaseItem, RenderCommand, RenderCommandResult, RenderPhase,
-    SetItemPipeline, TrackedRenderPass,
-};
-use bevy::render::render_resource::{
-    BindGroup, BindGroupEntries, BindGroupEntry, BindingResource, BufferUsages, BufferVec,
-    PipelineCache, Sampler, TextureView, WgpuFeatures,
-};
-use bevy::render::view::{ViewUniformOffset, ViewUniforms};
 use bevy::render::{
     mesh::PrimitiveTopology,
+    render_asset::RenderAssets,
+    render_phase::{
+        AddRenderCommand, DrawFunctions, PhaseItem, RenderCommand, RenderCommandResult,
+        RenderPhase, SetItemPipeline, TrackedRenderPass,
+    },
+    render_resource::{
+        BindGroup, BindGroupEntries, BindGroupEntry, BindingResource, BufferUsages, BufferVec,
+        PipelineCache, Sampler, TextureView, WgpuFeatures,
+    },
     render_resource::{
         BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState,
         BufferBindingType, ColorTargetState, ColorWrites, FragmentState, FrontFace,
@@ -39,18 +40,17 @@ use bevy::render::{
     renderer::{RenderDevice, RenderQueue},
     texture::{BevyDefault, DefaultImageSampler, GpuImage, ImageSampler, TextureFormatPixelInfo},
     view::ViewUniform,
+    view::{ViewUniformOffset, ViewUniforms},
     Extract, ExtractSchedule, Render, RenderApp, RenderSet,
 };
 use bevy::tasks::ComputeTaskPool;
-use bevy::utils::syncunsafecell::SyncUnsafeCell;
-use bevy::utils::{FloatOrd, HashMap};
-use futures_lite::StreamExt;
+use bevy::utils::{syncunsafecell::SyncUnsafeCell, FloatOrd};
 
-use crate::asset::cocos2d_atlas::Cocos2dFrames;
-use crate::asset::{cocos2d_atlas::Cocos2dAtlas, compressed_image::CompressedImage};
-use crate::level::section::SectionIndex;
+use crate::asset::compressed_image::CompressedImage;
 use crate::level::{
+    color::ObjectColor,
     object::Object,
+    section::SectionIndex,
     section::{GlobalSections, VisibleGlobalSections},
     LevelWorld,
 };
@@ -224,7 +224,8 @@ bitflags::bitflags! {
     // MSAA uses the highest 3 bits for the MSAA log2(sample count) to support up to 128x MSAA.
     pub struct ObjectPipelineKey: u32 {
         const NONE                              = 0;
-        const NO_TEXTURE_ARRAY                  = (1 << 0);
+        const SQUARE_ALPHA                      = (1 << 0);
+        const NO_TEXTURE_ARRAY                  = (1 << 1);
         const MSAA_RESERVED_BITS                = Self::MSAA_MASK_BITS << Self::MSAA_SHIFT_BITS;
     }
 }
@@ -268,6 +269,10 @@ impl SpecializedRenderPipeline for ObjectPipeline {
         ];
 
         let mut shader_defs = Vec::new();
+
+        if key.contains(ObjectPipelineKey::SQUARE_ALPHA) {
+            shader_defs.push("SQUARE_ALPHA".into());
+        }
 
         if key.contains(ObjectPipelineKey::NO_TEXTURE_ARRAY) {
             shader_defs.push("NO_TEXTURE_ARRAY".into());
@@ -319,6 +324,7 @@ impl SpecializedRenderPipeline for ObjectPipeline {
 pub struct ExtractedObject {
     transform: GlobalTransform,
     color: Color,
+    blending: bool,
     /// Select an area of the texture
     rect: Option<Rect>,
     /// Change the on-screen size of the sprite
@@ -347,13 +353,13 @@ impl LayerIndex {
 }
 
 #[derive(Default, Resource)]
-struct ExtractedLayers {
+pub(crate) struct ExtractedLayers {
     layers: Vec<(LayerIndex, SyncUnsafeCell<Vec<ExtractedObject>>)>,
     total_size: usize,
 }
 
 #[derive(Default, Resource)]
-struct ExtractSystemStateCache {
+pub(crate) struct ExtractSystemStateCache {
     cached_system_state: Option<
         SystemState<(
             Res<'static, GlobalSections>,
@@ -364,6 +370,7 @@ struct ExtractSystemStateCache {
                 (
                     &'static GlobalTransform,
                     &'static Object,
+                    &'static ObjectColor,
                     &'static Handle<CompressedImage>,
                 ),
             >,
@@ -381,19 +388,11 @@ pub(crate) fn extract_objects(
         return;
     };
 
-    let valid_system_state = {
-        if let Some(system_state) = &mut extract_system_state_cache.cached_system_state {
-            if system_state.matches_world(world.id()) {
-                Some(system_state)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    };
-
-    let system_state = match valid_system_state {
+    let system_state = match extract_system_state_cache
+        .cached_system_state
+        .as_mut()
+        .filter(|system_state| system_state.matches_world(world.id()))
+    {
         Some(system_state) => system_state,
         None => {
             // Should be fine since the queries are read-only
@@ -408,7 +407,12 @@ pub(crate) fn extract_objects(
             let mut system_state: SystemState<(
                 Res<GlobalSections>,
                 Res<VisibleGlobalSections>,
-                Query<(&GlobalTransform, &Object, &Handle<CompressedImage>)>,
+                Query<(
+                    &GlobalTransform,
+                    &Object,
+                    &ObjectColor,
+                    &Handle<CompressedImage>,
+                )>,
             )> = SystemState::new(world_mut);
 
             extract_system_state_cache.cached_system_state = Some(system_state);
@@ -436,16 +440,20 @@ pub(crate) fn extract_objects(
                 continue;
             };
 
-            for (transform, object, image_handle) in objects.iter_many(global_section.value()) {
+            for (transform, object, object_color, image_handle) in
+                objects.iter_many(global_section.value())
+            {
+                let z_layer = object.z_layer - if object_color.blending { 1 } else { 0 };
+
                 let extracted_layer = if let Some((_, extracted_layer)) = extracted_layers
                     .layers
                     .iter_mut()
-                    .find(|(layer_index, _)| layer_index.0 == object.z_layer)
+                    .find(|(layer_index, _)| layer_index.0 == z_layer)
                 {
                     extracted_layer
                 } else {
                     extracted_layers.layers.push((
-                        LayerIndex(object.z_layer),
+                        LayerIndex(z_layer),
                         SyncUnsafeCell::new(Vec::with_capacity(5000)),
                     ));
                     let layer_index = extracted_layers.layers.len() - 1;
@@ -456,14 +464,15 @@ pub(crate) fn extract_objects(
 
                 extracted_layer.push(ExtractedObject {
                     transform: *transform,
-                    color: Color::WHITE,
+                    color: object_color.color,
+                    blending: object_color.blending,
                     rect: Some(object.frame.rect),
                     custom_size: None,
                     image_handle_id: image_handle.id(),
                     flip_x: false,
                     flip_y: false,
-                    anchor: object.frame.anchor,
-                    z_layer: object.z_layer,
+                    anchor: object.frame.anchor + object.anchor,
+                    z_layer,
                     rotated: object.frame.rotated,
                 });
             }
@@ -486,7 +495,7 @@ impl ObjectInstance {
     #[inline]
     fn from(
         transform: &Affine3A,
-        color: &Color,
+        color: [f32; 4],
         uv_offset_scale: &Vec4,
         texture_index: u32,
     ) -> Self {
@@ -497,8 +506,7 @@ impl ObjectInstance {
                 transpose_model_3x3.y_axis.extend(transform.translation.y),
                 transpose_model_3x3.z_axis.extend(transform.translation.z),
             ],
-            // i_color: color.as_linear_rgba_f32(),
-            i_color: [0.25, 0.25, 0.25, 0.],
+            i_color: color,
             i_uv_offset_scale: uv_offset_scale.to_array(),
             i_texture_index: texture_index,
             _padding: [0; 3],
@@ -542,6 +550,11 @@ pub(crate) fn queue_objects(
     let draw_object_function = draw_functions.read().id::<DrawObject>();
 
     let pipeline = pipelines.specialize(&pipeline_cache, &object_pipeline, view_key);
+    let blending_pipeline = pipelines.specialize(
+        &pipeline_cache,
+        &object_pipeline,
+        view_key | ObjectPipelineKey::SQUARE_ALPHA,
+    );
 
     for mut transparent_phase in &mut phases {
         transparent_phase
@@ -562,7 +575,11 @@ pub(crate) fn queue_objects(
             let entity_bits = 55555_u64 << 32 | (layer_index.to_u32() as u64);
             transparent_phase.add(Transparent2d {
                 draw_function: draw_object_function,
-                pipeline,
+                pipeline: if (layer_index.0 % 2).abs() == 0 {
+                    blending_pipeline
+                } else {
+                    pipeline
+                },
                 // Instead of passing an `Entity`, use this field to pass the index of this layer
                 entity: Entity::from_bits(entity_bits),
                 sort_key: FloatOrd(layer_index.0 as f32),
@@ -597,7 +614,7 @@ pub struct ImageBindGroups {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn prepare_objects(
+pub(crate) fn prepare_objects(
     mut commands: Commands,
     mut previous_len: Local<usize>,
     render_device: Res<RenderDevice>,
@@ -754,22 +771,39 @@ pub fn prepare_objects(
                         // Texture atlas scale factor
                         quad_size /= 4.;
 
-                        let transform = extracted_object.transform.affine()
+                        let transform =
+                            extracted_object
+                                .transform
+                                .mul_transform(Transform::from_rotation(
+                                    if extracted_object.rotated {
+                                        Quat::from_rotation_z(90_f32.to_radians())
+                                    } else {
+                                        Quat::IDENTITY
+                                    },
+                                ));
+
+                        let transform = transform.affine()
                             * Affine3A::from_scale_rotation_translation(
                                 quad_size.extend(1.0),
-                                if extracted_object.rotated {
-                                    Quat::from_rotation_z(90_f32.to_radians())
-                                } else {
-                                    Quat::IDENTITY
-                                },
+                                Quat::IDENTITY,
                                 (quad_size * (-extracted_object.anchor - Vec2::splat(0.5)))
                                     .extend(0.0),
                             );
 
+                        let mut color = extracted_object.color.as_rgba_f32();
+
+                        color[0] *= color[3];
+                        color[1] *= color[3];
+                        color[2] *= color[3];
+
+                        if extracted_object.blending {
+                            color[3] = 0.;
+                        }
+
                         // Store the vertex data and add the item to the render phase
                         *buffer_entry = ObjectInstance::from(
                             &transform,
-                            &extracted_object.color,
+                            color,
                             &uv_offset_scale,
                             texture_index as u32,
                         );
