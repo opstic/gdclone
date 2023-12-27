@@ -224,7 +224,7 @@ bitflags::bitflags! {
     // MSAA uses the highest 3 bits for the MSAA log2(sample count) to support up to 128x MSAA.
     pub struct ObjectPipelineKey: u32 {
         const NONE                              = 0;
-        const SQUARE_ALPHA                      = (1 << 0);
+        const SQUARE_TEXTURE_ALPHA              = (1 << 0);
         const NO_TEXTURE_ARRAY                  = (1 << 1);
         const MSAA_RESERVED_BITS                = Self::MSAA_MASK_BITS << Self::MSAA_SHIFT_BITS;
     }
@@ -270,8 +270,8 @@ impl SpecializedRenderPipeline for ObjectPipeline {
 
         let mut shader_defs = Vec::new();
 
-        if key.contains(ObjectPipelineKey::SQUARE_ALPHA) {
-            shader_defs.push("SQUARE_ALPHA".into());
+        if key.contains(ObjectPipelineKey::SQUARE_TEXTURE_ALPHA) {
+            shader_defs.push("SQUARE_TEXTURE_ALPHA".into());
         }
 
         if key.contains(ObjectPipelineKey::NO_TEXTURE_ARRAY) {
@@ -553,7 +553,7 @@ pub(crate) fn queue_objects(
     let blending_pipeline = pipelines.specialize(
         &pipeline_cache,
         &object_pipeline,
-        view_key | ObjectPipelineKey::SQUARE_ALPHA,
+        view_key | ObjectPipelineKey::SQUARE_TEXTURE_ALPHA,
     );
 
     for mut transparent_phase in &mut phases {
