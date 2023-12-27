@@ -21,13 +21,16 @@ use serde::{Deserialize, Deserializer};
 
 use crate::asset::cocos2d_atlas::Cocos2dFrames;
 use crate::asset::TestAssets;
-use crate::level::color::{ColorChannelCalculated, GlobalColorChannel, GlobalColorChannels};
-use crate::level::section::{propagate_section_change, VisibleGlobalSections};
-use crate::level::transform::update_transform;
 use crate::level::{
-    color::ObjectColorKind,
-    color::{update_color_channel_calculated, update_object_color},
-    section::{update_entity_section, update_global_sections, GlobalSections, Section},
+    color::{
+        update_color_channel_calculated, update_object_color, ColorChannelCalculated,
+        GlobalColorChannel, GlobalColorChannels, ObjectColorKind,
+    },
+    section::{
+        propagate_section_change, update_entity_section, update_global_sections, GlobalSections,
+        Section, VisibleGlobalSections,
+    },
+    transform::update_transform,
 };
 use crate::utils::{decompress, decrypt};
 
