@@ -27,7 +27,7 @@ use crate::level::{
         update_color_channel_calculated, update_object_color, ColorChannelCalculated,
         GlobalColorChannel, GlobalColorChannels, ObjectColorKind,
     },
-    group::clear_group_delta,
+    group::{clear_group_delta, update_object_group, update_object_group_calculated},
     section::{
         propagate_section_change, update_entity_section, update_global_sections, GlobalSections,
         Section, VisibleGlobalSections,
@@ -95,6 +95,8 @@ fn spawn_level_world(
         sub_app.add_systems(
             PostUpdate,
             (
+                update_object_group,
+                update_object_group_calculated.after(update_object_group),
                 update_color_channel_calculated,
                 update_entity_section.before(update_global_sections),
                 propagate_section_change
@@ -104,6 +106,7 @@ fn spawn_level_world(
                 update_transform.after(update_global_sections),
                 update_object_color
                     .after(update_global_sections)
+                    .after(update_object_group_calculated)
                     .after(update_color_channel_calculated),
             ),
         );

@@ -11,6 +11,7 @@ use dashmap::DashMap;
 use serde::Deserialize;
 
 use crate::level::de;
+use crate::level::group::ObjectGroupsCalculated;
 use crate::level::section::{GlobalSections, SectionIndex, VisibleGlobalSections};
 use crate::utils::{hsv_to_rgb, rgb_to_hsv, u8_to_bool, U64Hash};
 
@@ -297,7 +298,7 @@ pub(crate) fn update_object_color(
     global_sections: Res<GlobalSections>,
     visible_global_sections: Res<VisibleGlobalSections>,
     global_color_channels: Res<GlobalColorChannels>,
-    mut objects: Query<&mut ObjectColor>,
+    mut objects: Query<(&ObjectGroupsCalculated, &mut ObjectColor)>,
     color_channels: Query<Ref<ColorChannelCalculated>>,
 ) {
     for x in visible_global_sections.x.clone() {
@@ -309,7 +310,7 @@ pub(crate) fn update_object_color(
 
             let mut iter = objects.iter_many_mut(&*global_section);
 
-            while let Some(mut object_color) = iter.fetch_next() {
+            while let Some((object_groups_calculated, mut object_color)) = iter.fetch_next() {
                 let Ok(color_channel_calculated) = color_channels.get(object_color.channel_entity)
                 else {
                     // TODO: Try to get the new channel
@@ -331,7 +332,15 @@ pub(crate) fn update_object_color(
                     color_channel_calculated.0
                 };
 
-                color.set_a(object_color.object_opacity * color.a());
+                color.set_a(
+                    if object_groups_calculated.enabled {
+                        1.
+                    } else {
+                        0.
+                    } * object_groups_calculated.opacity
+                        * object_color.object_opacity
+                        * color.a(),
+                );
 
                 object_color.color = color;
                 object_color.blending = color_channel_calculated.1;

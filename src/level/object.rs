@@ -9,6 +9,7 @@ use crate::asset::cocos2d_atlas::{Cocos2dFrame, Cocos2dFrames};
 use crate::level::color::{GlobalColorChannels, HsvMod};
 use crate::level::color::{ObjectColor, ObjectColorKind};
 use crate::level::de;
+use crate::level::group::ObjectGroupsCalculated;
 use crate::level::section::{GlobalSections, Section, SectionIndex};
 use crate::utils::{u8_to_bool, U64Hash};
 
@@ -223,6 +224,7 @@ pub(crate) fn spawn_object(
             transform,
             GlobalTransform::default(),
             Handle::Weak(*image_asset_id),
+            ObjectGroupsCalculated::default(),
         ))
         .id();
 
@@ -344,6 +346,7 @@ fn recursive_spawn_children(
                 transform,
                 GlobalTransform::default(),
                 Handle::Weak(*image_asset_id),
+                ObjectGroupsCalculated::default(),
             ))
             .id();
 
