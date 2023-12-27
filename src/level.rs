@@ -126,19 +126,6 @@ fn spawn_level_world(
 
         let mut global_color_channels = GlobalColorChannels::default();
 
-        global_color_channels.0.insert(
-            1010,
-            world
-                .spawn((
-                    GlobalColorChannel::Base {
-                        color: Color::BLACK,
-                        blending: false,
-                    },
-                    ColorChannelCalculated::default(),
-                ))
-                .id(),
-        );
-
         start = Instant::now();
         if let Some(colors_string) = parsed.start_object.get(b"kS38".as_ref()) {
             let parsed_colors: Vec<&[u8]> = de::from_slice(colors_string, b'|').unwrap();
@@ -161,6 +148,20 @@ fn spawn_level_world(
                 global_color_channels.0.insert(index, color_channel_entity);
             }
         }
+
+        global_color_channels.0.insert(
+            1010,
+            world
+                .spawn((
+                    GlobalColorChannel::Base {
+                        color: Color::BLACK,
+                        blending: false,
+                    },
+                    ColorChannelCalculated::default(),
+                ))
+                .id(),
+        );
+
         color::construct_color_channel_hierarchy(&mut world, &mut global_color_channels);
         info!("Color channel parsing took {:?}", start.elapsed());
 
