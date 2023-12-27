@@ -3,11 +3,12 @@ use bevy::hierarchy::BuildWorldChildren;
 use bevy::math::{Quat, Vec2, Vec3, Vec3Swizzles};
 use bevy::prelude::{Color, Component, Entity, GlobalTransform, Transform, World};
 use bevy::utils::{default, HashMap};
-use indexmap::IndexSet;
+use indexmap::{IndexMap, IndexSet};
 
 use crate::asset::cocos2d_atlas::{Cocos2dFrame, Cocos2dFrames};
 use crate::level::color::{GlobalColorChannels, HsvMod};
 use crate::level::color::{ObjectColor, ObjectColorKind};
+use crate::level::de;
 use crate::level::section::{GlobalSections, Section, SectionIndex};
 use crate::utils::{u8_to_bool, U64Hash};
 
@@ -99,6 +100,7 @@ pub(crate) fn spawn_object(
     world: &mut World,
     object_data: &HashMap<&[u8], &[u8]>,
     global_sections: &GlobalSections,
+    global_groups: &mut IndexMap<u64, Vec<Entity>, U64Hash>,
     global_color_channels: &GlobalColorChannels,
     cocos2d_frames: &Cocos2dFrames,
 ) -> Result<Entity, anyhow::Error> {
@@ -231,6 +233,14 @@ pub(crate) fn spawn_object(
 
     global_section.insert(entity);
 
+    let groups: Vec<u64> = if let Some(group_string) = object_data.get(b"57".as_ref()) {
+        de::from_slice(group_string, b'.')?
+    } else {
+        Vec::new()
+    };
+
+    let mut spawned = Vec::new();
+
     recursive_spawn_children(
         world,
         object_default_data.children,
@@ -243,7 +253,14 @@ pub(crate) fn spawn_object(
         global_color_channels,
         cocos2d_frames,
         entity,
+        &mut spawned,
     )?;
+
+    for group in groups {
+        let global_group = global_groups.entry(group).or_default();
+        global_group.push(entity);
+        global_group.extend(&spawned)
+    }
 
     Ok(entity)
 }
@@ -260,6 +277,7 @@ fn recursive_spawn_children(
     global_color_channels: &GlobalColorChannels,
     cocos2d_frames: &Cocos2dFrames,
     parent_entity: Entity,
+    spawned: &mut Vec<Entity>,
 ) -> Result<(), anyhow::Error> {
     for child in children {
         let mut object = Object {
@@ -333,6 +351,8 @@ fn recursive_spawn_children(
 
         global_section.insert(child_entity);
 
+        spawned.push(child_entity);
+
         recursive_spawn_children(
             world,
             child.children,
@@ -345,6 +365,7 @@ fn recursive_spawn_children(
             global_color_channels,
             cocos2d_frames,
             child_entity,
+            spawned,
         )?;
     }
     Ok(())

@@ -3,7 +3,7 @@ use std::io::Read;
 use std::marker::PhantomData;
 use std::time::Instant;
 
-use bevy::app::{App, Main, Plugin, PostUpdate, Update};
+use bevy::app::{App, Main, Plugin, PostUpdate, PreUpdate, Update};
 use bevy::asset::{AssetServer, LoadState};
 use bevy::core::FrameCountPlugin;
 use bevy::log::{info, warn};
@@ -16,6 +16,7 @@ use bevy::time::TimePlugin;
 use bevy::utils::HashMap;
 use bevy_enum_filter::prelude::AddEnumFilter;
 use futures_lite::future;
+use indexmap::IndexMap;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
@@ -26,16 +27,18 @@ use crate::level::{
         update_color_channel_calculated, update_object_color, ColorChannelCalculated,
         GlobalColorChannel, GlobalColorChannels, ObjectColorKind,
     },
+    group::clear_group_delta,
     section::{
         propagate_section_change, update_entity_section, update_global_sections, GlobalSections,
         Section, VisibleGlobalSections,
     },
     transform::update_transform,
 };
-use crate::utils::{decompress, decrypt};
+use crate::utils::{decompress, decrypt, U64Hash};
 
 pub(crate) mod color;
 mod de;
+mod group;
 pub(crate) mod object;
 pub(crate) mod section;
 mod transform;
@@ -85,6 +88,8 @@ fn spawn_level_world(
 
         sub_app.add_enum_filter::<ObjectColorKind>();
 
+        sub_app.add_systems(PreUpdate, clear_group_delta);
+
         sub_app.add_systems(Update, move_test);
 
         sub_app.add_systems(
@@ -105,7 +110,7 @@ fn spawn_level_world(
 
         let mut world = sub_app.world;
 
-        let mut save_file = File::open("assets/devoreur1.txt").unwrap();
+        let mut save_file = File::open("assets/theeschaton.txt").unwrap();
         let mut save_data = Vec::new();
         let _ = save_file.read_to_end(&mut save_data);
         let start_all = Instant::now();
@@ -160,6 +165,7 @@ fn spawn_level_world(
         info!("Color channel parsing took {:?}", start.elapsed());
 
         let global_sections = GlobalSections::default();
+        let mut global_groups = IndexMap::with_hasher(U64Hash);
 
         start = Instant::now();
         for object_data in &parsed.objects {
@@ -167,6 +173,7 @@ fn spawn_level_world(
                 &mut world,
                 object_data,
                 &global_sections,
+                &mut global_groups,
                 &global_color_channels,
                 &cocos2d_frames,
             ) {
@@ -175,14 +182,15 @@ fn spawn_level_world(
         }
         info!("Spawning took {:?}", start.elapsed());
         info!("Spawned {} objects", parsed.objects.len());
-
-        let section_count = global_sections.0.len();
+        info!("{} sections used", global_sections.0.len());
 
         world.insert_resource(global_sections);
         world.insert_resource(VisibleGlobalSections { x: 0..6, y: 0..8 });
         world.insert_resource(global_color_channels);
 
-        info!("{} sections used", section_count);
+        start = Instant::now();
+        group::spawn_groups(&mut world, global_groups);
+        info!("Initializing groups took {:?}", start.elapsed());
 
         info!("Total time: {:?}", start_all.elapsed());
 
