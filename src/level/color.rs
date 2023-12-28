@@ -1,18 +1,26 @@
-use bevy::ecs::query::{ReadOnlyWorldQuery, WorldQuery};
+use bevy::ecs::{
+    component::Tick,
+    query::{ReadOnlyWorldQuery, WorldQuery},
+    system::SystemChangeTick,
+};
 use bevy::hierarchy::{BuildWorldChildren, Children, Parent};
 use bevy::log::warn;
 use bevy::prelude::{
-    Color, Component, DetectChanges, Entity, Mut, Query, Ref, Res, Resource, With, Without, World,
+    Color, Component, DetectChanges, Entity, Local, Mut, Query, Ref, Res, Resource, With, Without,
+    World,
 };
 use bevy::reflect::Reflect;
+use bevy::tasks::ComputeTaskPool;
 use bevy::utils::{hashbrown, HashMap as AHashMap};
 use bevy_enum_filter::EnumFilter;
 use dashmap::DashMap;
 use serde::Deserialize;
 
-use crate::level::de;
-use crate::level::group::ObjectGroupsCalculated;
-use crate::level::section::{GlobalSections, SectionIndex, VisibleGlobalSections};
+use crate::level::{
+    de,
+    group::ObjectGroupsCalculated,
+    section::{GlobalSections, SectionIndex, VisibleGlobalSections},
+};
 use crate::utils::{hsv_to_rgb, rgb_to_hsv, u8_to_bool, U64Hash};
 
 #[derive(Default, Resource)]
@@ -249,7 +257,7 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
             }
 
             if let Some(hsv) = hsv {
-                temp_color = hsv.apply(temp_color);
+                temp_color = hsv.apply(&temp_color);
             }
 
             calculated.0 = temp_color;
@@ -298,9 +306,13 @@ pub(crate) fn update_object_color(
     global_sections: Res<GlobalSections>,
     visible_global_sections: Res<VisibleGlobalSections>,
     global_color_channels: Res<GlobalColorChannels>,
-    mut objects: Query<(&ObjectGroupsCalculated, &mut ObjectColor)>,
+    objects: Query<(&ObjectGroupsCalculated, &mut ObjectColor)>,
     color_channels: Query<Ref<ColorChannelCalculated>>,
+    system_change_tick: SystemChangeTick,
+    mut sections_to_update_len: Local<usize>,
 ) {
+    let mut sections_to_update = Vec::with_capacity(*sections_to_update_len);
+
     for x in visible_global_sections.x.clone() {
         for y in visible_global_sections.y.clone() {
             let section_index = SectionIndex::new(x, y);
@@ -308,45 +320,83 @@ pub(crate) fn update_object_color(
                 continue;
             };
 
-            let mut iter = objects.iter_many_mut(&*global_section);
-
-            while let Some((object_groups_calculated, mut object_color)) = iter.fetch_next() {
-                let Ok(color_channel_calculated) = color_channels.get(object_color.channel_entity)
-                else {
-                    // TODO: Try to get the new channel
-                    // if object_color.is_changed() {
-                    //
-                    // }
-                    continue;
-                };
-                if !(color_channel_calculated.is_changed() || object_color.is_changed()) {
-                    continue;
-                }
-                let mut color = if object_color.object_color_kind == ObjectColorKind::None {
-                    Color::WHITE.with_a(color_channel_calculated.0.a())
-                } else if object_color.object_color_kind == ObjectColorKind::Black {
-                    Color::BLACK.with_a(color_channel_calculated.0.a())
-                } else if let Some(hsv) = object_color.hsv {
-                    hsv.apply(color_channel_calculated.0)
-                } else {
-                    color_channel_calculated.0
-                };
-
-                color.set_a(
-                    if object_groups_calculated.enabled {
-                        1.
-                    } else {
-                        0.
-                    } * object_groups_calculated.opacity
-                        * object_color.object_opacity
-                        * color.a(),
-                );
-
-                object_color.color = color;
-                object_color.blending = color_channel_calculated.1;
-            }
+            sections_to_update.push(global_section);
         }
     }
+
+    let compute_task_pool = ComputeTaskPool::get();
+
+    let thread_chunk_size = (sections_to_update.len() / compute_task_pool.thread_num()).max(1);
+
+    let objects = &objects;
+    let color_channels = &color_channels;
+    let system_change_tick = &system_change_tick;
+
+    compute_task_pool.scope(|scope| {
+        for thread_chunk in sections_to_update.chunks(thread_chunk_size) {
+            scope.spawn(async move {
+                let mut color_channel_cache: hashbrown::HashMap<u64, (Color, bool, Tick), U64Hash> =
+                    hashbrown::HashMap::with_capacity_and_hasher(100, U64Hash);
+                for section in thread_chunk {
+                    let mut iter = unsafe { objects.iter_many_unsafe(section.value()) };
+                    while let Some((object_groups_calculated, mut object_color)) = iter.fetch_next()
+                    {
+                        let (color_channel_color, blending, color_channel_tick) =
+                            if let Some(result) = color_channel_cache.get(&object_color.channel_id)
+                            {
+                                *result
+                            } else if let Ok(color_channel_calculated) =
+                                color_channels.get(object_color.channel_entity)
+                            {
+                                let color_channel_data = (
+                                    color_channel_calculated.0,
+                                    color_channel_calculated.1,
+                                    color_channel_calculated.last_changed(),
+                                );
+                                color_channel_cache
+                                    .insert(object_color.channel_id, color_channel_data);
+                                color_channel_data
+                            } else {
+                                // TODO: Try to get the new channel
+                                // if object_color.is_changed() {
+                                //
+                                // }
+                                continue;
+                            };
+
+                        if !(color_channel_tick.is_newer_than(
+                            object_color.last_changed(),
+                            system_change_tick.this_run(),
+                        ) || object_color.is_changed())
+                        {
+                            continue;
+                        }
+
+                        let mut color = if object_color.object_color_kind == ObjectColorKind::None {
+                            Color::WHITE.with_a(color_channel_color.a())
+                        } else if object_color.object_color_kind == ObjectColorKind::Black {
+                            Color::BLACK.with_a(color_channel_color.a())
+                        } else if let Some(hsv) = object_color.hsv {
+                            hsv.apply(&color_channel_color)
+                        } else {
+                            color_channel_color
+                        };
+
+                        color.set_a(
+                            object_groups_calculated.opacity
+                                * object_color.object_opacity
+                                * color.a(),
+                        );
+
+                        object_color.color = color;
+                        object_color.blending = blending;
+                    }
+                }
+            });
+        }
+    });
+
+    *sections_to_update_len = sections_to_update.len();
 }
 
 #[derive(Default, Copy, Clone, Component, EnumFilter, PartialEq)]
@@ -381,7 +431,7 @@ impl HsvMod {
 }
 
 impl HsvMod {
-    pub(crate) fn apply(&self, color: Color) -> Color {
+    pub(crate) fn apply(&self, color: &Color) -> Color {
         let (h, s, v) = rgb_to_hsv([color.r(), color.g(), color.b()]);
         let [r, g, b] = hsv_to_rgb((
             h + self.h,
