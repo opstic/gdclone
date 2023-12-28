@@ -216,13 +216,14 @@ pub(crate) fn spawn_object(
 
     let object_id = object.id;
     let object_z_layer = object.z_layer;
+    let object_transform = GlobalTransform::from(transform);
     let mut entity = world
         .spawn((
             object,
             object_color,
             Section::from_section_index(SectionIndex::from_pos(transform.translation.xy())),
             transform,
-            GlobalTransform::default(),
+            object_transform,
             Handle::Weak(*image_asset_id),
             ObjectGroupsCalculated::default(),
         ))
@@ -255,6 +256,7 @@ pub(crate) fn spawn_object(
         global_color_channels,
         cocos2d_frames,
         entity,
+        &object_transform,
         &mut spawned,
     )?;
 
@@ -279,6 +281,7 @@ fn recursive_spawn_children(
     global_color_channels: &GlobalColorChannels,
     cocos2d_frames: &Cocos2dFrames,
     parent_entity: Entity,
+    parent_transform: &GlobalTransform,
     spawned: &mut Vec<Entity>,
 ) -> Result<(), anyhow::Error> {
     for child in children {
@@ -338,13 +341,15 @@ fn recursive_spawn_children(
 
         object.frame = *frame;
 
+        let child_transform = parent_transform.mul_transform(transform);
+
         let child_entity = world
             .spawn((
                 object,
                 object_color,
                 Section::default(),
                 transform,
-                GlobalTransform::default(),
+                child_transform,
                 Handle::Weak(*image_asset_id),
                 ObjectGroupsCalculated::default(),
             ))
@@ -368,6 +373,7 @@ fn recursive_spawn_children(
             global_color_channels,
             cocos2d_frames,
             child_entity,
+            &child_transform,
             spawned,
         )?;
     }
