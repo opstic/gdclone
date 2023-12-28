@@ -15,7 +15,7 @@ use bevy::log::warn;
 use bevy::math::{Affine3A, Quat, Rect, Vec2, Vec4};
 use bevy::prelude::{
     Color, Commands, Component, Entity, FromWorld, GlobalTransform, Image, IntoSystemConfigs,
-    Local, Msaa, Query, Res, ResMut, Resource, Shader, Transform, World,
+    Local, Msaa, Query, Res, ResMut, Resource, Shader, World,
 };
 use bevy::render::{
     mesh::PrimitiveTopology,
@@ -771,24 +771,17 @@ pub(crate) fn prepare_objects(
                         // Texture atlas scale factor
                         quad_size /= 4.;
 
-                        let transform =
-                            extracted_object
-                                .transform
-                                .mul_transform(Transform::from_rotation(
-                                    if extracted_object.rotated {
-                                        Quat::from_rotation_z(90_f32.to_radians())
-                                    } else {
-                                        Quat::IDENTITY
-                                    },
-                                ));
+                        let mut transform = extracted_object.transform.affine();
 
-                        let transform = transform.affine()
-                            * Affine3A::from_scale_rotation_translation(
-                                quad_size.extend(1.0),
-                                Quat::IDENTITY,
-                                (quad_size * (-extracted_object.anchor - Vec2::splat(0.5)))
-                                    .extend(0.0),
-                            );
+                        if extracted_object.rotated {
+                            transform *= Affine3A::from_rotation_z(90_f32.to_radians());
+                        }
+
+                        transform *= Affine3A::from_scale_rotation_translation(
+                            quad_size.extend(1.0),
+                            Quat::IDENTITY,
+                            (quad_size * (-extracted_object.anchor - Vec2::splat(0.5))).extend(0.0),
+                        );
 
                         let mut color = extracted_object.color.as_rgba_f32();
 
