@@ -1,11 +1,10 @@
-use std::process::Command;
-
 use std::collections::HashMap;
 use std::env;
 use std::fmt::{Display, Write};
 use std::fs::File;
 use std::io::{BufWriter, Read, Write as IoWrite};
 use std::path::Path;
+use std::process::Command;
 
 use serde::Deserialize;
 
@@ -41,7 +40,7 @@ struct Child {
 }
 
 fn main() {
-    println!("cargo:rerun-if-changed=.git/HEAD");
+    println!("cargo:rerun-if-changed=.git/logs/HEAD");
     println!("cargo:rerun-if-changed=assets/data/object.json");
 
     let version = if let Some(version) = {
