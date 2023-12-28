@@ -262,7 +262,7 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
         }
 
         let Some(children) = children else {
-            return;
+            continue;
         };
 
         unsafe { recursive_propagate_color(children, calculated.0, children_query, should_update) }
