@@ -225,7 +225,8 @@ bitflags::bitflags! {
     pub struct ObjectPipelineKey: u32 {
         const NONE                              = 0;
         const SQUARE_TEXTURE_ALPHA              = (1 << 0);
-        const NO_TEXTURE_ARRAY                  = (1 << 1);
+        const ADDITIVE_BLENDING                 = (1 << 1);
+        const NO_TEXTURE_ARRAY                  = (1 << 2);
         const MSAA_RESERVED_BITS                = Self::MSAA_MASK_BITS << Self::MSAA_SHIFT_BITS;
     }
 }
@@ -272,6 +273,10 @@ impl SpecializedRenderPipeline for ObjectPipeline {
 
         if key.contains(ObjectPipelineKey::SQUARE_TEXTURE_ALPHA) {
             shader_defs.push("SQUARE_TEXTURE_ALPHA".into());
+        }
+
+        if key.contains(ObjectPipelineKey::ADDITIVE_BLENDING) {
+            shader_defs.push("ADDITIVE_BLENDING".into());
         }
 
         if key.contains(ObjectPipelineKey::NO_TEXTURE_ARRAY) {
@@ -555,7 +560,7 @@ pub(crate) fn queue_objects(
     let blending_pipeline = pipelines.specialize(
         &pipeline_cache,
         &object_pipeline,
-        view_key | ObjectPipelineKey::SQUARE_TEXTURE_ALPHA,
+        view_key | ObjectPipelineKey::SQUARE_TEXTURE_ALPHA | ObjectPipelineKey::ADDITIVE_BLENDING,
     );
 
     for mut transparent_phase in &mut phases {
@@ -789,20 +794,10 @@ pub(crate) fn prepare_objects(
                             (quad_size * (-extracted_object.anchor - Vec2::splat(0.5))).extend(0.0),
                         );
 
-                        let mut color = extracted_object.color.as_rgba_f32();
-
-                        color[0] *= color[3];
-                        color[1] *= color[3];
-                        color[2] *= color[3];
-
-                        if extracted_object.blending {
-                            color[3] = 0.;
-                        }
-
                         // Store the vertex data and add the item to the render phase
                         *buffer_entry = ObjectInstance::from(
                             &transform,
-                            color,
+                            extracted_object.color.as_rgba_f32(),
                             &uv_offset_scale,
                             texture_index as u32,
                         );

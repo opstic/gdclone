@@ -42,7 +42,11 @@ fn vertex(in: VertexInput) -> VertexOutput {
         in.i_model_transpose_col2,
     )) * vec4<f32>(vertex_position, 1.0);
     out.uv = vec2<f32>(vertex_position.xy) * in.i_uv_offset_scale.zw + in.i_uv_offset_scale.xy;
-    out.color = in.i_color;
+#ifndef ADDITIVE_BLENDING
+    out.color = vec4<f32>(in.i_color.rgb * in.i_color.a, in.i_color.a);
+#else
+    out.color = vec4<f32>(in.i_color.rgb * in.i_color.a, 0.0);
+#endif
     out.texture_index = in.i_texture_index;
 
     return out;
