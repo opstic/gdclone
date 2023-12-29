@@ -28,7 +28,6 @@ bevy = { version = "0.12", default-features = false, features = [
     "webgl2",
     "x11",
 ] }
-bevy_enum_filter = "0.3"
 bitflags = "2.4"
 bytemuck = { version = "1.14", features = ["derive"] }
 dashmap = { version = "5.5", features = ["raw-api"] }

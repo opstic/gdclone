@@ -14,7 +14,6 @@ use bevy::render::color::Color;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::time::TimePlugin;
 use bevy::utils::HashMap;
-use bevy_enum_filter::prelude::AddEnumFilter;
 use futures_lite::future;
 use indexmap::IndexMap;
 use serde::de::Error;
@@ -85,8 +84,6 @@ fn spawn_level_world(
         let mut sub_app = App::new();
 
         sub_app.add_plugins((TimePlugin, FrameCountPlugin));
-
-        sub_app.add_enum_filter::<ObjectColorKind>();
 
         sub_app.add_systems(PreUpdate, clear_group_delta);
 

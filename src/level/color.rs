@@ -399,7 +399,7 @@ pub(crate) fn update_object_color(
     *sections_to_update_len = sections_to_update.len();
 }
 
-#[derive(Default, Copy, Clone, Component, EnumFilter, PartialEq)]
+#[derive(Default, Copy, Clone, Component, PartialEq)]
 pub(crate) enum ObjectColorKind {
     Base,
     Detail,
