@@ -26,7 +26,7 @@ use bevy::render::{
     },
     render_resource::{
         BindGroup, BindGroupEntries, BindGroupEntry, BindingResource, BufferUsages, BufferVec,
-        PipelineCache, Sampler, TextureView, WgpuFeatures,
+        IndexFormat, PipelineCache, Sampler, TextureView, WgpuFeatures,
     },
     render_resource::{
         BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState,
@@ -517,6 +517,7 @@ impl ObjectInstance {
 #[derive(Resource)]
 pub struct ObjectMeta {
     view_bind_group: Option<BindGroup>,
+    index_buffer: BufferVec<u32>,
     instance_buffer: BufferVec<ObjectInstance>,
 }
 
@@ -524,6 +525,7 @@ impl Default for ObjectMeta {
     fn default() -> Self {
         Self {
             view_bind_group: None,
+            index_buffer: BufferVec::<u32>::new(BufferUsages::INDEX),
             instance_buffer: BufferVec::<ObjectInstance>::new(BufferUsages::VERTEX),
         }
     }
@@ -830,6 +832,26 @@ pub(crate) fn prepare_objects(
         .instance_buffer
         .write_buffer(&render_device, &render_queue);
 
+    if object_meta.index_buffer.len() != 6 {
+        object_meta.index_buffer.clear();
+
+        // NOTE: This code is creating 6 indices pointing to 4 vertices.
+        // The vertices form the corners of a quad based on their two least significant bits.
+        // 10   11
+        //
+        // 00   01
+        // The sprite shader can then use the two least significant bits as the vertex index.
+        // The rest of the properties to transform the vertex positions and UVs (which are
+        // implicit) are baked into the instance transform, and UV offset and scale.
+        // See object.wgsl for the details.
+        let indices = [2, 0, 1, 1, 3, 2];
+        object_meta.index_buffer.values_mut().extend(indices);
+
+        object_meta
+            .index_buffer
+            .write_buffer(&render_device, &render_queue);
+    }
+
     *previous_len = batches.len();
 }
 
@@ -925,8 +947,13 @@ impl<P: PhaseItem> RenderCommand<P> for DrawObjectBatch {
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
         let object_meta = object_meta.into_inner();
+        pass.set_index_buffer(
+            object_meta.index_buffer.buffer().unwrap().slice(..),
+            0,
+            IndexFormat::Uint32,
+        );
         pass.set_vertex_buffer(0, object_meta.instance_buffer.buffer().unwrap().slice(..));
-        pass.draw(1..7, batch.range.clone());
+        pass.draw_indexed(0..6, 0, batch.range.clone());
         RenderCommandResult::Success
     }
 }
