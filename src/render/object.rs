@@ -597,8 +597,12 @@ pub(crate) fn queue_objects(
 
     // Sort the layers
     compute_task_pool.scope(|scope| {
-        for (_, extracted_layer) in extracted_layers.layers.iter() {
+        for (layer_index, extracted_layer) in extracted_layers.layers.iter() {
             // let a = info_span!("queue_objects: layer sort task");
+            if (layer_index.0 % 2).abs() == 0 {
+                // Sorting additive blending sprites aren't needed
+                continue;
+            }
             scope.spawn(async move {
                 // let _a = a.enter();
                 radsort::sort_by_cached_key(
