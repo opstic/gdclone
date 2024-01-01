@@ -11,6 +11,7 @@ use crate::level::color::{ObjectColor, ObjectColorKind};
 use crate::level::de;
 use crate::level::group::ObjectGroupsCalculated;
 use crate::level::section::{GlobalSections, Section, SectionIndex};
+use crate::level::trigger::insert_trigger_data;
 use crate::utils::{u8_to_bool, U64Hash};
 
 struct ObjectDefaultData {
@@ -217,17 +218,19 @@ pub(crate) fn spawn_object(
     let object_id = object.id;
     let object_z_layer = object.z_layer;
     let object_transform = GlobalTransform::from(transform);
-    let mut entity = world
-        .spawn((
-            object,
-            object_color,
-            Section::from_section_index(SectionIndex::from_pos(transform.translation.xy())),
-            transform,
-            object_transform,
-            Handle::Weak(*image_asset_id),
-            ObjectGroupsCalculated::default(),
-        ))
-        .id();
+    let mut entity = world.spawn((
+        object,
+        object_color,
+        Section::from_section_index(SectionIndex::from_pos(transform.translation.xy())),
+        transform,
+        object_transform,
+        Handle::Weak(*image_asset_id),
+        ObjectGroupsCalculated::default(),
+    ));
+
+    insert_trigger_data(&mut entity, object_id, object_data)?;
+
+    let entity = entity.id();
 
     let mut global_section = global_sections
         .0

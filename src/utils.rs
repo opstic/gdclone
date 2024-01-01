@@ -1,8 +1,9 @@
-use std::hash::BuildHasher;
+use std::hash::{BuildHasher, Hash};
 
 use bevy::log::{info, warn};
 use bevy::tasks::AsyncComputeTaskPool;
 use bevy::utils::EntityHasher;
+use dashmap::DashMap;
 use libdeflater::Decompressor;
 
 /// A copy of [`bevy::utils::EntityHash`] with [`Clone`] derived
@@ -20,9 +21,43 @@ impl BuildHasher for U64Hash {
     }
 }
 
+/// Extremely unsafe way of reading an entry in the [`DashMap`] without getting a lock
+///
+/// Improves performance slightly
+///
+/// Don't use if you can't guarantee there aren't any other threads writing to the [`DashMap`]
+pub(crate) unsafe fn dashmap_get_dirty<'map, K: Eq + Hash, V, S: BuildHasher + Clone>(
+    key: &K,
+    map: &'map DashMap<K, V, S>,
+) -> Option<&'map V> {
+    let hash = map.hash_usize(key);
+    let index = map.determine_shard(hash);
+
+    let shard = unsafe { &*map.shards().get_unchecked(index).data_ptr() };
+
+    if let Some((_, vptr)) = shard.get_key_value(key) {
+        unsafe {
+            let vptr: *const V = vptr.get();
+            Some(&*vptr)
+        }
+    } else {
+        None
+    }
+}
+
 #[inline(always)]
 pub(crate) const fn u8_to_bool(byte: &[u8]) -> bool {
     matches!(byte, b"1")
+}
+
+#[inline(always)]
+pub(crate) fn lerp(start: f32, end: f32, x: f32) -> f32 {
+    start + (end - start) * x
+}
+
+#[inline(always)]
+pub(crate) fn lerp_start(current: f32, end: f32, x: f32) -> f32 {
+    (current - end * x) / (1. - x)
 }
 
 #[inline(always)]

@@ -3,16 +3,20 @@ use std::io::Read;
 use std::marker::PhantomData;
 use std::time::Instant;
 
-use bevy::app::{App, Main, Plugin, PostUpdate, PreUpdate, Update};
+use bevy::app::{App, First, Last, Plugin, PostUpdate, PreUpdate, RunFixedUpdateLoop, Update};
 use bevy::asset::{AssetServer, LoadState};
 use bevy::core::FrameCountPlugin;
+use bevy::input::Input;
 use bevy::log::{info, warn};
+use bevy::math::{Vec2, Vec3Swizzles};
 use bevy::prelude::{
-    Component, IntoSystemConfigs, Query, Res, ResMut, Resource, Time, Transform, With, World,
+    Camera, Component, Gizmos, GlobalTransform, IntoSystemConfigs, KeyCode, Local,
+    OrthographicProjection, Query, Res, ResMut, Resource, Time, Transform, With, World,
 };
 use bevy::render::color::Color;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::time::TimePlugin;
+use bevy::transform::TransformBundle;
 use bevy::utils::HashMap;
 use futures_lite::future;
 use indexmap::IndexMap;
@@ -21,16 +25,16 @@ use serde::{Deserialize, Deserializer};
 
 use crate::asset::cocos2d_atlas::Cocos2dFrames;
 use crate::asset::TestAssets;
+use crate::level::player::{update_player_pos, Player};
+use crate::level::section::SectionIndex;
+use crate::level::trigger::{process_triggers, SpeedChange, TriggerActivator};
 use crate::level::{
     color::{
         update_color_channel_calculated, update_object_color, ColorChannelCalculated,
-        GlobalColorChannel, GlobalColorChannels, ObjectColorKind,
+        GlobalColorChannel, GlobalColorChannels,
     },
     group::{clear_group_delta, update_object_group, update_object_group_calculated},
-    section::{
-        propagate_section_change, update_entity_section, update_global_sections, GlobalSections,
-        Section, VisibleGlobalSections,
-    },
+    section::{update_global_sections, GlobalSections, Section, VisibleGlobalSections},
     transform::update_transform,
 };
 use crate::utils::{decompress, decrypt, U64Hash};
@@ -39,8 +43,10 @@ pub(crate) mod color;
 mod de;
 mod group;
 pub(crate) mod object;
+mod player;
 pub(crate) mod section;
 mod transform;
+mod trigger;
 
 #[derive(Default, Resource)]
 pub(crate) enum LevelWorld {
@@ -55,7 +61,8 @@ pub(crate) struct LevelPlugin;
 impl Plugin for LevelPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LevelWorld>()
-            .add_systems(Update, update_level_world)
+            .init_resource::<Options>()
+            .add_systems(Update, (update_level_world, update_controls))
             .add_systems(PostUpdate, spawn_level_world);
     }
 }
@@ -65,6 +72,7 @@ fn spawn_level_world(
     server: Res<AssetServer>,
     test_assets: Res<TestAssets>,
     mut level_world: ResMut<LevelWorld>,
+    mut a: Local<bool>,
 ) {
     match *level_world {
         LevelWorld::None => (),
@@ -77,6 +85,11 @@ fn spawn_level_world(
         }
     }
 
+    if !*a {
+        *a = true;
+        return;
+    }
+
     let async_compute = AsyncComputeTaskPool::get();
 
     let cocos2d_frames = cocos2d_frames.clone();
@@ -87,7 +100,10 @@ fn spawn_level_world(
 
         sub_app.add_systems(PreUpdate, clear_group_delta);
 
-        sub_app.add_systems(Update, move_test);
+        sub_app.add_systems(
+            Update,
+            (update_player_pos, process_triggers.after(update_player_pos)),
+        );
 
         sub_app.add_systems(
             PostUpdate,
@@ -95,10 +111,10 @@ fn spawn_level_world(
                 update_object_group,
                 update_object_group_calculated.after(update_object_group),
                 update_color_channel_calculated,
-                update_entity_section.before(update_global_sections),
-                propagate_section_change
-                    .after(update_entity_section)
-                    .before(update_global_sections),
+                // update_entity_section.before(update_global_sections),
+                // propagate_section_change
+                //     .after(update_entity_section)
+                //     .before(update_global_sections),
                 update_global_sections,
                 update_transform.after(update_global_sections),
                 update_object_color
@@ -185,13 +201,54 @@ fn spawn_level_world(
         info!("Spawned {} objects", parsed.objects.len());
         info!("{} sections used", global_sections.0.len());
 
+        let player = world
+            .spawn((
+                Player::default(),
+                Transform::default(),
+                GlobalTransform::default(),
+                Section::default(),
+                TriggerActivator::default(),
+            ))
+            .id();
+
+        global_sections
+            .0
+            .entry(SectionIndex::new(0, 0))
+            .or_default()
+            .insert(player);
+
         world.insert_resource(global_sections);
-        world.insert_resource(VisibleGlobalSections { x: 0..6, y: 0..8 });
+        world.insert_resource(VisibleGlobalSections { x: 0..1, y: 0..1 });
         world.insert_resource(global_color_channels);
 
         start = Instant::now();
         group::spawn_groups(&mut world, global_groups);
         info!("Initializing groups took {:?}", start.elapsed());
+
+        let default_speed = if let Some(speed) = parsed.start_object.get(b"kA4".as_ref()) {
+            match std::str::from_utf8(speed).unwrap().parse().unwrap() {
+                0 => (5.77 * 60., 0.9),
+                1 => (5.98 * 60., 0.7),
+                2 => (5.87 * 60., 1.1),
+                3 => (6. * 60., 1.3),
+                4 => (6. * 60., 1.6),
+                _ => (5.77 * 60., 0.9),
+            }
+        } else {
+            (5.77 * 60., 0.9)
+        };
+
+        world.spawn((
+            TransformBundle::default(),
+            SpeedChange {
+                forward_velocity: default_speed.0,
+                speed: default_speed.1,
+            },
+        ));
+
+        start = Instant::now();
+        trigger::construct_trigger_index(&mut world);
+        info!("Trigger timeline construction took {:?}", start.elapsed());
 
         info!("Total time: {:?}", start_all.elapsed());
 
@@ -201,15 +258,141 @@ fn spawn_level_world(
     *level_world = LevelWorld::Pending(level_world_future);
 }
 
-fn update_level_world(mut level_world: ResMut<LevelWorld>) {
+#[derive(Resource)]
+struct Options {
+    synchronize_cameras: bool,
+    display_simulated_camera: bool,
+    visible_sections_from_simulated: bool,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            synchronize_cameras: true,
+            display_simulated_camera: false,
+            visible_sections_from_simulated: false,
+        }
+    }
+}
+
+fn update_controls(
+    mut projections: Query<&mut OrthographicProjection, With<Camera>>,
+    mut transforms: Query<&mut Transform, With<Camera>>,
+    keys: Res<Input<KeyCode>>,
+    mut options: ResMut<Options>,
+    time: Res<Time>,
+) {
+    let multiplier = time.delta_seconds() * 20.;
+    if keys.just_pressed(KeyCode::U) {
+        options.synchronize_cameras = !options.synchronize_cameras;
+    }
+    for mut transform in transforms.iter_mut() {
+        if !options.synchronize_cameras {
+            if keys.pressed(KeyCode::Right) {
+                transform.translation.x += 10.0 * multiplier;
+            }
+            if keys.pressed(KeyCode::Left) {
+                transform.translation.x -= 10.0 * multiplier;
+            }
+            if keys.pressed(KeyCode::A) {
+                transform.translation.x -= 20.0 * multiplier;
+            }
+            if keys.pressed(KeyCode::D) {
+                transform.translation.x += 20.0 * multiplier;
+            }
+        }
+        if keys.pressed(KeyCode::Up) {
+            transform.translation.y += 10.0 * multiplier;
+        }
+        if keys.pressed(KeyCode::Down) {
+            transform.translation.y -= 10.0 * multiplier;
+        }
+        if keys.pressed(KeyCode::W) {
+            transform.translation.y += 20.0 * multiplier;
+        }
+        if keys.pressed(KeyCode::S) {
+            transform.translation.y -= 20.0 * multiplier;
+        }
+    }
+    for mut projection in projections.iter_mut() {
+        if keys.pressed(KeyCode::Q) {
+            projection.scale *= 1.01;
+        }
+        if keys.pressed(KeyCode::E) {
+            projection.scale *= 0.99;
+        }
+    }
+}
+
+fn update_level_world(
+    mut camera: Query<(&OrthographicProjection, &mut Transform)>,
+    mut level_world: ResMut<LevelWorld>,
+    mut options: Res<Options>,
+    mut gizmos: Gizmos,
+) {
     match &mut *level_world {
         LevelWorld::World(ref mut world) => {
+            world.run_schedule(First);
+            world.run_schedule(PreUpdate);
+            world.run_schedule(RunFixedUpdateLoop);
+            world.run_schedule(Update);
+
+            // Render player line
+            let mut players = world.query::<(&Player, &Transform)>();
+
+            for (player, transform) in players.iter(world) {
+                let (player_line_start, player_line_end) = if player.vertical_is_x {
+                    (
+                        Vec2::new(transform.translation.x - 500., transform.translation.y),
+                        Vec2::new(transform.translation.x + 500., transform.translation.y),
+                    )
+                } else {
+                    (
+                        Vec2::new(transform.translation.x, transform.translation.y - 500.),
+                        Vec2::new(transform.translation.x, transform.translation.y + 500.),
+                    )
+                };
+                gizmos.line_2d(player_line_start, player_line_end, Color::ORANGE_RED)
+            }
+
+            let (camera_projection, mut camera_transform) = camera.single_mut();
+
+            let (_, player_transform) = players.single(world);
+
+            if options.synchronize_cameras {
+                camera_transform.translation.x = player_transform.translation.x;
+                gizmos.line_2d(
+                    Vec2::new(
+                        camera_transform.translation.x,
+                        camera_transform.translation.y - 500.,
+                    ),
+                    Vec2::new(
+                        camera_transform.translation.x,
+                        camera_transform.translation.y + 500.,
+                    ),
+                    Color::GREEN,
+                )
+            }
+
+            let camera_min = camera_projection.area.min + camera_transform.translation.xy();
+            let camera_max = camera_projection.area.max + camera_transform.translation.xy();
+            let min_section = SectionIndex::from_pos(camera_min);
+            let max_section = SectionIndex::from_pos(camera_max);
+
+            let x_range = min_section.x - 1..max_section.x + 1;
+            let y_range = min_section.y - 1..max_section.y + 1;
+
+            let mut visible_global_sections = world.resource_mut::<VisibleGlobalSections>();
+            visible_global_sections.x = x_range;
+            visible_global_sections.y = y_range;
+
+            world.run_schedule(PostUpdate);
+            world.run_schedule(Last);
+
             world.clear_trackers();
-            world.run_schedule(Main);
         }
         LevelWorld::Pending(world_task) => {
-            if let Some(mut world) = future::block_on(future::poll_once(world_task)) {
-                world.run_schedule(Main);
+            if let Some(world) = future::block_on(future::poll_once(world_task)) {
                 *level_world = LevelWorld::World(world);
             }
         }

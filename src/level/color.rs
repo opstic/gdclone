@@ -12,7 +12,6 @@ use bevy::prelude::{
 use bevy::reflect::Reflect;
 use bevy::tasks::ComputeTaskPool;
 use bevy::utils::{hashbrown, HashMap as AHashMap};
-use bevy_enum_filter::EnumFilter;
 use dashmap::DashMap;
 use serde::Deserialize;
 
@@ -21,7 +20,7 @@ use crate::level::{
     group::ObjectGroupsCalculated,
     section::{GlobalSections, SectionIndex, VisibleGlobalSections},
 };
-use crate::utils::{hsv_to_rgb, rgb_to_hsv, u8_to_bool, U64Hash};
+use crate::utils::{dashmap_get_dirty, hsv_to_rgb, rgb_to_hsv, u8_to_bool, U64Hash};
 
 #[derive(Default, Resource)]
 pub(crate) struct GlobalColorChannels(pub(crate) DashMap<u64, Entity, U64Hash>);
@@ -306,7 +305,7 @@ pub(crate) fn update_object_color(
     global_sections: Res<GlobalSections>,
     visible_global_sections: Res<VisibleGlobalSections>,
     global_color_channels: Res<GlobalColorChannels>,
-    objects: Query<(&ObjectGroupsCalculated, &mut ObjectColor)>,
+    objects: Query<(Ref<ObjectGroupsCalculated>, &mut ObjectColor)>,
     color_channels: Query<Ref<ColorChannelCalculated>>,
     system_change_tick: SystemChangeTick,
     mut sections_to_update_len: Local<usize>,
@@ -316,7 +315,10 @@ pub(crate) fn update_object_color(
     for x in visible_global_sections.x.clone() {
         for y in visible_global_sections.y.clone() {
             let section_index = SectionIndex::new(x, y);
-            let Some(global_section) = global_sections.0.get(&section_index) else {
+
+            let Some(global_section) =
+                (unsafe { dashmap_get_dirty(&section_index, &global_sections.0) })
+            else {
                 continue;
             };
 
@@ -336,9 +338,9 @@ pub(crate) fn update_object_color(
         for thread_chunk in sections_to_update.chunks(thread_chunk_size) {
             scope.spawn(async move {
                 let mut color_channel_cache: hashbrown::HashMap<u64, (Color, bool, Tick), U64Hash> =
-                    hashbrown::HashMap::with_capacity_and_hasher(100, U64Hash);
+                    hashbrown::HashMap::with_capacity_and_hasher(300, U64Hash);
                 for section in thread_chunk {
-                    let mut iter = unsafe { objects.iter_many_unsafe(section.value()) };
+                    let mut iter = unsafe { objects.iter_many_unsafe(*section) };
                     while let Some((object_groups_calculated, mut object_color)) = iter.fetch_next()
                     {
                         let (color_channel_color, blending, color_channel_tick) =
@@ -361,13 +363,14 @@ pub(crate) fn update_object_color(
                                 // if object_color.is_changed() {
                                 //
                                 // }
-                                continue;
+                                (Color::WHITE, false, Tick::new(0))
                             };
 
                         if !(color_channel_tick.is_newer_than(
                             object_color.last_changed(),
                             system_change_tick.this_run(),
-                        ) || object_color.is_changed())
+                        ) || object_color.is_changed()
+                            || object_groups_calculated.is_changed())
                         {
                             continue;
                         }

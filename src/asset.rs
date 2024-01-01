@@ -1,4 +1,4 @@
-use bevy::app::{App, Plugin, Startup, Update};
+use bevy::app::{App, Plugin, PreUpdate, Startup};
 use bevy::asset::{AssetApp, AssetServer, Handle};
 use bevy::prelude::{Commands, Res, Resource};
 use bevy::render::render_asset::RenderAssetPlugin;
@@ -22,7 +22,7 @@ impl Plugin for AssetPlugin {
             .init_asset_loader::<Cocos2dAtlasLoader>()
             .init_resource::<Cocos2dFrames>()
             .add_systems(Startup, load_assets)
-            .add_systems(Update, cocos2d_atlas::move_frames_to_resource);
+            .add_systems(PreUpdate, cocos2d_atlas::move_frames_to_resource);
     }
 }
 

@@ -10,6 +10,7 @@ use bevy::prelude::{
 use dashmap::DashMap;
 use indexmap::IndexSet;
 
+use crate::level::color::ColorChannelCalculated;
 use crate::utils::U64Hash;
 
 #[derive(Default, Resource)]
@@ -46,6 +47,7 @@ pub(crate) struct SectionIndex {
 
 impl SectionIndex {
     const SIZE: f32 = 200.;
+    const INVERSE: f32 = 1. / Self::SIZE;
 
     #[inline]
     pub(crate) fn new(x: i32, y: i32) -> Self {
@@ -55,8 +57,8 @@ impl SectionIndex {
     #[inline]
     pub(crate) fn from_pos(pos: Vec2) -> Self {
         Self {
-            x: (pos.x * (1. / Self::SIZE)) as i32,
-            y: (pos.y * (1. / Self::SIZE)) as i32,
+            x: (pos.x * Self::INVERSE) as i32,
+            y: (pos.y * Self::INVERSE) as i32,
         }
     }
 }
@@ -119,17 +121,17 @@ unsafe fn propagate_section_recursive<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQue
 
 pub(crate) fn update_global_sections(
     global_sections: ResMut<GlobalSections>,
-    section_changed_entities: Query<(Entity, &Section), Changed<Section>>,
+    section_changed_entities: Query<(Entity, &Section, &ColorChannelCalculated), Changed<Section>>,
 ) {
-    section_changed_entities
-        .par_iter()
-        .for_each(|(entity, section)| {
-            if let Some(mut global_section) = global_sections.0.get_mut(&section.old) {
-                global_section.remove(&entity);
-            }
-
-            let global_section_entry = global_sections.0.entry(section.current);
-            let mut global_section = global_section_entry.or_default();
-            global_section.insert(entity);
-        });
+    // section_changed_entities
+    //     .par_iter()
+    //     .for_each(|(entity, section)| {
+    //         if let Some(mut global_section) = global_sections.0.get_mut(&section.old) {
+    //             global_section.remove(&entity);
+    //         }
+    //
+    //         let global_section_entry = global_sections.0.entry(section.current);
+    //         let mut global_section = global_section_entry.or_default();
+    //         global_section.insert(entity);
+    //     });
 }

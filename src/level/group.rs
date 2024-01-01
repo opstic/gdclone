@@ -13,8 +13,8 @@ pub(crate) struct GlobalGroups(pub(crate) DashMap<u64, Entity, U64Hash>);
 pub(crate) struct GlobalGroup {
     id: u64,
     entities: IndexSet<Entity, U64Hash>,
-    opacity: f32,
-    enabled: bool,
+    pub(crate) opacity: f32,
+    pub(crate) activated: bool,
 }
 
 impl Default for GlobalGroup {
@@ -23,7 +23,7 @@ impl Default for GlobalGroup {
             id: u64::MAX,
             entities: IndexSet::with_hasher(U64Hash),
             opacity: 1.,
-            enabled: true,
+            activated: true,
         }
     }
 }
@@ -122,15 +122,15 @@ pub(crate) fn update_object_group(
                 panic!("Object doesn't have group in list??");
             };
             *group_opacity = global_group.opacity;
-            *group_enabled = global_group.enabled;
-            for (_, group_entity, group_opacity, group_enabled) in &mut object_groups.groups {
-                let Ok(global_group) = groups.get(*group_entity) else {
-                    continue;
-                };
-
-                *group_opacity = global_group.opacity;
-                *group_enabled = global_group.enabled;
-            }
+            *group_enabled = global_group.activated;
+            // for (_, group_entity, group_opacity, group_enabled) in &mut object_groups.groups {
+            //     let Ok(global_group) = groups.get(*group_entity) else {
+            //         continue;
+            //     };
+            //
+            //     *group_opacity = global_group.opacity;
+            //     *group_enabled = global_group.enabled;
+            // }
         }
     }
 }

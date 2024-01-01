@@ -31,16 +31,20 @@ bevy = { version = "0.12", default-features = false, features = [
 bitflags = "2.4"
 bytemuck = { version = "1.14", features = ["derive"] }
 dashmap = { version = "5.5", features = ["raw-api"] }
+float_next_after = "1.0"
 futures-lite = "2.1"
 indexmap = "2.1"
 libdeflater = "1.19"
 memchr = "2.6"
+ordered-float = "4.2"
 phf = "0.11"
 plist = { git = "https://github.com/opstic/rust-plist" }
 quick-xml = { version = "0.31", features = ["serialize"] }
 radsort = "0.1"
+rangemap = "1.4"
 serde = { version = "1.0", features = ['derive'] }
 serde_json = "1.0"
+thread_local = "1.1"
 zstd = "0.13"
 
 [build-dependencies]

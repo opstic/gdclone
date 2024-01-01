@@ -5,13 +5,14 @@ use bevy::core_pipeline::tonemapping::{DebandDither, Tonemapping};
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::hierarchy::BuildChildren;
 use bevy::prelude::{
-    Camera2dBundle, ClearColor, Color, Commands, Component, NodeBundle, Query, Res, TextBundle,
-    With,
+    Camera2dBundle, ClearColor, Color, Commands, Component, Event, EventReader, NodeBundle,
+    OrthographicProjection, Query, Res, TextBundle, With,
 };
+use bevy::render::camera::ScalingMode;
 use bevy::text::{Text, TextSection, TextStyle};
 use bevy::ui::{PositionType, Style, UiRect, Val, ZIndex};
 use bevy::utils::default;
-use bevy::window::{PresentMode, Window, WindowPlugin};
+use bevy::window::{PresentMode, Window, WindowPlugin, WindowResized};
 use bevy::DefaultPlugins;
 
 use crate::asset::AssetPlugin;
@@ -42,7 +43,7 @@ fn main() {
     ));
 
     app.add_systems(Startup, setup)
-        .add_systems(Update, update_fps);
+        .add_systems(Update, (update_fps, update_scale_factor));
 
     app.run()
 }
@@ -103,4 +104,23 @@ fn update_fps(diagnostics: Res<DiagnosticsStore>, mut query: Query<&mut Text, Wi
             text.sections[1].value = average.trunc().to_string();
         }
     };
+}
+
+fn update_scale_factor(
+    mut projections: Query<&mut OrthographicProjection>,
+    mut resize_events: EventReader<WindowResized>,
+) {
+    for resize_event in resize_events.read() {
+        let width_scale_factor: f64 = resize_event.width as f64 / 568.;
+        let height_scale_factor: f64 = resize_event.height as f64 / 320.;
+
+        let scale_factor = width_scale_factor.min(height_scale_factor);
+        if scale_factor == 1. {
+            continue;
+        }
+
+        for mut projection in &mut projections {
+            projection.scaling_mode = ScalingMode::WindowSize(scale_factor as f32);
+        }
+    }
 }

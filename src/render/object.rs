@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::hash::Hash;
 use std::num::NonZeroU32;
 use std::ops::Range;
@@ -45,6 +46,7 @@ use bevy::render::{
 };
 use bevy::tasks::ComputeTaskPool;
 use bevy::utils::{syncunsafecell::SyncUnsafeCell, FloatOrd};
+use thread_local::ThreadLocal;
 
 use crate::asset::compressed_image::CompressedImage;
 use crate::level::{
@@ -54,6 +56,7 @@ use crate::level::{
     section::{GlobalSections, VisibleGlobalSections},
     LevelWorld,
 };
+use crate::utils::dashmap_get_dirty;
 
 #[derive(Default)]
 pub(crate) struct ObjectRenderPlugin;
@@ -344,7 +347,7 @@ pub struct ExtractedObject {
     rotated: bool,
 }
 
-#[derive(Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 struct LayerIndex(i32);
 
 impl LayerIndex {
@@ -384,9 +387,11 @@ pub(crate) struct ExtractSystemStateCache {
 }
 
 pub(crate) fn extract_objects(
+    mut thread_extracted_layers: Local<ThreadLocal<Cell<Vec<(LayerIndex, Vec<ExtractedObject>)>>>>,
     mut extract_system_state_cache: ResMut<ExtractSystemStateCache>,
     mut extracted_layers: ResMut<ExtractedLayers>,
     level_world: Extract<Res<LevelWorld>>,
+    mut sections_to_extract_len: Local<usize>,
 ) {
     let LevelWorld::World(world) = &**level_world else {
         // There's nothing to render
@@ -409,7 +414,7 @@ pub(crate) fn extract_objects(
             // https://github.com/bevyengine/bevy/issues/3774
             let world_mut = unsafe { world.as_unsafe_world_cell_readonly().world_mut() };
 
-            let mut system_state: SystemState<(
+            let system_state: SystemState<(
                 Res<GlobalSections>,
                 Res<VisibleGlobalSections>,
                 Query<(
@@ -431,56 +436,90 @@ pub(crate) fn extract_objects(
 
     let (global_sections, visible_global_sections, objects) = system_state.get(world);
 
-    let objects = &objects;
-
     for (_, extracted_layer) in &mut extracted_layers.layers {
         extracted_layer.get_mut().clear();
     }
+
+    let mut sections_to_extract = Vec::with_capacity(*sections_to_extract_len);
 
     for x in visible_global_sections.x.clone() {
         for y in visible_global_sections.y.clone() {
             let section_index = SectionIndex::new(x, y);
 
-            let Some(global_section) = global_sections.0.get(&section_index) else {
+            let Some(global_section) =
+                (unsafe { dashmap_get_dirty(&section_index, &global_sections.0) })
+            else {
                 continue;
             };
 
-            for (transform, object, object_color, image_handle) in
-                objects.iter_many(global_section.value())
-            {
-                let z_layer = object.z_layer - if object_color.blending { 1 } else { 0 };
+            sections_to_extract.push(global_section);
+        }
+    }
 
-                let extracted_layer = if let Some((_, extracted_layer)) = extracted_layers
-                    .layers
-                    .iter_mut()
-                    .find(|(layer_index, _)| layer_index.0 == z_layer)
-                {
-                    extracted_layer
-                } else {
-                    extracted_layers.layers.push((
-                        LayerIndex(z_layer),
-                        SyncUnsafeCell::new(Vec::with_capacity(5000)),
-                    ));
-                    let layer_index = extracted_layers.layers.len() - 1;
-                    &mut extracted_layers.layers[layer_index].1
-                };
+    let compute_task_pool = ComputeTaskPool::get();
 
-                let extracted_layer = extracted_layer.get_mut();
+    let thread_chunk_size = (sections_to_extract.len() / compute_task_pool.thread_num()).max(1);
 
-                extracted_layer.push(ExtractedObject {
-                    transform: *transform,
-                    color: object_color.color,
-                    blending: object_color.blending,
-                    rect: Some(object.frame.rect),
-                    custom_size: None,
-                    image_handle_id: image_handle.id(),
-                    flip_x: false,
-                    flip_y: false,
-                    anchor: object.frame.anchor + object.anchor,
-                    z_layer,
-                    rotated: object.frame.rotated,
-                });
-            }
+    compute_task_pool.scope(|scope| {
+        let objects = &objects;
+        let thread_extracted_layers = &thread_extracted_layers;
+
+        for chunk in sections_to_extract.chunks(thread_chunk_size) {
+            scope.spawn(async move {
+                let cell = thread_extracted_layers.get_or_default();
+                let mut extracted_layers = cell.take();
+                for section in chunk {
+                    for (transform, object, object_color, image_handle) in
+                        objects.iter_many(*section)
+                    {
+                        let z_layer = object.z_layer - if object_color.blending { 1 } else { 0 };
+
+                        let extracted_layer = if let Some((_, extracted_layer)) = extracted_layers
+                            .iter_mut()
+                            .find(|(layer_index, _)| layer_index.0 == z_layer)
+                        {
+                            extracted_layer
+                        } else {
+                            let layer_index = extracted_layers.len();
+                            extracted_layers.push((LayerIndex(z_layer), Vec::with_capacity(5000)));
+                            &mut extracted_layers[layer_index].1
+                        };
+
+                        extracted_layer.push(ExtractedObject {
+                            transform: *transform,
+                            color: object_color.color,
+                            blending: object_color.blending,
+                            rect: Some(object.frame.rect),
+                            custom_size: None,
+                            image_handle_id: image_handle.id(),
+                            flip_x: false,
+                            flip_y: false,
+                            anchor: object.frame.anchor + object.anchor,
+                            z_layer,
+                            rotated: object.frame.rotated,
+                        });
+                    }
+                }
+                cell.set(extracted_layers);
+            })
+        }
+    });
+
+    for cell in &mut thread_extracted_layers {
+        for (thread_layer_index, thread_extracted_layer) in cell.get_mut() {
+            let Some((_, extracted_layer)) = extracted_layers
+                .layers
+                .iter_mut()
+                .find(|(layer_index, _)| layer_index.0 == thread_layer_index.0)
+            else {
+                extracted_layers.layers.push((
+                    *thread_layer_index,
+                    SyncUnsafeCell::new(std::mem::take(thread_extracted_layer)),
+                ));
+                continue;
+            };
+
+            extracted_layer.get_mut().append(thread_extracted_layer);
         }
     }
 }
