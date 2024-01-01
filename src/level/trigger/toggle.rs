@@ -22,7 +22,7 @@ impl TriggerFunction for ToggleTrigger {
                 return;
             };
 
-            global_group.activated = self.activate;
+            global_group.enabled = self.activate;
         });
     }
 

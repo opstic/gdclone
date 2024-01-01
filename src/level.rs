@@ -42,6 +42,7 @@ use crate::utils::{decompress, decrypt, U64Hash};
 pub(crate) mod color;
 mod de;
 mod group;
+pub(crate) mod group;
 pub(crate) mod object;
 mod player;
 pub(crate) mod section;

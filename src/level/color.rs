@@ -343,6 +343,10 @@ pub(crate) fn update_object_color(
                     let mut iter = unsafe { objects.iter_many_unsafe(*section) };
                     while let Some((object_groups_calculated, mut object_color)) = iter.fetch_next()
                     {
+                        if !object_groups_calculated.enabled {
+                            continue;
+                        }
+
                         let (color_channel_color, blending, color_channel_tick) =
                             if let Some(result) = color_channel_cache.get(&object_color.channel_id)
                             {

@@ -49,6 +49,7 @@ use bevy::utils::{syncunsafecell::SyncUnsafeCell, FloatOrd};
 use thread_local::ThreadLocal;
 
 use crate::asset::compressed_image::CompressedImage;
+use crate::level::group::ObjectGroupsCalculated;
 use crate::level::{
     color::ObjectColor,
     object::Object,
@@ -379,6 +380,7 @@ pub(crate) struct ExtractSystemStateCache {
                     &'static GlobalTransform,
                     &'static Object,
                     &'static ObjectColor,
+                    &'static ObjectGroupsCalculated,
                     &'static Handle<CompressedImage>,
                 ),
             >,
@@ -421,6 +423,7 @@ pub(crate) fn extract_objects(
                     &GlobalTransform,
                     &Object,
                     &ObjectColor,
+                    &ObjectGroupsCalculated,
                     &Handle<CompressedImage>,
                 )>,
             )> = SystemState::new(world_mut);
@@ -469,9 +472,13 @@ pub(crate) fn extract_objects(
                 let cell = thread_extracted_layers.get_or_default();
                 let mut extracted_layers = cell.take();
                 for section in chunk {
-                    for (transform, object, object_color, image_handle) in
+                    for (transform, object, object_color, object_groups_calculated, image_handle) in
                         objects.iter_many(*section)
                     {
+                        if !object_groups_calculated.enabled {
+                            continue;
+                        }
+
                         let z_layer = object.z_layer - if object_color.blending { 1 } else { 0 };
 
                         let extracted_layer = if let Some((_, extracted_layer)) = extracted_layers
