@@ -205,8 +205,12 @@ pub(crate) fn update_color_channel_calculated(
                     // Fix the hierarchy for the next iteration
                     let (commands, global_color_channels) = &mut *mutex.lock().unwrap();
                     let mut parent_entity =
-                        if let Some(entity) = global_color_channels.0.get(&copied_index) {
-                            commands.entity(*entity)
+                        if let Some(parent_entity) = global_color_channels.0.get(&copied_index) {
+                            if *parent_entity == entity {
+                                // Recursive color channel
+                                return;
+                            }
+                            commands.entity(*parent_entity)
                         } else {
                             let entity = commands.spawn((
                                 GlobalColorChannel::default(),
