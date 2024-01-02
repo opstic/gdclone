@@ -1,10 +1,12 @@
-use std::any::TypeId;
+use std::any::{Any, TypeId};
 
 use bevy::ecs::system::SystemState;
+use bevy::log::info_span;
 use bevy::prelude::{
-    Component, Entity, EntityWorldMut, Has, Query, ResMut, Resource, Transform, World,
+    Component, Entity, EntityWorldMut, Has, Mut, Query, ResMut, Resource, Transform, World,
 };
 use bevy::utils::petgraph::matrix_graph::Zero;
+use bevy::utils::syncunsafecell::SyncUnsafeCell;
 use bevy::utils::{default, HashMap};
 use float_next_after::NextAfter;
 use indexmap::IndexMap;
@@ -142,7 +144,15 @@ pub(crate) struct MultiActivate;
 pub(crate) struct Trigger(Box<dyn TriggerFunction>);
 
 pub(crate) trait TriggerFunction: Send + Sync + 'static {
-    fn execute(&self, world: &mut World, previous_progress: f32, progress: f32);
+    fn execute(
+        &self,
+        world: &mut World,
+        system_state: &mut Box<dyn Any + Send + Sync>,
+        previous_progress: f32,
+        progress: f32,
+    );
+
+    fn create_system_state(&self, world: &mut World) -> Box<dyn Any + Send + Sync>;
 
     fn duration(&self) -> f32;
 
@@ -153,61 +163,122 @@ pub(crate) trait TriggerFunction: Send + Sync + 'static {
     }
 }
 
+#[derive(Default, Resource)]
+pub(crate) struct TriggerSystemStateCache {
+    cache: HashMap<TypeId, SyncUnsafeCell<Box<dyn Any + Send + Sync>>>,
+}
+
 pub(crate) fn process_triggers(world: &mut World) {
-    let mut system_state: SystemState<(
-        ResMut<GlobalTriggers>,
-        Query<(&Player, &Transform, &TriggerActivator)>,
-        Query<&Trigger>,
-    )> = SystemState::new(world);
+    world.resource_scope(
+        |world, mut trigger_system_state_cache: Mut<TriggerSystemStateCache>| {
+            let world_cell = world.as_unsafe_world_cell();
 
-    let world_cell = world.as_unsafe_world_cell();
+            let system_state: &mut SystemState<(
+                ResMut<GlobalTriggers>,
+                Query<(&Player, &Transform, &TriggerActivator)>,
+                Query<&Trigger>,
+            )> = if let Some(cell) = trigger_system_state_cache.cache.get(&TypeId::of::<World>()) {
+                unsafe { &mut *cell.get() }
+            } else {
+                let system_state: SystemState<(
+                    ResMut<GlobalTriggers>,
+                    Query<(&Player, &Transform, &TriggerActivator)>,
+                    Query<&Trigger>,
+                )> = SystemState::new(unsafe { world_cell.world_mut() });
 
-    let (mut global_triggers, players, triggers) =
-        system_state.get_mut(unsafe { world_cell.world_mut() });
+                trigger_system_state_cache.cache.insert(
+                    TypeId::of::<World>(),
+                    SyncUnsafeCell::new(Box::new(system_state)),
+                );
 
-    for (player, transform, trigger_activator) in &players {
-        let Some(global_trigger_channel) = global_triggers
-            .pos_triggers
-            .get_mut(&trigger_activator.channel)
-        else {
-            continue;
-        };
+                let cell = trigger_system_state_cache
+                    .cache
+                    .get(&TypeId::of::<World>())
+                    .unwrap();
 
-        let mut activate_range =
-            OrderedFloat(player.last_translation.x)..OrderedFloat(transform.translation.x);
+                unsafe { &mut *cell.get() }
+            }
+            .downcast_mut()
+            .unwrap();
 
-        if player.last_translation.x.is_zero() {
-            activate_range.start = OrderedFloat(f32::NEG_INFINITY);
-        }
+            let (mut global_triggers, players, triggers) =
+                system_state.get_mut(unsafe { world_cell.world_mut() });
 
-        for (trigger_range, entity_indices) in global_trigger_channel
-            .x
-            .0
-            .query_overlapping(&activate_range)
-            .iter()
-        {
-            let trigger_range_length = trigger_range.end.0 - trigger_range.start.0;
-            let previous_progress =
-                (player.last_translation.x - trigger_range.start.0).max(0.) / trigger_range_length;
-            let current_progress =
-                ((transform.translation.x - trigger_range.start.0) / trigger_range_length).min(1.);
-
-            for entity_index in entity_indices {
-                let trigger_entity = global_trigger_channel.x.1[*entity_index as usize];
-
-                let Ok(trigger) = triggers.get(trigger_entity) else {
+            for (player, transform, trigger_activator) in &players {
+                let Some(global_trigger_channel) = global_triggers
+                    .pos_triggers
+                    .get_mut(&trigger_activator.channel)
+                else {
                     continue;
                 };
 
-                // Very unsafe but works for now
-                let world_mut = unsafe { world_cell.world_mut() };
+                let mut activate_range =
+                    OrderedFloat(player.last_translation.x)..OrderedFloat(transform.translation.x);
 
-                trigger
-                    .0
-                    .execute(world_mut, previous_progress, current_progress);
+                if player.last_translation.x.is_zero() {
+                    activate_range.start = OrderedFloat(f32::NEG_INFINITY);
+                }
+
+                let span_a = info_span!("interval lookup");
+                let span_b = info_span!("trigger");
+
+                let query = span_a.in_scope(|| {
+                    global_trigger_channel
+                        .x
+                        .0
+                        .query_overlapping(&activate_range)
+                });
+
+                for (trigger_range, entity_indices) in query.iter() {
+                    let trigger_range_length = trigger_range.end.0 - trigger_range.start.0;
+                    let previous_progress = (player.last_translation.x - trigger_range.start.0)
+                        .max(0.)
+                        / trigger_range_length;
+                    let current_progress = ((transform.translation.x - trigger_range.start.0)
+                        / trigger_range_length)
+                        .min(1.);
+
+                    for entity_index in entity_indices {
+                        let trigger_entity = global_trigger_channel.x.1[*entity_index as usize];
+
+                        let Ok(trigger) = triggers.get(trigger_entity) else {
+                            continue;
+                        };
+
+                        // Very unsafe but works for now
+                        let world_mut = unsafe { world_cell.world_mut() };
+
+                        let trigger_system_state = if let Some(system_state) =
+                            trigger_system_state_cache
+                                .cache
+                                .get_mut(&trigger.0.concrete_type_id())
+                        {
+                            system_state
+                        } else {
+                            trigger_system_state_cache.cache.insert(
+                                trigger.0.concrete_type_id(),
+                                SyncUnsafeCell::new(trigger.0.create_system_state(world_mut)),
+                            );
+
+                            trigger_system_state_cache
+                                .cache
+                                .get_mut(&trigger.0.concrete_type_id())
+                                .unwrap()
+                        };
+
+                        span_b.in_scope(|| {
+                            trigger.0.execute(
+                                world_mut,
+                                trigger_system_state.get_mut(),
+                                previous_progress,
+                                current_progress,
+                            );
+                        });
+                    }
+                }
             }
-        }
-    }
+        },
+    );
 }
 
 pub(crate) fn insert_trigger_data(

@@ -1,4 +1,7 @@
-use bevy::prelude::{Mut, World};
+use std::any::Any;
+
+use bevy::ecs::system::SystemState;
+use bevy::prelude::{Query, Res, World};
 
 use crate::level::group::{GlobalGroup, GlobalGroups};
 use crate::level::trigger::TriggerFunction;
@@ -11,23 +14,39 @@ pub(crate) struct AlphaTrigger {
     pub(crate) target_opacity: f32,
 }
 
+type AlphaTriggerSystemParam = (
+    Res<'static, GlobalGroups>,
+    Query<'static, 'static, &'static mut GlobalGroup>,
+);
+
 impl TriggerFunction for AlphaTrigger {
-    fn execute(&self, world: &mut World, previous_progress: f32, progress: f32) {
-        world.resource_scope(|world, global_groups: Mut<GlobalGroups>| {
-            let mut group_query = world.query::<&mut GlobalGroup>();
+    fn execute(
+        &self,
+        world: &mut World,
+        system_state: &mut Box<dyn Any + Send + Sync>,
+        previous_progress: f32,
+        progress: f32,
+    ) {
+        let system_state: &mut SystemState<AlphaTriggerSystemParam> =
+            system_state.downcast_mut().unwrap();
 
-            let Some(group_entity) = global_groups.0.get(&self.target_group) else {
-                return;
-            };
+        let (global_groups, mut group_query) = system_state.get_mut(world);
 
-            let Ok(mut global_group) = group_query.get_mut(world, *group_entity) else {
-                return;
-            };
+        let Some(group_entity) = global_groups.0.get(&self.target_group) else {
+            return;
+        };
 
-            let original_opacity =
-                lerp_start(global_group.opacity, self.target_opacity, previous_progress);
-            global_group.opacity = lerp(original_opacity, self.target_opacity, progress);
-        });
+        let Ok(mut global_group) = group_query.get_mut(*group_entity) else {
+            return;
+        };
+
+        let original_opacity =
+            lerp_start(global_group.opacity, self.target_opacity, previous_progress);
+        global_group.opacity = lerp(original_opacity, self.target_opacity, progress);
+    }
+
+    fn create_system_state(&self, world: &mut World) -> Box<dyn Any + Send + Sync> {
+        Box::new(SystemState::<AlphaTriggerSystemParam>::new(world))
     }
 
     fn duration(&self) -> f32 {

@@ -27,7 +27,9 @@ use crate::asset::cocos2d_atlas::Cocos2dFrames;
 use crate::asset::TestAssets;
 use crate::level::player::{update_player_pos, Player};
 use crate::level::section::SectionIndex;
-use crate::level::trigger::{process_triggers, SpeedChange, TriggerActivator};
+use crate::level::trigger::{
+    process_triggers, SpeedChange, TriggerActivator, TriggerSystemStateCache,
+};
 use crate::level::{
     color::{
         update_color_channel_calculated, update_object_color, ColorChannelCalculated,
@@ -136,7 +138,7 @@ fn spawn_level_world(
 
         let mut world = sub_app.world;
 
-        let mut save_file = File::open("assets/peaceful.txt").unwrap();
+        let mut save_file = File::open("assets/theeschaton.txt").unwrap();
         let mut save_data = Vec::new();
         let _ = save_file.read_to_end(&mut save_data);
         let start_all = Instant::now();
@@ -259,6 +261,8 @@ fn spawn_level_world(
         start = Instant::now();
         trigger::construct_trigger_index(&mut world);
         info!("Trigger timeline construction took {:?}", start.elapsed());
+
+        world.init_resource::<TriggerSystemStateCache>();
 
         info!("Total time: {:?}", start_all.elapsed());
 

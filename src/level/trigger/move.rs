@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use bevy::ecs::system::SystemState;
 use bevy::math::{BVec2, Vec2};
 use bevy::prelude::{Query, Res, Transform, With, Without, World};
@@ -17,14 +19,23 @@ pub(crate) struct MoveTrigger {
     pub(crate) lock: BVec2,
 }
 
+type MoveTriggerSystemParam = (
+    Res<'static, GlobalGroups>,
+    Query<'static, 'static, &'static mut GlobalGroupDeltas>,
+    Query<'static, 'static, &'static Transform, (With<Object>, Without<Trigger>)>,
+    Query<'static, 'static, (&'static Player, &'static Transform), Without<Object>>,
+);
+
 impl TriggerFunction for MoveTrigger {
-    fn execute(&self, world: &mut World, previous_progress: f32, progress: f32) {
-        let mut system_state: SystemState<(
-            Res<GlobalGroups>,
-            Query<&mut GlobalGroupDeltas>,
-            Query<&Transform, (With<Object>, Without<Trigger>)>,
-            Query<(&Player, &Transform), Without<Object>>,
-        )> = SystemState::new(world);
+    fn execute(
+        &self,
+        world: &mut World,
+        system_state: &mut Box<dyn Any + Send + Sync>,
+        previous_progress: f32,
+        progress: f32,
+    ) {
+        let system_state: &mut SystemState<MoveTriggerSystemParam> =
+            &mut *system_state.downcast_mut().unwrap();
 
         let (global_groups, mut group_delta_query, object_transform_query, player_query) =
             system_state.get_mut(world);
@@ -56,6 +67,10 @@ impl TriggerFunction for MoveTrigger {
         global_group_delta
             .deltas
             .push(TransformDelta::Translate { delta });
+    }
+
+    fn create_system_state(&self, world: &mut World) -> Box<dyn Any + Send + Sync> {
+        Box::new(SystemState::<MoveTriggerSystemParam>::new(world))
     }
 
     fn duration(&self) -> f32 {
