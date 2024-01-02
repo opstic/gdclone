@@ -16,7 +16,7 @@ pub(crate) struct GlobalGroups(pub(crate) DashMap<u64, Entity, U64Hash>);
 #[derive(Component)]
 pub(crate) struct GlobalGroup {
     id: u64,
-    entities: Vec<Entity>,
+    pub(crate) entities: Vec<Entity>,
     pub(crate) opacity: f32,
     pub(crate) enabled: bool,
 }
@@ -40,21 +40,34 @@ pub(crate) struct GlobalGroupDeltas {
 
 #[derive(Component)]
 pub(crate) struct ObjectGroups {
-    groups: Vec<(u64, Entity, f32, bool)>,
+    pub(crate) groups: Vec<(u64, Entity, f32, bool)>,
 }
 
 #[derive(Debug)]
 pub(crate) enum TransformDelta {
-    Translate { delta: Vec2 },
-    RotateAround { center: Vec2, rotation: Quat },
+    Translate {
+        delta: Vec2,
+    },
+    RotateAround {
+        center: Vec2,
+        rotation: Quat,
+        lock_rotation: bool,
+    },
 }
 
 impl TransformDelta {
-    fn apply(&self, transform: &mut Transform) {
+    pub(crate) fn apply(&self, transform: &mut Transform) {
         match self {
             TransformDelta::Translate { delta } => transform.translation += delta.extend(0.),
-            TransformDelta::RotateAround { center, rotation } => {
-                transform.rotate_around(center.extend(0.), *rotation)
+            TransformDelta::RotateAround {
+                center,
+                rotation,
+                lock_rotation,
+            } => {
+                transform.translate_around(center.extend(0.), *rotation);
+                if !lock_rotation {
+                    transform.rotate(*rotation);
+                }
             }
         }
     }

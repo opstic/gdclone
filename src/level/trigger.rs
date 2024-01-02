@@ -15,11 +15,13 @@ use crate::level::easing::Easing;
 use crate::level::player::Player;
 use crate::level::trigger::alpha::AlphaTrigger;
 use crate::level::trigger::r#move::MoveTrigger;
+use crate::level::trigger::rotate::RotateTrigger;
 use crate::level::trigger::toggle::ToggleTrigger;
 use crate::utils::{u8_to_bool, U64Hash};
 
 mod alpha;
 mod r#move;
+mod rotate;
 mod toggle;
 
 #[derive(Default, Resource)]
@@ -316,6 +318,38 @@ pub(crate) fn insert_trigger_data(
             }
             if let Some(activate) = object_data.get(b"56".as_ref()) {
                 trigger.activate = u8_to_bool(activate);
+            }
+            entity_world_mut.insert(Trigger(Box::new(trigger)));
+        }
+        1346 => {
+            let mut trigger = RotateTrigger::default();
+            if let Some(duration) = object_data.get(b"10".as_ref()) {
+                trigger.duration = std::str::from_utf8(duration)?.parse()?;
+                if trigger.duration.is_sign_negative() {
+                    trigger.duration = 0.;
+                }
+            }
+            if let Some(easing) = object_data.get(b"30".as_ref()) {
+                let id = std::str::from_utf8(easing)?.parse()?;
+                let rate = object_data
+                    .get(b"85".as_ref())
+                    .map(|b| std::str::from_utf8(b).unwrap().parse().unwrap());
+                trigger.easing = Easing::from_id(id, rate)
+            }
+            if let Some(target_group) = object_data.get(b"51".as_ref()) {
+                trigger.target_group = std::str::from_utf8(target_group)?.parse()?;
+            }
+            if let Some(center_group) = object_data.get(b"71".as_ref()) {
+                trigger.center_group = std::str::from_utf8(center_group)?.parse()?;
+            }
+            if let Some(degrees) = object_data.get(b"68".as_ref()) {
+                trigger.degrees = std::str::from_utf8(degrees)?.parse()?;
+            }
+            if let Some(times360) = object_data.get(b"69".as_ref()) {
+                trigger.times360 = std::str::from_utf8(times360)?.parse()?;
+            }
+            if let Some(lock_rotation) = object_data.get(b"70".as_ref()) {
+                trigger.lock_rotation = u8_to_bool(lock_rotation);
             }
             entity_world_mut.insert(Trigger(Box::new(trigger)));
         }
