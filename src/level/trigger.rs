@@ -1,7 +1,7 @@
 use std::any::{Any, TypeId};
 
 use bevy::ecs::system::SystemState;
-use bevy::log::info_span;
+// use bevy::log::info_span;
 use bevy::prelude::{
     Component, Entity, EntityWorldMut, Has, Mut, Query, ResMut, Resource, Transform, World,
 };
@@ -219,15 +219,20 @@ pub(crate) fn process_triggers(world: &mut World) {
                     activate_range.start = OrderedFloat(f32::NEG_INFINITY);
                 }
 
-                let span_a = info_span!("interval lookup");
-                let span_b = info_span!("trigger");
+                // let span_a = info_span!("interval lookup");
+                // let span_b = info_span!("trigger");
+                //
+                // let query = span_a.in_scope(|| {
+                //     global_trigger_channel
+                //         .x
+                //         .0
+                //         .query_overlapping(&activate_range)
+                // });
 
-                let query = span_a.in_scope(|| {
-                    global_trigger_channel
-                        .x
-                        .0
-                        .query_overlapping(&activate_range)
-                });
+                let query = global_trigger_channel
+                    .x
+                    .0
+                    .query_overlapping(&activate_range);
 
                 for (trigger_range, entity_indices) in query.iter() {
                     let trigger_range_length = trigger_range.end.0 - trigger_range.start.0;
@@ -266,14 +271,21 @@ pub(crate) fn process_triggers(world: &mut World) {
                                 .unwrap()
                         };
 
-                        span_b.in_scope(|| {
-                            trigger.0.execute(
-                                world_mut,
-                                trigger_system_state.get_mut(),
-                                previous_progress,
-                                current_progress,
-                            );
-                        });
+                        trigger.0.execute(
+                            world_mut,
+                            trigger_system_state.get_mut(),
+                            previous_progress,
+                            current_progress,
+                        );
+
+                        // span_b.in_scope(|| {
+                        //     trigger.0.execute(
+                        //         world_mut,
+                        //         trigger_system_state.get_mut(),
+                        //         previous_progress,
+                        //         current_progress,
+                        //     );
+                        // });
                     }
                 }
             }
