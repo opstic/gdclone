@@ -2,17 +2,19 @@ use std::any::TypeId;
 
 use bevy::ecs::system::SystemState;
 use bevy::prelude::{
-    Component, Entity, EntityWorldMut, Has, Query, Res, Resource, Transform, World,
+    Component, Entity, EntityWorldMut, Has, Query, ResMut, Resource, Transform, World,
 };
 use bevy::utils::petgraph::matrix_graph::Zero;
 use bevy::utils::{default, HashMap};
 use float_next_after::NextAfter;
 use indexmap::IndexMap;
+use nested_intervals::IntervalSetGeneric;
 use ordered_float::OrderedFloat;
-use rangemap::RangeMap;
 
+use crate::level::easing::Easing;
 use crate::level::player::Player;
 use crate::level::trigger::alpha::AlphaTrigger;
+use crate::level::trigger::r#move::MoveTrigger;
 use crate::level::trigger::toggle::ToggleTrigger;
 use crate::utils::{u8_to_bool, U64Hash};
 
@@ -110,10 +112,10 @@ impl SpeedChanges {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 struct GlobalTriggerChannel {
-    x: RangeMap<OrderedFloat<f32>, Entity>,
-    y: RangeMap<OrderedFloat<f32>, Entity>,
+    x: (IntervalSetGeneric<OrderedFloat<f32>>, Vec<Entity>),
+    // y: (IntervalSetGeneric<OrderedFloat<f32>>, Vec<Entity>),
 }
 
 #[derive(Default, Component)]
@@ -150,18 +152,20 @@ pub(crate) trait TriggerFunction: Send + Sync + 'static {
 
 pub(crate) fn process_triggers(world: &mut World) {
     let mut system_state: SystemState<(
-        Res<GlobalTriggers>,
+        ResMut<GlobalTriggers>,
         Query<(&Player, &Transform, &TriggerActivator)>,
         Query<&Trigger>,
     )> = SystemState::new(world);
 
     let world_cell = world.as_unsafe_world_cell();
 
-    let (global_triggers, players, triggers) = system_state.get(unsafe { world_cell.world() });
+    let (mut global_triggers, players, triggers) =
+        system_state.get_mut(unsafe { world_cell.world_mut() });
 
     for (player, transform, trigger_activator) in &players {
-        let Some(global_trigger_channel) =
-            global_triggers.pos_triggers.get(&trigger_activator.channel)
+        let Some(global_trigger_channel) = global_triggers
+            .pos_triggers
+            .get_mut(&trigger_activator.channel)
         else {
             continue;
         };
@@ -173,7 +177,11 @@ pub(crate) fn process_triggers(world: &mut World) {
             activate_range.start = OrderedFloat(f32::NEG_INFINITY);
         }
 
-        for (trigger_range, trigger_entity) in global_trigger_channel.x.overlapping(&activate_range)
+        for (trigger_range, entity_indices) in global_trigger_channel
+            .x
+            .0
+            .query_overlapping(&activate_range)
+            .iter()
         {
             let trigger_range_length = trigger_range.end.0 - trigger_range.start.0;
             let previous_progress =
@@ -181,16 +189,20 @@ pub(crate) fn process_triggers(world: &mut World) {
             let current_progress =
                 ((transform.translation.x - trigger_range.start.0) / trigger_range_length).min(1.);
 
-            let Ok(trigger) = triggers.get(*trigger_entity) else {
-                continue;
-            };
+            for entity_index in entity_indices {
+                let trigger_entity = global_trigger_channel.x.1[*entity_index as usize];
 
-            // Very unsafe but works for now
-            let world_mut = unsafe { world_cell.world_mut() };
+                let Ok(trigger) = triggers.get(trigger_entity) else {
+                    continue;
+                };
 
-            trigger
-                .0
-                .execute(world_mut, previous_progress, current_progress);
+                // Very unsafe but works for now
+                let world_mut = unsafe { world_cell.world_mut() };
+
+                trigger
+                    .0
+                    .execute(world_mut, previous_progress, current_progress);
+            }
         }
     }
 }
@@ -323,8 +335,10 @@ pub(crate) fn construct_trigger_index(world: &mut World) {
     let mut triggers_query =
         world.query_filtered::<(Entity, &Trigger, &Transform), Has<PosActivate>>();
 
+    let mut trigger_entities = Vec::new();
+    let mut trigger_intervals = Vec::new();
+
     for (entity, trigger, transform) in triggers_query.iter(world) {
-        let trigger_channel = global_triggers.pos_triggers.entry(0).or_default();
         let trigger_start_pos = transform.translation.x;
         let trigger_end_pos = if trigger.0.duration() > 0. {
             let start_pos_time = global_triggers
@@ -337,11 +351,25 @@ pub(crate) fn construct_trigger_index(world: &mut World) {
             trigger_start_pos.next_after(f32::INFINITY)
         };
 
-        trigger_channel.x.insert(
-            OrderedFloat(trigger_start_pos)..OrderedFloat(trigger_end_pos),
-            entity,
-        );
+        trigger_entities.push(entity);
+        trigger_intervals.push(OrderedFloat(trigger_start_pos)..OrderedFloat(trigger_end_pos));
     }
+
+    let interval_ids: Vec<u32> = trigger_intervals
+        .iter()
+        .enumerate()
+        .map(|(index, _)| index as u32)
+        .collect();
+
+    global_triggers.pos_triggers.insert(
+        0,
+        GlobalTriggerChannel {
+            x: (
+                IntervalSetGeneric::new_with_ids(&trigger_intervals, &interval_ids).unwrap(),
+                trigger_entities,
+            ),
+        },
+    );
 
     world.insert_resource(global_triggers);
 }
