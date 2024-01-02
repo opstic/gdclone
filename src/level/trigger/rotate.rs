@@ -35,7 +35,7 @@ impl TriggerFunction for RotateTrigger {
         previous_progress: f32,
         progress: f32,
     ) {
-        let mut system_state: &mut SystemState<RotateTriggerSystemParam> =
+        let system_state: &mut SystemState<RotateTriggerSystemParam> =
             &mut *system_state.downcast_mut().unwrap();
 
         let (global_groups, group_query, mut group_delta_query, object_query) =
@@ -52,8 +52,8 @@ impl TriggerFunction for RotateTrigger {
         // This is horrendously bad
         let center = if let Some(center_group_entity) = global_groups.0.get(&self.center_group) {
             if let Ok(center_group) = group_query.get(*center_group_entity) {
-                if center_group.entities.len() == 1 {
-                    if let Ok(transform) = object_query.get(center_group.entities[0]) {
+                if center_group.root_entities.len() == 1 {
+                    if let Ok(transform) = object_query.get(center_group.root_entities[0]) {
                         Some(transform.translation.xy())
                     } else {
                         None

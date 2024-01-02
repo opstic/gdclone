@@ -17,6 +17,7 @@ pub(crate) struct GlobalGroups(pub(crate) DashMap<u64, Entity, U64Hash>);
 pub(crate) struct GlobalGroup {
     id: u64,
     pub(crate) entities: Vec<Entity>,
+    pub(crate) root_entities: Vec<Entity>,
     pub(crate) opacity: f32,
     pub(crate) enabled: bool,
 }
@@ -26,6 +27,7 @@ impl Default for GlobalGroup {
         Self {
             id: u64::MAX,
             entities: Vec::with_capacity(1000),
+            root_entities: Vec::with_capacity(1000),
             opacity: 1.,
             enabled: true,
         }
@@ -127,6 +129,11 @@ pub(crate) fn spawn_groups(
                 GlobalGroup {
                     id: group,
                     entities: entities.clone(),
+                    root_entities: entities
+                        .iter()
+                        .filter(|entity| !world.entity(**entity).contains::<Parent>())
+                        .copied()
+                        .collect(),
                     ..default()
                 },
                 GlobalGroupDeltas::default(),
