@@ -45,7 +45,8 @@ fn vertex(in: VertexInput) -> VertexOutput {
 #ifndef ADDITIVE_BLENDING
     out.color = vec4<f32>(in.i_color.rgb * in.i_color.a, in.i_color.a);
 #else
-    out.color = vec4<f32>(in.i_color.rgb * in.i_color.a, 0.0);
+    var alpha = pow(in.i_color.a, 2.0);
+    out.color = vec4<f32>(in.i_color.rgb * alpha, 0.0);
 #endif
     out.texture_index = in.i_texture_index;
 

@@ -224,11 +224,6 @@ pub(crate) fn update_color_channel_calculated(
             if should_update {
                 calculated.color = color;
                 calculated.blending = blending;
-
-                if blending {
-                    let squared_alpha = calculated.color.a().powf(2.);
-                    calculated.color.set_a(squared_alpha);
-                }
             }
 
             let Some(children) = children else {
@@ -300,11 +295,6 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
 
             calculated.color = temp_color;
             calculated.blending = blending;
-
-            if blending {
-                let squared_alpha = calculated.color.a().powf(2.);
-                calculated.color.set_a(squared_alpha);
-            }
         }
 
         let Some(children) = children else {
