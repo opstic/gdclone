@@ -17,7 +17,7 @@ use bevy::render::color::Color;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::time::TimePlugin;
 use bevy::transform::TransformBundle;
-use bevy::utils::HashMap;
+use bevy::utils::{default, HashMap};
 use futures_lite::future;
 use indexmap::IndexMap;
 use serde::de::Error;
@@ -25,6 +25,7 @@ use serde::{Deserialize, Deserializer};
 
 use crate::asset::cocos2d_atlas::Cocos2dFrames;
 use crate::asset::TestAssets;
+use crate::level::color::HsvMod;
 use crate::level::player::{update_player_pos, Player};
 use crate::level::section::SectionIndex;
 use crate::level::trigger::{
@@ -135,7 +136,7 @@ fn spawn_level_world(
 
         let mut world = sub_app.world;
 
-        let mut save_file = File::open("assets/theeschaton.txt").unwrap();
+        let mut save_file = File::open("assets/ultraviolence.txt").unwrap();
         let mut save_data = Vec::new();
         let _ = save_file.read_to_end(&mut save_data);
         let start_all = Instant::now();
@@ -173,6 +174,26 @@ fn spawn_level_world(
                 global_color_channels.0.insert(index, color_channel_entity);
             }
         }
+
+        global_color_channels.0.insert(
+            1007,
+            world
+                .spawn((
+                    GlobalColorChannel::Copy {
+                        copied_index: 1000,
+                        copy_opacity: false,
+                        opacity: 1.,
+                        blending: true,
+                        hsv: Some(HsvMod {
+                            s: -20.,
+                            s_absolute: true,
+                            ..default()
+                        }),
+                    },
+                    ColorChannelCalculated::default(),
+                ))
+                .id(),
+        );
 
         global_color_channels.0.insert(
             1010,
