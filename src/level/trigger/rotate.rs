@@ -5,7 +5,9 @@ use bevy::math::{Quat, Vec3Swizzles};
 use bevy::prelude::{Query, Res, Transform, With, Without, World};
 
 use crate::level::easing::Easing;
-use crate::level::group::{GlobalGroup, GlobalGroupDeltas, GlobalGroups, TransformDelta};
+use crate::level::group::{
+    GlobalGroup, GlobalGroupDeltas, GlobalGroups, ObjectGroups, TransformDelta,
+};
 use crate::level::object::Object;
 use crate::level::trigger::{Trigger, TriggerFunction};
 
@@ -24,7 +26,12 @@ type RotateTriggerSystemParam = (
     Res<'static, GlobalGroups>,
     Query<'static, 'static, &'static GlobalGroup>,
     Query<'static, 'static, &'static mut GlobalGroupDeltas>,
-    Query<'static, 'static, &'static Transform, (With<Object>, Without<Trigger>)>,
+    Query<
+        'static,
+        'static,
+        (&'static Transform, &'static ObjectGroups),
+        (With<Object>, Without<Trigger>),
+    >,
 );
 
 impl TriggerFunction for RotateTrigger {
@@ -45,15 +52,22 @@ impl TriggerFunction for RotateTrigger {
             return;
         };
 
-        let Ok(mut global_group_delta) = group_delta_query.get_mut(*group_entity) else {
-            return;
-        };
-
         // This is horrendously bad
         let center = if let Some(center_group_entity) = global_groups.0.get(&self.center_group) {
             if let Ok(center_group) = group_query.get(*center_group_entity) {
                 if center_group.root_entities.len() == 1 {
-                    if let Ok(transform) = object_query.get(center_group.root_entities[0]) {
+                    if let Ok((transform, object_groups)) =
+                        object_query.get(center_group.root_entities[0])
+                    {
+                        let mut transform = *transform;
+                        for (_, group_entity, _, _) in &object_groups.groups {
+                            if let Ok(group_deltas) = group_delta_query.get(*group_entity) {
+                                for delta in &group_deltas.deltas {
+                                    delta.apply(&mut transform);
+                                }
+                            }
+                        }
+
                         Some(transform.translation.xy())
                     } else {
                         None
@@ -66,6 +80,10 @@ impl TriggerFunction for RotateTrigger {
             }
         } else {
             None
+        };
+
+        let Ok(mut global_group_delta) = group_delta_query.get_mut(*group_entity) else {
+            return;
         };
 
         let amount = self.easing.sample(progress) - self.easing.sample(previous_progress);

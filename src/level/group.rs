@@ -103,29 +103,31 @@ pub(crate) fn clear_group_delta(
 }
 
 pub(crate) fn apply_group_delta(
-    objects: Query<&mut Transform, (Without<Parent>, Without<Trigger>)>,
+    mut objects: Query<&mut Transform, (Without<Parent>, Without<Trigger>)>,
     groups: Query<(&GlobalGroup, &GlobalGroupDeltas), Changed<GlobalGroupDeltas>>,
 ) {
     // Ugh, this might create shared access UB but it's twice as fast as doing it single-threaded
-    groups.par_iter().for_each(|(group, group_deltas)| {
-        let mut iter = unsafe { objects.iter_many_unsafe(&group.root_entities) };
-
-        while let Some(mut transform) = iter.fetch_next() {
-            transform.rotate(group_deltas.rotation);
-            for delta in &group_deltas.deltas {
-                delta.apply(&mut transform);
-            }
-        }
-    });
-    // for (group, group_deltas) in &groups {
-    //     let mut iter = objects.iter_many_mut(&group.entities);
+    // TODO: Yeah this actually breaks objects rotating, restructure this later
+    // groups.par_iter().for_each(|(group, group_deltas)| {
+    //     let mut iter = unsafe { objects.iter_many_unsafe(&group.root_entities) };
     //
     //     while let Some(mut transform) = iter.fetch_next() {
+    //         transform.rotate(group_deltas.rotation);
     //         for delta in &group_deltas.deltas {
     //             delta.apply(&mut transform);
     //         }
     //     }
-    // }
+    // });
+    for (group, group_deltas) in &groups {
+        let mut iter = objects.iter_many_mut(&group.entities);
+
+        while let Some(mut transform) = iter.fetch_next() {
+            for delta in &group_deltas.deltas {
+                transform.rotate(group_deltas.rotation);
+                delta.apply(&mut transform);
+            }
+        }
+    }
 }
 
 pub(crate) fn spawn_groups(
