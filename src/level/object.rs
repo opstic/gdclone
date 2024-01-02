@@ -1,5 +1,6 @@
 use bevy::asset::Handle;
 use bevy::hierarchy::BuildWorldChildren;
+use bevy::log::warn;
 use bevy::math::{Quat, Vec2, Vec3, Vec3Swizzles};
 use bevy::prelude::{Color, Component, Entity, GlobalTransform, Transform, World};
 use bevy::utils::{default, HashMap};
@@ -204,12 +205,16 @@ pub(crate) fn spawn_object(
         object_color.channel_entity = *color_channel_entity;
     }
 
-    let Some(frame_index) = cocos2d_frames.index.get(object_default_data.texture) else {
-        return Err(anyhow::Error::msg(format!(
-            "Cannot find texture with name \"{}\"",
-            object_default_data.texture
-        )));
-    };
+    let frame_index =
+        if let Some(frame_index) = cocos2d_frames.index.get(object_default_data.texture) {
+            frame_index
+        } else {
+            warn!(
+            "Object {}: Cannot find texture with name \"{}\". Using \"emptyFrame.png\" instead.",
+            object.id, object_default_data.texture
+        );
+            cocos2d_frames.index.get("emptyFrame.png").unwrap()
+        };
 
     let (frame, image_asset_id) = &cocos2d_frames.frames[*frame_index];
 
@@ -249,6 +254,7 @@ pub(crate) fn spawn_object(
 
     recursive_spawn_children(
         world,
+        object_id,
         object_default_data.children,
         base_color_channel,
         detail_color_channel,
@@ -274,6 +280,7 @@ pub(crate) fn spawn_object(
 
 fn recursive_spawn_children(
     world: &mut World,
+    object_id: u64,
     children: &[ObjectChild],
     base_color_channel: u64,
     detail_color_channel: u64,
@@ -334,10 +341,11 @@ fn recursive_spawn_children(
         }
 
         let Some(frame_index) = cocos2d_frames.index.get(child.texture) else {
-            return Err(anyhow::Error::msg(format!(
-                "Cannot find texture with name \"{}\"",
-                child.texture
-            )));
+            warn!(
+                "Object {}: Cannot find texture with name \"{}\". Skipping child.",
+                object_id, child.texture
+            );
+            continue;
         };
 
         let (frame, image_asset_id) = &cocos2d_frames.frames[*frame_index];
@@ -366,6 +374,7 @@ fn recursive_spawn_children(
 
         recursive_spawn_children(
             world,
+            object_id,
             child.children,
             base_color_channel,
             detail_color_channel,
