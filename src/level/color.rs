@@ -165,7 +165,10 @@ pub(crate) fn construct_color_channel_hierarchy(
 }
 
 #[derive(Default, Component)]
-pub(crate) struct ColorChannelCalculated(Color, bool);
+pub(crate) struct ColorChannelCalculated {
+    color: Color,
+    blending: bool,
+}
 
 pub(crate) fn update_color_channel_calculated(
     mut root_color_channels: Query<
@@ -185,8 +188,9 @@ pub(crate) fn update_color_channel_calculated(
         With<Parent>,
     >,
 ) {
-    root_color_channels.par_iter_mut().for_each(
-        |(color_channel, mut color_channel_calculated, children)| {
+    root_color_channels
+        .par_iter_mut()
+        .for_each(|(color_channel, mut calculated, children)| {
             let should_update = color_channel.is_changed();
 
             let GlobalColorChannel::Base { color, blending } = *color_channel else {
@@ -195,12 +199,12 @@ pub(crate) fn update_color_channel_calculated(
             };
 
             if should_update {
-                color_channel_calculated.0 = color;
-                color_channel_calculated.1 = blending;
+                calculated.color = color;
+                calculated.blending = blending;
 
                 if blending {
-                    let squared_alpha = color_channel_calculated.0.a().powf(2.);
-                    color_channel_calculated.0.set_a(squared_alpha);
+                    let squared_alpha = calculated.color.a().powf(2.);
+                    calculated.color.set_a(squared_alpha);
                 }
             }
 
@@ -211,8 +215,7 @@ pub(crate) fn update_color_channel_calculated(
             unsafe {
                 recursive_propagate_color(children, color, &child_color_channels, should_update)
             }
-        },
-    );
+        });
 }
 
 unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery>(
@@ -259,12 +262,12 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
                 temp_color = hsv.apply(&temp_color);
             }
 
-            calculated.0 = temp_color;
-            calculated.1 = blending;
+            calculated.color = temp_color;
+            calculated.blending = blending;
 
             if blending {
-                let squared_alpha = calculated.0.a().powf(2.);
-                calculated.0.set_a(squared_alpha);
+                let squared_alpha = calculated.color.a().powf(2.);
+                calculated.color.set_a(squared_alpha);
             }
         }
 
@@ -272,7 +275,9 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
             continue;
         };
 
-        unsafe { recursive_propagate_color(children, calculated.0, children_query, should_update) }
+        unsafe {
+            recursive_propagate_color(children, calculated.color, children_query, should_update)
+        }
     }
 }
 
@@ -355,8 +360,8 @@ pub(crate) fn update_object_color(
                                 color_channels.get(object_color.channel_entity)
                             {
                                 let color_channel_data = (
-                                    color_channel_calculated.0,
-                                    color_channel_calculated.1,
+                                    color_channel_calculated.color,
+                                    color_channel_calculated.blending,
                                     color_channel_calculated.last_changed(),
                                 );
                                 color_channel_cache
