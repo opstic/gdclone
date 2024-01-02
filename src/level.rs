@@ -110,11 +110,7 @@ fn spawn_level_world(
 
         sub_app.add_systems(
             Update,
-            (
-                update_player_pos,
-                process_triggers.after(update_player_pos),
-                apply_group_delta.after(process_triggers),
-            ),
+            (update_player_pos, process_triggers.after(update_player_pos)),
         );
 
         sub_app.add_systems(
@@ -123,6 +119,7 @@ fn spawn_level_world(
                 update_object_group,
                 update_object_group_calculated.after(update_object_group),
                 update_color_channel_calculated,
+                apply_group_delta.before(update_entity_section),
                 update_entity_section.before(update_global_sections),
                 propagate_section_change
                     .after(update_entity_section)
