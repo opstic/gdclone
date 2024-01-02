@@ -10,7 +10,6 @@ use bevy::prelude::{
 use dashmap::DashMap;
 use indexmap::IndexSet;
 
-use crate::level::color::ColorChannelCalculated;
 use crate::utils::U64Hash;
 
 #[derive(Default, Resource)]
@@ -121,17 +120,17 @@ unsafe fn propagate_section_recursive<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQue
 
 pub(crate) fn update_global_sections(
     global_sections: ResMut<GlobalSections>,
-    section_changed_entities: Query<(Entity, &Section, &ColorChannelCalculated), Changed<Section>>,
+    section_changed_entities: Query<(Entity, &Section), Changed<Section>>,
 ) {
-    // section_changed_entities
-    //     .par_iter()
-    //     .for_each(|(entity, section)| {
-    //         if let Some(mut global_section) = global_sections.0.get_mut(&section.old) {
-    //             global_section.remove(&entity);
-    //         }
-    //
-    //         let global_section_entry = global_sections.0.entry(section.current);
-    //         let mut global_section = global_section_entry.or_default();
-    //         global_section.insert(entity);
-    //     });
+    section_changed_entities
+        .par_iter()
+        .for_each(|(entity, section)| {
+            if let Some(mut global_section) = global_sections.0.get_mut(&section.old) {
+                global_section.remove(&entity);
+            }
+
+            let global_section_entry = global_sections.0.entry(section.current);
+            let mut global_section = global_section_entry.or_default();
+            global_section.insert(entity);
+        });
 }

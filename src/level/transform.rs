@@ -12,10 +12,7 @@ use crate::utils::dashmap_get_dirty;
 pub(crate) fn update_transform(
     global_sections: Res<GlobalSections>,
     visible_global_sections: Res<VisibleGlobalSections>,
-    mut object_query: Query<
-        (Ref<Transform>, &mut GlobalTransform, Option<&Children>),
-        Without<Parent>,
-    >,
+    object_query: Query<(Ref<Transform>, &mut GlobalTransform, Option<&Children>), Without<Parent>>,
     children_query: Query<(&Transform, &mut GlobalTransform, Option<&Children>), With<Parent>>,
     system_change_tick: SystemChangeTick,
     mut sections_to_update_len: Local<usize>,

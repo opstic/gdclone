@@ -33,15 +33,20 @@ use crate::level::{
         update_color_channel_calculated, update_object_color, ColorChannelCalculated,
         GlobalColorChannel, GlobalColorChannels,
     },
-    group::{clear_group_delta, update_object_group, update_object_group_calculated},
-    section::{update_global_sections, GlobalSections, Section, VisibleGlobalSections},
+    group::{
+        apply_group_delta, clear_group_delta, update_object_group, update_object_group_calculated,
+    },
+    section::{
+        propagate_section_change, update_entity_section, update_global_sections, GlobalSections,
+        Section, VisibleGlobalSections,
+    },
     transform::update_transform,
 };
 use crate::utils::{decompress, decrypt, U64Hash};
 
 pub(crate) mod color;
 mod de;
-mod group;
+mod easing;
 pub(crate) mod group;
 pub(crate) mod object;
 mod player;
@@ -103,7 +108,11 @@ fn spawn_level_world(
 
         sub_app.add_systems(
             Update,
-            (update_player_pos, process_triggers.after(update_player_pos)),
+            (
+                update_player_pos,
+                process_triggers.after(update_player_pos),
+                apply_group_delta.after(process_triggers),
+            ),
         );
 
         sub_app.add_systems(
@@ -112,10 +121,10 @@ fn spawn_level_world(
                 update_object_group,
                 update_object_group_calculated.after(update_object_group),
                 update_color_channel_calculated,
-                // update_entity_section.before(update_global_sections),
-                // propagate_section_change
-                //     .after(update_entity_section)
-                //     .before(update_global_sections),
+                update_entity_section.before(update_global_sections),
+                propagate_section_change
+                    .after(update_entity_section)
+                    .before(update_global_sections),
                 update_global_sections,
                 update_transform.after(update_global_sections),
                 update_object_color
@@ -127,7 +136,7 @@ fn spawn_level_world(
 
         let mut world = sub_app.world;
 
-        let mut save_file = File::open("assets/theeschaton.txt").unwrap();
+        let mut save_file = File::open("assets/peaceful.txt").unwrap();
         let mut save_data = Vec::new();
         let _ = save_file.read_to_end(&mut save_data);
         let start_all = Instant::now();

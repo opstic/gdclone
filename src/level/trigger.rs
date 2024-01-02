@@ -19,6 +19,7 @@ use crate::level::trigger::toggle::ToggleTrigger;
 use crate::utils::{u8_to_bool, U64Hash};
 
 mod alpha;
+mod r#move;
 mod toggle;
 
 #[derive(Default, Resource)]
@@ -257,6 +258,38 @@ pub(crate) fn insert_trigger_data(
             });
             entity_world_mut.insert(TouchActivate);
             return Ok(());
+        }
+        901 => {
+            let mut trigger = MoveTrigger::default();
+            if let Some(duration) = object_data.get(b"10".as_ref()) {
+                trigger.duration = std::str::from_utf8(duration)?.parse()?;
+                if trigger.duration.is_sign_negative() {
+                    trigger.duration = 0.;
+                }
+            }
+            if let Some(easing) = object_data.get(b"30".as_ref()) {
+                let id = std::str::from_utf8(easing)?.parse()?;
+                let rate = object_data
+                    .get(b"85".as_ref())
+                    .map(|b| std::str::from_utf8(b).unwrap().parse().unwrap());
+                trigger.easing = Easing::from_id(id, rate)
+            }
+            if let Some(target_group) = object_data.get(b"51".as_ref()) {
+                trigger.target_group = std::str::from_utf8(target_group)?.parse()?;
+            }
+            if let Some(x_offset) = object_data.get(b"28".as_ref()) {
+                trigger.offset.x = std::str::from_utf8(x_offset)?.parse()?;
+            }
+            if let Some(y_offset) = object_data.get(b"29".as_ref()) {
+                trigger.offset.y = std::str::from_utf8(y_offset)?.parse()?;
+            }
+            if let Some(lock_x) = object_data.get(b"58".as_ref()) {
+                trigger.lock.x = u8_to_bool(lock_x);
+            }
+            if let Some(lock_y) = object_data.get(b"59".as_ref()) {
+                trigger.lock.y = u8_to_bool(lock_y);
+            }
+            entity_world_mut.insert(Trigger(Box::new(trigger)));
         }
         1007 => {
             let mut trigger = AlphaTrigger::default();

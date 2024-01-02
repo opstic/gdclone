@@ -1,9 +1,13 @@
-use bevy::math::Vec2;
-use bevy::prelude::{Changed, Component, DetectChangesMut, Entity, Query, Resource, World};
+use bevy::hierarchy::Parent;
+use bevy::math::{Quat, Vec2};
+use bevy::prelude::{
+    Changed, Component, DetectChangesMut, Entity, Query, Resource, Transform, Without, World,
+};
 use bevy::utils::default;
 use dashmap::DashMap;
-use indexmap::{IndexMap, IndexSet};
+use indexmap::IndexMap;
 
+use crate::level::trigger::Trigger;
 use crate::utils::U64Hash;
 
 #[derive(Default, Resource)]
@@ -12,7 +16,7 @@ pub(crate) struct GlobalGroups(pub(crate) DashMap<u64, Entity, U64Hash>);
 #[derive(Component)]
 pub(crate) struct GlobalGroup {
     id: u64,
-    entities: IndexSet<Entity, U64Hash>,
+    entities: Vec<Entity>,
     pub(crate) opacity: f32,
     pub(crate) enabled: bool,
 }
@@ -21,7 +25,7 @@ impl Default for GlobalGroup {
     fn default() -> Self {
         Self {
             id: u64::MAX,
-            entities: IndexSet::with_hasher(U64Hash),
+            entities: Vec::with_capacity(1000),
             opacity: 1.,
             enabled: true,
         }
@@ -30,8 +34,8 @@ impl Default for GlobalGroup {
 
 #[derive(Default, Component)]
 pub(crate) struct GlobalGroupDeltas {
-    deltas: Vec<TransformDelta>,
-    rotation: f32,
+    pub(crate) deltas: Vec<TransformDelta>,
+    pub(crate) rotation: Quat,
 }
 
 #[derive(Component)]
@@ -39,9 +43,21 @@ pub(crate) struct ObjectGroups {
     groups: Vec<(u64, Entity, f32, bool)>,
 }
 
+#[derive(Debug)]
 pub(crate) enum TransformDelta {
     Translate { delta: Vec2 },
-    RotateAround { center: Vec2, degrees: f32 },
+    RotateAround { center: Vec2, rotation: Quat },
+}
+
+impl TransformDelta {
+    fn apply(&self, transform: &mut Transform) {
+        match self {
+            TransformDelta::Translate { delta } => transform.translation += delta.extend(0.),
+            TransformDelta::RotateAround { center, rotation } => {
+                transform.rotate_around(center.extend(0.), *rotation)
+            }
+        }
+    }
 }
 
 #[derive(Component)]
@@ -67,8 +83,23 @@ pub(crate) fn clear_group_delta(
         .for_each(|mut global_group| {
             let global_group = global_group.bypass_change_detection();
             global_group.deltas.clear();
-            global_group.rotation = 0.;
+            global_group.rotation = Quat::IDENTITY;
         })
+}
+
+pub(crate) fn apply_group_delta(
+    mut objects: Query<&mut Transform, (Without<Parent>, Without<Trigger>)>,
+    groups: Query<(&GlobalGroup, &GlobalGroupDeltas), Changed<GlobalGroupDeltas>>,
+) {
+    for (group, group_deltas) in &groups {
+        let mut iter = objects.iter_many_mut(&group.entities);
+
+        while let Some(mut transform) = iter.fetch_next() {
+            for delta in &group_deltas.deltas {
+                delta.apply(&mut transform);
+            }
+        }
+    }
 }
 
 pub(crate) fn spawn_groups(
@@ -82,7 +113,7 @@ pub(crate) fn spawn_groups(
             .spawn((
                 GlobalGroup {
                     id: group,
-                    entities: IndexSet::from_iter(entities.iter().copied()),
+                    entities: entities.clone(),
                     ..default()
                 },
                 GlobalGroupDeltas::default(),
@@ -123,14 +154,6 @@ pub(crate) fn update_object_group(
             };
             *group_opacity = global_group.opacity;
             *group_enabled = global_group.enabled;
-            // for (_, group_entity, group_opacity, group_enabled) in &mut object_groups.groups {
-            //     let Ok(global_group) = groups.get(*group_entity) else {
-            //         continue;
-            //     };
-            //
-            //     *group_opacity = global_group.opacity;
-            //     *group_enabled = global_group.enabled;
-            // }
         }
     }
 }
