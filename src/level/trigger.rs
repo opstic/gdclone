@@ -1,7 +1,6 @@
 use std::any::{Any, TypeId};
 
 use bevy::ecs::system::SystemState;
-// use bevy::log::info_span;
 use bevy::prelude::{
     Component, Entity, EntityWorldMut, Has, Mut, Query, ResMut, Resource, Transform, World,
 };
@@ -13,15 +12,19 @@ use indexmap::IndexMap;
 use nested_intervals::IntervalSetGeneric;
 use ordered_float::OrderedFloat;
 
+// use bevy::log::info_span;
+use crate::level::color::HsvMod;
 use crate::level::easing::Easing;
 use crate::level::player::Player;
 use crate::level::trigger::alpha::AlphaTrigger;
+use crate::level::trigger::color::ColorTrigger;
 use crate::level::trigger::r#move::MoveTrigger;
 use crate::level::trigger::rotate::RotateTrigger;
 use crate::level::trigger::toggle::ToggleTrigger;
 use crate::utils::{u8_to_bool, U64Hash};
 
 mod alpha;
+mod color;
 mod r#move;
 mod rotate;
 mod toggle;
@@ -343,6 +346,55 @@ pub(crate) fn insert_trigger_data(
             });
             entity_world_mut.insert(TouchActivate);
             return Ok(());
+        }
+        899 => {
+            let mut trigger = ColorTrigger::default();
+            if let Some(duration) = object_data.get(b"10".as_ref()) {
+                trigger.duration = std::str::from_utf8(duration)?.parse()?;
+                if trigger.duration.is_sign_negative() {
+                    trigger.duration = 0.;
+                }
+            }
+            if let Some(target_channel) = object_data.get(b"23".as_ref()) {
+                trigger.target_channel = std::str::from_utf8(target_channel)?.parse()?;
+            } else {
+                trigger.target_channel = 1;
+            }
+            if let Some(r) = object_data.get(b"7".as_ref()) {
+                trigger
+                    .target_color
+                    .set_r(std::str::from_utf8(r)?.parse::<u8>()? as f32 / u8::MAX as f32);
+            }
+            if let Some(g) = object_data.get(b"8".as_ref()) {
+                trigger
+                    .target_color
+                    .set_g(std::str::from_utf8(g)?.parse::<u8>()? as f32 / u8::MAX as f32);
+            }
+            if let Some(b) = object_data.get(b"9".as_ref()) {
+                trigger
+                    .target_color
+                    .set_b(std::str::from_utf8(b)?.parse::<u8>()? as f32 / u8::MAX as f32);
+            }
+            if let Some(opacity) = object_data.get(b"35".as_ref()) {
+                trigger
+                    .target_color
+                    .set_a(std::str::from_utf8(opacity)?.parse()?);
+            }
+            if let Some(blending) = object_data.get(b"17".as_ref()) {
+                trigger.target_blending = u8_to_bool(blending);
+            }
+            if let Some(copied_hsv) = object_data.get(b"49".as_ref()) {
+                trigger.copied_hsv = Some(HsvMod::parse(copied_hsv)?);
+            }
+            if let Some(copied_channel) = object_data.get(b"50".as_ref()) {
+                trigger.copied_channel = std::str::from_utf8(copied_channel)?.parse()?;
+            } else {
+                trigger.copied_channel = 0;
+            }
+            if let Some(copy_opacity) = object_data.get(b"60".as_ref()) {
+                trigger.copy_opacity = u8_to_bool(copy_opacity);
+            }
+            entity_world_mut.insert(Trigger(Box::new(trigger)));
         }
         901 => {
             let mut trigger = MoveTrigger::default();

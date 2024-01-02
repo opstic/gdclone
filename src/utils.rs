@@ -1,6 +1,7 @@
 use std::hash::{BuildHasher, Hash};
 
 use bevy::log::{info, warn};
+use bevy::prelude::Color;
 use bevy::tasks::AsyncComputeTaskPool;
 use bevy::utils::EntityHasher;
 use dashmap::DashMap;
@@ -58,6 +59,24 @@ pub(crate) fn lerp(start: f32, end: f32, x: f32) -> f32 {
 #[inline(always)]
 pub(crate) fn lerp_start(current: f32, end: f32, x: f32) -> f32 {
     (current - end * x) / (1. - x)
+}
+
+pub(crate) fn lerp_color(start: Color, end: Color, x: f32) -> Color {
+    Color::rgba(
+        lerp(start.r(), end.r(), x),
+        lerp(start.g(), end.g(), x),
+        lerp(start.b(), end.b(), x),
+        lerp(start.a(), end.a(), x),
+    )
+}
+
+pub(crate) fn lerp_start_color(current: Color, end: Color, x: f32) -> Color {
+    Color::rgba(
+        lerp_start(current.r(), end.r(), x),
+        lerp_start(current.g(), end.g(), x),
+        lerp_start(current.b(), end.b(), x),
+        lerp_start(current.a(), end.a(), x),
+    )
 }
 
 #[inline(always)]

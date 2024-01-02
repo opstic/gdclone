@@ -7,7 +7,7 @@ use crate::level::group::{GlobalGroup, GlobalGroups};
 use crate::level::trigger::TriggerFunction;
 use crate::utils::{lerp, lerp_start};
 
-#[derive(Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct AlphaTrigger {
     pub(crate) duration: f32,
     pub(crate) target_group: u64,

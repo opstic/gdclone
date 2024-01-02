@@ -1,13 +1,14 @@
+use std::sync::Mutex;
+
 use bevy::ecs::{
     component::Tick,
     query::{ReadOnlyWorldQuery, WorldQuery},
     system::SystemChangeTick,
 };
-use bevy::hierarchy::{BuildWorldChildren, Children, Parent};
-use bevy::log::warn;
+use bevy::hierarchy::{BuildChildren, BuildWorldChildren, Children, Parent};
 use bevy::prelude::{
-    Color, Component, DetectChanges, Entity, Local, Mut, Query, Ref, Res, Resource, With, Without,
-    World,
+    Color, Commands, Component, DetectChanges, Entity, Local, Mut, Query, Ref, Res, ResMut,
+    Resource, With, Without, World,
 };
 use bevy::reflect::Reflect;
 use bevy::tasks::ComputeTaskPool;
@@ -166,13 +167,16 @@ pub(crate) fn construct_color_channel_hierarchy(
 
 #[derive(Default, Component)]
 pub(crate) struct ColorChannelCalculated {
-    color: Color,
-    blending: bool,
+    pub(crate) color: Color,
+    pub(crate) blending: bool,
 }
 
 pub(crate) fn update_color_channel_calculated(
+    mut commands: Commands,
+    mut global_color_channels: ResMut<GlobalColorChannels>,
     mut root_color_channels: Query<
         (
+            Entity,
             Ref<GlobalColorChannel>,
             &mut ColorChannelCalculated,
             Option<&Children>,
@@ -181,6 +185,7 @@ pub(crate) fn update_color_channel_calculated(
     >,
     child_color_channels: Query<
         (
+            Entity,
             Ref<GlobalColorChannel>,
             &mut ColorChannelCalculated,
             Option<&Children>,
@@ -188,14 +193,32 @@ pub(crate) fn update_color_channel_calculated(
         With<Parent>,
     >,
 ) {
-    root_color_channels
-        .par_iter_mut()
-        .for_each(|(color_channel, mut calculated, children)| {
+    let mutex = Mutex::new((commands, &mut *global_color_channels));
+
+    root_color_channels.par_iter_mut().for_each(
+        |(entity, color_channel, mut calculated, children)| {
             let should_update = color_channel.is_changed();
 
-            let GlobalColorChannel::Base { color, blending } = *color_channel else {
-                warn!("Root color channel is a copy channel???");
-                return;
+            let (color, blending) = match *color_channel {
+                GlobalColorChannel::Base { color, blending } => (color, blending),
+                GlobalColorChannel::Copy { copied_index, .. } => {
+                    // Fix the hierarchy for the next iteration
+                    let (commands, global_color_channels) = &mut *mutex.lock().unwrap();
+                    let mut parent_entity =
+                        if let Some(entity) = global_color_channels.0.get(&copied_index) {
+                            commands.entity(*entity)
+                        } else {
+                            let entity = commands.spawn((
+                                GlobalColorChannel::default(),
+                                ColorChannelCalculated::default(),
+                            ));
+                            global_color_channels.0.insert(copied_index, entity.id());
+                            entity
+                        };
+
+                    parent_entity.add_child(entity);
+                    return;
+                }
             };
 
             if should_update {
@@ -213,12 +236,20 @@ pub(crate) fn update_color_channel_calculated(
             };
 
             unsafe {
-                recursive_propagate_color(children, color, &child_color_channels, should_update)
+                recursive_propagate_color(
+                    &mutex,
+                    children,
+                    color,
+                    &child_color_channels,
+                    should_update,
+                )
             }
-        });
+        },
+    );
 }
 
 unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery>(
+    mutex: &Mutex<(Commands, &mut GlobalColorChannels)>,
     children: &Children,
     parent_color: Color,
     children_query: &'w Query<'w, 's, Q, F>,
@@ -226,6 +257,7 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
 ) where
     Q: WorldQuery<
         Item<'w> = (
+            Entity,
             Ref<'w, GlobalColorChannel>,
             Mut<'w, ColorChannelCalculated>,
             Option<&'w Children>,
@@ -233,7 +265,8 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
     >,
 {
     for child in children {
-        let Ok((color_channel, mut calculated, children)) = children_query.get_unchecked(*child)
+        let Ok((entity, color_channel, mut calculated, children)) =
+            children_query.get_unchecked(*child)
         else {
             continue;
         };
@@ -248,7 +281,10 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
             ..
         } = *color_channel
         else {
-            warn!("Child color channel is a base channel???");
+            // Fix the hierarchy for the next iteration
+            let (commands, _) = &mut *mutex.lock().unwrap();
+
+            commands.entity(entity).remove_parent();
             continue;
         };
 
@@ -276,7 +312,13 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
         };
 
         unsafe {
-            recursive_propagate_color(children, calculated.color, children_query, should_update)
+            recursive_propagate_color(
+                mutex,
+                children,
+                calculated.color,
+                children_query,
+                should_update,
+            )
         }
     }
 }
@@ -337,6 +379,7 @@ pub(crate) fn update_object_color(
 
     let objects = &objects;
     let color_channels = &color_channels;
+    let global_color_channels = &global_color_channels;
     let system_change_tick = &system_change_tick;
 
     compute_task_pool.scope(|scope| {
@@ -367,11 +410,23 @@ pub(crate) fn update_object_color(
                                 color_channel_cache
                                     .insert(object_color.channel_id, color_channel_data);
                                 color_channel_data
+                            } else if let Some(entity) =
+                                global_color_channels.0.get(&object_color.channel_id)
+                            {
+                                object_color.channel_entity = *entity;
+                                if let Ok(color_channel_calculated) = color_channels.get(*entity) {
+                                    let color_channel_data = (
+                                        color_channel_calculated.color,
+                                        color_channel_calculated.blending,
+                                        color_channel_calculated.last_changed(),
+                                    );
+                                    color_channel_cache
+                                        .insert(object_color.channel_id, color_channel_data);
+                                    color_channel_data
+                                } else {
+                                    (Color::WHITE, false, Tick::new(0))
+                                }
                             } else {
-                                // TODO: Try to get the new channel
-                                // if object_color.is_changed() {
-                                //
-                                // }
                                 (Color::WHITE, false, Tick::new(0))
                             };
 
