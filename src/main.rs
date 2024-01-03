@@ -53,6 +53,7 @@ fn setup(mut commands: Commands) {
     camera_bundle.tonemapping = Tonemapping::None;
     camera_bundle.deband_dither = DebandDither::Disabled;
     camera_bundle.projection.scale = 1.;
+    camera_bundle.projection.near = -10000.;
     commands.spawn(camera_bundle);
 
     let fps_container = commands
