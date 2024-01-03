@@ -2,7 +2,7 @@ use std::any::{Any, TypeId};
 
 use bevy::ecs::system::SystemState;
 use bevy::prelude::{
-    Component, Entity, EntityWorldMut, Has, Mut, Query, ResMut, Resource, Transform, World,
+    Component, Entity, EntityWorldMut, Mut, Query, ResMut, Resource, Transform, With, World,
 };
 use bevy::utils::petgraph::matrix_graph::Zero;
 use bevy::utils::syncunsafecell::SyncUnsafeCell;
@@ -535,7 +535,7 @@ pub(crate) fn construct_trigger_index(world: &mut World) {
 
     // Then get each of the position activated triggers and precompute their range to create a timeline
     let mut triggers_query =
-        world.query_filtered::<(Entity, &Trigger, &Transform), Has<PosActivate>>();
+        world.query_filtered::<(Entity, &Trigger, &Transform), With<PosActivate>>();
 
     let mut trigger_entities = Vec::new();
     let mut trigger_intervals = Vec::new();
