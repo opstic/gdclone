@@ -10,8 +10,8 @@ use bevy::input::Input;
 use bevy::log::{info, warn};
 use bevy::math::{Vec2, Vec3Swizzles};
 use bevy::prelude::{
-    Camera, Component, Gizmos, GlobalTransform, IntoSystemConfigs, KeyCode, Local,
-    OrthographicProjection, Query, Res, ResMut, Resource, Time, Transform, With, World,
+    Camera, ClearColor, Commands, Component, Gizmos, GlobalTransform, IntoSystemConfigs, KeyCode,
+    Local, Mut, OrthographicProjection, Query, Res, ResMut, Resource, Time, Transform, With, World,
 };
 use bevy::render::color::Color;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
@@ -357,9 +357,10 @@ fn update_controls(
 }
 
 fn update_level_world(
+    mut commands: Commands,
     mut camera: Query<(&OrthographicProjection, &mut Transform)>,
     mut level_world: ResMut<LevelWorld>,
-    mut options: Res<Options>,
+    options: Res<Options>,
     mut gizmos: Gizmos,
 ) {
     match &mut *level_world {
@@ -420,6 +421,15 @@ fn update_level_world(
 
             world.run_schedule(PostUpdate);
             world.run_schedule(Last);
+
+            world.resource_scope(|world, global_color_channels: Mut<GlobalColorChannels>| {
+                if let Some(entity) = global_color_channels.0.get(&1000) {
+                    let mut query = world.query::<&ColorChannelCalculated>();
+                    if let Ok(calculated) = query.get(world, *entity) {
+                        commands.insert_resource(ClearColor(calculated.color));
+                    }
+                }
+            });
 
             world.clear_trackers();
         }
