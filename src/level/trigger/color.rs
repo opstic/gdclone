@@ -1,7 +1,6 @@
 use std::any::Any;
 
 use bevy::ecs::system::SystemState;
-use bevy::hierarchy::BuildWorldChildren;
 use bevy::prelude::{Color, Mut, Query, World};
 
 use crate::level::color::{
@@ -38,7 +37,7 @@ impl TriggerFunction for ColorTrigger {
         previous_progress: f32,
         progress: f32,
     ) {
-        let (target_entity, parent_entity) =
+        let (target_entity, parent_data) =
             world.resource_scope(|world, global_color_channels: Mut<GlobalColorChannels>| {
                 let target_entity = if let Some(target_entity) =
                     global_color_channels.0.get(&self.target_channel)
@@ -86,21 +85,14 @@ impl TriggerFunction for ColorTrigger {
         let system_state: &mut SystemState<ColorTriggerSystemParam> =
             system_state.downcast_mut().unwrap();
 
-        let world_cell = world.as_unsafe_world_cell();
-        let mut color_channel_query = system_state.get_mut(unsafe { world_cell.world_mut() });
+        let mut color_channel_query = system_state.get_mut(world);
 
         let Ok((mut color_channel, calculated)) = color_channel_query.get_mut(target_entity) else {
             return;
         };
 
-        let world = unsafe { world_cell.world_mut() };
-
         if progress == 1. {
             if self.copied_channel != 0 {
-                let mut parent_entity = world.entity_mut(parent_entity.unwrap().0);
-
-                parent_entity.add_child(target_entity);
-
                 *color_channel = GlobalColorChannel::Copy {
                     copied_index: self.copied_channel,
                     copy_opacity: self.copy_opacity,
@@ -118,9 +110,7 @@ impl TriggerFunction for ColorTrigger {
             return;
         }
 
-        world.entity_mut(target_entity).remove_parent();
-
-        let target_color = if let Some((_, target_color)) = parent_entity {
+        let target_color = if let Some((_, target_color)) = parent_data {
             let mut target_color = target_color;
             if let Some(hsv) = self.copied_hsv {
                 target_color = hsv.apply(&target_color);

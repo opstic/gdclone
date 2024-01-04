@@ -197,7 +197,7 @@ pub(crate) fn update_color_channel_calculated(
 
     root_color_channels.par_iter_mut().for_each(
         |(entity, color_channel, mut calculated, children)| {
-            let should_update = color_channel.is_changed();
+            let should_update = color_channel.is_changed() || calculated.deferred;
 
             let (color, blending) = match *color_channel {
                 GlobalColorChannel::Base { color, blending } => (color, blending),
@@ -208,6 +208,7 @@ pub(crate) fn update_color_channel_calculated(
                         if let Some(parent_entity) = global_color_channels.0.get(&copied_index) {
                             if *parent_entity == entity {
                                 // Recursive color channel
+                                calculated.deferred = true;
                                 return;
                             }
                             commands.entity(*parent_entity)
@@ -221,6 +222,8 @@ pub(crate) fn update_color_channel_calculated(
                         };
 
                     parent_entity.add_child(entity);
+
+                    calculated.deferred = true;
                     return;
                 }
             };
@@ -228,6 +231,7 @@ pub(crate) fn update_color_channel_calculated(
             if should_update {
                 calculated.color = color;
                 calculated.blending = blending;
+                calculated.deferred = false;
             }
 
             let Some(children) = children else {
@@ -270,7 +274,7 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
             continue;
         };
 
-        let should_update = should_update || color_channel.is_changed();
+        let should_update = should_update || color_channel.is_changed() || calculated.deferred;
 
         let GlobalColorChannel::Copy {
             copy_opacity,
@@ -284,6 +288,7 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
             let (commands, _) = &mut *mutex.lock().unwrap();
 
             commands.entity(entity).remove_parent();
+            calculated.deferred = true;
             continue;
         };
 
@@ -299,6 +304,7 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
 
             calculated.color = temp_color;
             calculated.blending = blending;
+            calculated.deferred = false;
         }
 
         let Some(children) = children else {
