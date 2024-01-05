@@ -45,23 +45,13 @@ use bevy::render::{
     Extract, ExtractSchedule, Render, RenderApp, RenderSet,
 };
 use bevy::tasks::ComputeTaskPool;
-use bevy::utils::tracing::Instrument;
 use bevy::utils::{syncunsafecell::SyncUnsafeCell, FloatOrd};
-use indexmap::IndexSet;
-use log::info;
 use thread_local::ThreadLocal;
 
 use crate::asset::compressed_image::CompressedImage;
 use crate::level::color::ObjectColorCalculated;
 use crate::level::group::ObjectGroupsCalculated;
-use crate::level::{
-    color::ObjectColor,
-    object::Object,
-    section::SectionIndex,
-    section::{GlobalSections, VisibleGlobalSections},
-    LevelWorld,
-};
-use crate::utils::{dashmap_get_dirty, U64Hash};
+use crate::level::{object::Object, section::GlobalSections, LevelWorld};
 
 #[derive(Default)]
 pub(crate) struct ObjectRenderPlugin;
