@@ -2,12 +2,12 @@ use bevy::asset::Handle;
 use bevy::hierarchy::BuildWorldChildren;
 use bevy::log::warn;
 use bevy::math::{Quat, Vec2, Vec3, Vec3Swizzles};
-use bevy::prelude::{Color, Component, Entity, GlobalTransform, Transform, World};
+use bevy::prelude::{Component, Entity, GlobalTransform, Transform, World};
 use bevy::utils::{default, HashMap};
 use indexmap::{IndexMap, IndexSet};
 
 use crate::asset::cocos2d_atlas::{Cocos2dFrame, Cocos2dFrames};
-use crate::level::color::{GlobalColorChannels, HsvMod};
+use crate::level::color::{GlobalColorChannels, HsvMod, ObjectColorCalculated};
 use crate::level::color::{ObjectColor, ObjectColorKind};
 use crate::level::de;
 use crate::level::group::ObjectGroupsCalculated;
@@ -191,7 +191,6 @@ pub(crate) fn spawn_object(
             object_color.hsv = detail_hsv;
         }
         ObjectColorKind::Black => {
-            object_color.color = Color::BLACK;
             object_color.channel_id = if base_color_channel != u64::MAX {
                 base_color_channel
             } else {
@@ -226,6 +225,7 @@ pub(crate) fn spawn_object(
     let mut entity = world.spawn((
         object,
         object_color,
+        ObjectColorCalculated::default(),
         Section::from_section_index(SectionIndex::from_pos(transform.translation.xy())),
         transform,
         object_transform,
@@ -238,7 +238,7 @@ pub(crate) fn spawn_object(
     let entity = entity.id();
 
     let mut global_section = global_sections
-        .0
+        .sections
         .entry(SectionIndex::from_pos(transform.translation.xy()))
         .or_default();
 
@@ -311,7 +311,6 @@ fn recursive_spawn_children(
                 object_color.hsv = detail_hsv;
             }
             ObjectColorKind::Black => {
-                object_color.color = Color::BLACK;
                 object_color.channel_id = if base_color_channel != u64::MAX {
                     base_color_channel
                 } else {
@@ -329,7 +328,7 @@ fn recursive_spawn_children(
             if child.flip_y { -1. } else { 1. },
         );
         let transform = Transform {
-            translation: child.offset.xy().extend(child.offset.z / 999.),
+            translation: child.offset.xy().extend(child.offset.z / 1000.),
             rotation: Quat::from_rotation_z(child.rotation.to_radians()),
             scale: (child.scale * flip).extend(0.),
         };
@@ -358,6 +357,7 @@ fn recursive_spawn_children(
             .spawn((
                 object,
                 object_color,
+                ObjectColorCalculated::default(),
                 Section::default(),
                 transform,
                 child_transform,

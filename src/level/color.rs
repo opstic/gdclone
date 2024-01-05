@@ -1,3 +1,4 @@
+use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 
 use bevy::ecs::{
@@ -19,14 +20,14 @@ use serde::Deserialize;
 use crate::level::{
     de,
     group::ObjectGroupsCalculated,
-    section::{GlobalSections, SectionIndex, VisibleGlobalSections},
+    section::{GlobalSections, VisibleGlobalSections},
 };
-use crate::utils::{dashmap_get_dirty, hsv_to_rgb, rgb_to_hsv, u8_to_bool, U64Hash};
+use crate::utils::{hsv_to_rgb, rgb_to_hsv, u8_to_bool, U64Hash};
 
 #[derive(Default, Resource)]
 pub(crate) struct GlobalColorChannels(pub(crate) DashMap<u64, Entity, U64Hash>);
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub(crate) enum GlobalColorChannel {
     Base {
         color: Color,
@@ -169,10 +170,11 @@ pub(crate) fn construct_color_channel_hierarchy(
 pub(crate) struct ColorChannelCalculated {
     pub(crate) color: Color,
     pub(crate) blending: bool,
+    deferred: bool,
 }
 
 pub(crate) fn update_color_channel_calculated(
-    mut commands: Commands,
+    commands: Commands,
     mut global_color_channels: ResMut<GlobalColorChannels>,
     mut root_color_channels: Query<
         (
@@ -330,8 +332,6 @@ pub(crate) struct ObjectColor {
     pub(crate) hsv: Option<HsvMod>,
     pub(crate) object_opacity: f32,
     pub(crate) object_color_kind: ObjectColorKind,
-    pub(crate) color: Color,
-    pub(crate) blending: bool,
 }
 
 impl Default for ObjectColor {
@@ -342,36 +342,31 @@ impl Default for ObjectColor {
             hsv: None,
             object_opacity: 1.,
             object_color_kind: ObjectColorKind::None,
-            color: Color::WHITE,
-            blending: false,
         }
     }
+}
+
+#[derive(Component, Default)]
+pub(crate) struct ObjectColorCalculated {
+    pub(crate) color: Color,
+    pub(crate) blending: bool,
 }
 
 pub(crate) fn update_object_color(
     global_sections: Res<GlobalSections>,
     visible_global_sections: Res<VisibleGlobalSections>,
     global_color_channels: Res<GlobalColorChannels>,
-    objects: Query<(Ref<ObjectGroupsCalculated>, &mut ObjectColor)>,
+    objects: Query<(
+        Ref<ObjectGroupsCalculated>,
+        &mut ObjectColor,
+        &mut ObjectColorCalculated,
+    )>,
     color_channels: Query<Ref<ColorChannelCalculated>>,
     system_change_tick: SystemChangeTick,
-    mut sections_to_update_len: Local<usize>,
 ) {
-    let mut sections_to_update = Vec::with_capacity(*sections_to_update_len);
+    let visible_sections = unsafe { &*global_sections.visible.1.get() };
 
-    for x in visible_global_sections.x.clone() {
-        for y in visible_global_sections.y.clone() {
-            let section_index = SectionIndex::new(x, y);
-
-            let Some(global_section) =
-                (unsafe { dashmap_get_dirty(&section_index, &global_sections.0) })
-            else {
-                continue;
-            };
-
-            sections_to_update.push(global_section);
-        }
-    }
+    let sections_to_update = &visible_sections[..global_sections.visible.0.load(Ordering::Relaxed)];
 
     let compute_task_pool = ComputeTaskPool::get();
 
@@ -387,9 +382,12 @@ pub(crate) fn update_object_color(
             scope.spawn(async move {
                 let mut color_channel_cache: hashbrown::HashMap<u64, (Color, bool, Tick), U64Hash> =
                     hashbrown::HashMap::with_capacity_and_hasher(300, U64Hash);
+
                 for section in thread_chunk {
-                    let mut iter = unsafe { objects.iter_many_unsafe(*section) };
-                    while let Some((object_groups_calculated, mut object_color)) = iter.fetch_next()
+                    let section = unsafe { section.assume_init() };
+                    let mut iter = unsafe { objects.iter_many_unsafe(section) };
+                    while let Some((object_groups_calculated, mut object_color, mut calculated)) =
+                        iter.fetch_next()
                     {
                         if !object_groups_calculated.enabled {
                             continue;
@@ -455,15 +453,13 @@ pub(crate) fn update_object_color(
                                 * color.a(),
                         );
 
-                        object_color.color = color;
-                        object_color.blending = blending;
+                        calculated.color = color;
+                        calculated.blending = blending;
                     }
                 }
             });
         }
     });
-
-    *sections_to_update_len = sections_to_update.len();
 }
 
 #[derive(Default, Copy, Clone, Component, PartialEq)]

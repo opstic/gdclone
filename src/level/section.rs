@@ -1,21 +1,29 @@
 use std::hash::Hash;
+use std::mem::MaybeUninit;
 use std::ops::Range;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use bevy::ecs::query::{ReadOnlyWorldQuery, WorldQuery};
 use bevy::hierarchy::{Children, Parent};
 use bevy::math::{Vec2, Vec3Swizzles};
 use bevy::prelude::{
-    Changed, Component, Entity, Mut, Query, ResMut, Resource, Transform, With, Without,
+    Changed, Component, Entity, Mut, Query, Res, ResMut, Resource, Transform, With, Without,
 };
+use bevy::tasks::ComputeTaskPool;
+use bevy::utils::syncunsafecell::SyncUnsafeCell;
 use dashmap::DashMap;
 use indexmap::IndexSet;
 
-use crate::utils::U64Hash;
+use crate::utils::{dashmap_get_dirty, U64Hash};
 
 #[derive(Default, Resource)]
-pub(crate) struct GlobalSections(
-    pub(crate) DashMap<SectionIndex, IndexSet<Entity, U64Hash>, U64Hash>,
-);
+pub(crate) struct GlobalSections {
+    pub(crate) sections: DashMap<SectionIndex, IndexSet<Entity, U64Hash>, U64Hash>,
+    pub(crate) visible: (
+        AtomicUsize,
+        SyncUnsafeCell<Vec<MaybeUninit<&'static IndexSet<Entity, U64Hash>>>>,
+    ),
+}
 
 #[derive(Default, Resource)]
 pub(crate) struct VisibleGlobalSections {
@@ -69,6 +77,49 @@ impl Hash for SectionIndex {
             | unsafe { std::mem::transmute::<i32, u32>(self.y) } as u64)
             .hash(state)
     }
+}
+
+pub(crate) fn update_visible_sections(
+    mut global_sections: ResMut<GlobalSections>,
+    visible_global_sections: Res<VisibleGlobalSections>,
+) {
+    let section_len = visible_global_sections.x.len() * visible_global_sections.y.len();
+
+    global_sections.visible.0.store(0, Ordering::Relaxed);
+    global_sections
+        .visible
+        .1
+        .get_mut()
+        .resize(section_len, MaybeUninit::uninit());
+    let compute_task_pool = ComputeTaskPool::get();
+
+    let x_list = visible_global_sections.x.clone().collect::<Vec<_>>();
+    let global_sections = unsafe { &*((&*global_sections) as *const GlobalSections) };
+    compute_task_pool.scope(|scope| {
+        let visible_global_sections = &visible_global_sections;
+
+        let chunk_size = (x_list.len() / compute_task_pool.thread_num()).max(1);
+        for chunk in x_list.chunks(chunk_size) {
+            scope.spawn(async move {
+                let a = &global_sections.visible.1;
+                let sections_to_extract = unsafe { &mut *a.get() };
+                for x in chunk {
+                    for y in visible_global_sections.y.clone() {
+                        let section_index = SectionIndex::new(*x, y);
+
+                        let Some(global_section) = (unsafe {
+                            dashmap_get_dirty(&section_index, &global_sections.sections)
+                        }) else {
+                            continue;
+                        };
+
+                        let index = global_sections.visible.0.fetch_add(1, Ordering::Relaxed);
+                        sections_to_extract[index] = MaybeUninit::new(global_section);
+                    }
+                }
+            });
+        }
+    });
 }
 
 pub(crate) fn update_entity_section(
@@ -125,11 +176,11 @@ pub(crate) fn update_global_sections(
     section_changed_entities
         .par_iter()
         .for_each(|(entity, section)| {
-            if let Some(mut global_section) = global_sections.0.get_mut(&section.old) {
+            if let Some(mut global_section) = global_sections.sections.get_mut(&section.old) {
                 global_section.remove(&entity);
             }
 
-            let global_section_entry = global_sections.0.entry(section.current);
+            let global_section_entry = global_sections.sections.entry(section.current);
             let mut global_section = global_section_entry.or_default();
             global_section.insert(entity);
         });

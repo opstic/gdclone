@@ -40,8 +40,8 @@ use crate::level::{
         apply_group_delta, clear_group_delta, update_object_group, update_object_group_calculated,
     },
     section::{
-        propagate_section_change, update_entity_section, update_global_sections, GlobalSections,
-        Section, VisibleGlobalSections,
+        propagate_section_change, update_entity_section, update_global_sections,
+        update_visible_sections, GlobalSections, Section, VisibleGlobalSections,
     },
     transform::update_transform,
 };
@@ -117,6 +117,7 @@ fn spawn_level_world(
         sub_app.add_systems(
             PostUpdate,
             (
+                update_visible_sections,
                 update_object_group,
                 update_object_group_calculated.after(update_object_group),
                 update_color_channel_calculated,
@@ -126,9 +127,12 @@ fn spawn_level_world(
                     .after(update_entity_section)
                     .before(update_global_sections),
                 update_global_sections,
-                update_transform.after(update_global_sections),
+                update_transform
+                    .after(update_global_sections)
+                    .after(update_visible_sections),
                 update_object_color
                     .after(update_global_sections)
+                    .after(update_visible_sections)
                     .after(update_object_group_calculated)
                     .after(update_color_channel_calculated),
             ),
@@ -136,7 +140,7 @@ fn spawn_level_world(
 
         let mut world = sub_app.world;
 
-        let mut save_file = File::open("assets/ultraviolence.txt").unwrap();
+        let mut save_file = File::open("assets/theeschaton.txt").unwrap();
         let mut save_data = Vec::new();
         let _ = save_file.read_to_end(&mut save_data);
         let start_all = Instant::now();
@@ -229,7 +233,7 @@ fn spawn_level_world(
         }
         info!("Spawning took {:?}", start.elapsed());
         info!("Spawned {} objects", parsed.objects.len());
-        info!("{} sections used", global_sections.0.len());
+        info!("{} sections used", global_sections.sections.len());
 
         let player = world
             .spawn((
@@ -242,7 +246,7 @@ fn spawn_level_world(
             .id();
 
         global_sections
-            .0
+            .sections
             .entry(SectionIndex::new(0, 0))
             .or_default()
             .insert(player);

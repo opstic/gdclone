@@ -45,10 +45,14 @@ use bevy::render::{
     Extract, ExtractSchedule, Render, RenderApp, RenderSet,
 };
 use bevy::tasks::ComputeTaskPool;
+use bevy::utils::tracing::Instrument;
 use bevy::utils::{syncunsafecell::SyncUnsafeCell, FloatOrd};
+use indexmap::IndexSet;
+use log::info;
 use thread_local::ThreadLocal;
 
 use crate::asset::compressed_image::CompressedImage;
+use crate::level::color::ObjectColorCalculated;
 use crate::level::group::ObjectGroupsCalculated;
 use crate::level::{
     color::ObjectColor,
@@ -57,7 +61,7 @@ use crate::level::{
     section::{GlobalSections, VisibleGlobalSections},
     LevelWorld,
 };
-use crate::utils::dashmap_get_dirty;
+use crate::utils::{dashmap_get_dirty, U64Hash};
 
 #[derive(Default)]
 pub(crate) struct ObjectRenderPlugin;
@@ -346,6 +350,7 @@ pub struct ExtractedObject {
     anchor: Vec2,
     z_layer: i32,
     rotated: bool,
+    entity: Entity,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -372,14 +377,14 @@ pub(crate) struct ExtractSystemStateCache {
     cached_system_state: Option<
         SystemState<(
             Res<'static, GlobalSections>,
-            Res<'static, VisibleGlobalSections>,
             Query<
                 'static,
                 'static,
                 (
+                    Entity,
                     &'static GlobalTransform,
                     &'static Object,
-                    &'static ObjectColor,
+                    &'static ObjectColorCalculated,
                     &'static ObjectGroupsCalculated,
                     &'static Handle<CompressedImage>,
                 ),
@@ -393,7 +398,6 @@ pub(crate) fn extract_objects(
     mut extract_system_state_cache: ResMut<ExtractSystemStateCache>,
     mut extracted_layers: ResMut<ExtractedLayers>,
     level_world: Extract<Res<LevelWorld>>,
-    mut sections_to_extract_len: Local<usize>,
 ) {
     let LevelWorld::World(world) = &**level_world else {
         // There's nothing to render
@@ -418,11 +422,11 @@ pub(crate) fn extract_objects(
 
             let system_state: SystemState<(
                 Res<GlobalSections>,
-                Res<VisibleGlobalSections>,
                 Query<(
+                    Entity,
                     &GlobalTransform,
                     &Object,
-                    &ObjectColor,
+                    &ObjectColorCalculated,
                     &ObjectGroupsCalculated,
                     &Handle<CompressedImage>,
                 )>,
@@ -437,43 +441,38 @@ pub(crate) fn extract_objects(
         }
     };
 
-    let (global_sections, visible_global_sections, objects) = system_state.get(world);
+    let (global_sections, objects) = system_state.get(world);
 
     for (_, extracted_layer) in &mut extracted_layers.layers {
         extracted_layer.get_mut().clear();
     }
 
-    let mut sections_to_extract = Vec::with_capacity(*sections_to_extract_len);
-
-    for x in visible_global_sections.x.clone() {
-        for y in visible_global_sections.y.clone() {
-            let section_index = SectionIndex::new(x, y);
-
-            let Some(global_section) =
-                (unsafe { dashmap_get_dirty(&section_index, &global_sections.0) })
-            else {
-                continue;
-            };
-
-            sections_to_extract.push(global_section);
-        }
-    }
-
     let compute_task_pool = ComputeTaskPool::get();
 
-    let thread_chunk_size = (sections_to_extract.len() / compute_task_pool.thread_num()).max(1);
+    let sections_to_extract = unsafe { &*global_sections.visible.1.get() };
+
+    let filtered_sections =
+        &sections_to_extract[..global_sections.visible.0.load(Ordering::Relaxed)];
+
+    let thread_chunk_size = (filtered_sections.len() / compute_task_pool.thread_num()).max(1);
 
     compute_task_pool.scope(|scope| {
         let objects = &objects;
         let thread_extracted_layers = &thread_extracted_layers;
 
-        for chunk in sections_to_extract.chunks(thread_chunk_size) {
+        for chunk in filtered_sections.chunks(thread_chunk_size) {
             scope.spawn(async move {
                 let cell = thread_extracted_layers.get_or_default();
                 let mut extracted_layers = cell.take();
                 for section in chunk {
-                    for (transform, object, object_color, object_groups_calculated, image_handle) in
-                        objects.iter_many(*section)
+                    for (
+                        entity,
+                        transform,
+                        object,
+                        object_color,
+                        object_groups_calculated,
+                        image_handle,
+                    ) in objects.iter_many(unsafe { section.assume_init() })
                     {
                         if !object_groups_calculated.enabled {
                             continue;
@@ -504,6 +503,7 @@ pub(crate) fn extract_objects(
                             anchor: object.frame.anchor + object.anchor,
                             z_layer,
                             rotated: object.frame.rotated,
+                            entity,
                         });
                     }
                 }

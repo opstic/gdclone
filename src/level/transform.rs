@@ -1,36 +1,21 @@
 use bevy::ecs::query::{ReadOnlyWorldQuery, WorldQuery};
 use bevy::ecs::system::SystemChangeTick;
 use bevy::hierarchy::{Children, Parent};
-use bevy::prelude::{
-    DetectChanges, GlobalTransform, Local, Mut, Query, Ref, Res, Transform, With, Without,
-};
+use bevy::prelude::{GlobalTransform, Mut, Query, Ref, Res, Transform, With, Without};
 use bevy::tasks::ComputeTaskPool;
+use std::sync::atomic::Ordering;
 
-use crate::level::section::{GlobalSections, SectionIndex, VisibleGlobalSections};
-use crate::utils::dashmap_get_dirty;
+use crate::level::section::GlobalSections;
 
 pub(crate) fn update_transform(
     global_sections: Res<GlobalSections>,
-    visible_global_sections: Res<VisibleGlobalSections>,
     object_query: Query<(Ref<Transform>, &mut GlobalTransform, Option<&Children>), Without<Parent>>,
     children_query: Query<(&Transform, &mut GlobalTransform, Option<&Children>), With<Parent>>,
     system_change_tick: SystemChangeTick,
-    mut sections_to_update_len: Local<usize>,
 ) {
-    let mut sections_to_update = Vec::with_capacity(*sections_to_update_len);
+    let visible_sections = unsafe { &*global_sections.visible.1.get() };
 
-    for x in visible_global_sections.x.clone() {
-        for y in visible_global_sections.y.clone() {
-            let section_index = SectionIndex::new(x, y);
-            let Some(global_section) =
-                (unsafe { dashmap_get_dirty(&section_index, &global_sections.0) })
-            else {
-                continue;
-            };
-
-            sections_to_update.push(global_section);
-        }
-    }
+    let sections_to_update = &visible_sections[..global_sections.visible.0.load(Ordering::Relaxed)];
 
     let compute_task_pool = ComputeTaskPool::get();
 
@@ -44,7 +29,8 @@ pub(crate) fn update_transform(
         for thread_chunk in sections_to_update.chunks(thread_chunk_size) {
             scope.spawn(async move {
                 for section in thread_chunk {
-                    let mut iter = unsafe { object_query.iter_many_unsafe(*section) };
+                    let section = unsafe { section.assume_init() };
+                    let mut iter = unsafe { object_query.iter_many_unsafe(section) };
                     while let Some((transform, mut global_transform, children)) = iter.fetch_next()
                     {
                         if !transform.last_changed().is_newer_than(
@@ -72,8 +58,6 @@ pub(crate) fn update_transform(
             });
         }
     });
-
-    *sections_to_update_len = sections_to_update.len();
 }
 
 unsafe fn propagate_transform_recursive<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery>(
