@@ -416,8 +416,8 @@ fn update_level_world(
             let min_section = SectionIndex::from_pos(camera_min);
             let max_section = SectionIndex::from_pos(camera_max);
 
-            let x_range = min_section.x - 1..max_section.x + 1;
-            let y_range = min_section.y - 1..max_section.y + 1;
+            let x_range = min_section.x - 2..max_section.x + 2;
+            let y_range = min_section.y - 2..max_section.y + 2;
 
             let mut visible_global_sections = world.resource_mut::<VisibleGlobalSections>();
             visible_global_sections.x = x_range;
