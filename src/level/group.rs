@@ -36,43 +36,14 @@ impl Default for GlobalGroup {
 
 #[derive(Default, Component)]
 pub(crate) struct GlobalGroupDeltas {
-    pub(crate) deltas: Vec<TransformDelta>,
+    pub(crate) translation_delta: Vec2,
+    pub(crate) rotate_around: Option<(Entity, Quat, bool)>,
     pub(crate) rotation: Quat,
 }
 
 #[derive(Component)]
 pub(crate) struct ObjectGroups {
     pub(crate) groups: Vec<(u64, Entity, f32, bool)>,
-}
-
-#[derive(Debug)]
-pub(crate) enum TransformDelta {
-    Translate {
-        delta: Vec2,
-    },
-    RotateAround {
-        center: Vec2,
-        rotation: Quat,
-        lock_rotation: bool,
-    },
-}
-
-impl TransformDelta {
-    pub(crate) fn apply(&self, transform: &mut Transform) {
-        match self {
-            TransformDelta::Translate { delta } => transform.translation += delta.extend(0.),
-            TransformDelta::RotateAround {
-                center,
-                rotation,
-                lock_rotation,
-            } => {
-                transform.translate_around(center.extend(0.), *rotation);
-                if !lock_rotation {
-                    transform.rotate(*rotation);
-                }
-            }
-        }
-    }
 }
 
 #[derive(Component)]
@@ -97,7 +68,8 @@ pub(crate) fn clear_group_delta(
         .par_iter_mut()
         .for_each(|mut global_group| {
             let global_group = global_group.bypass_change_detection();
-            global_group.deltas.clear();
+            global_group.translation_delta = Vec2::ZERO;
+            global_group.rotate_around = None;
             global_group.rotation = Quat::IDENTITY;
         })
 }
@@ -119,12 +91,36 @@ pub(crate) fn apply_group_delta(
     //     }
     // });
     for (group, group_deltas) in &groups {
-        let mut iter = objects.iter_many_mut(&group.entities);
+        let mut iter = objects.iter_many_mut(&group.root_entities);
+
+        let translation_delta = group_deltas.translation_delta.extend(0.);
 
         while let Some(mut transform) = iter.fetch_next() {
-            for delta in &group_deltas.deltas {
-                transform.rotate(group_deltas.rotation);
-                delta.apply(&mut transform);
+            transform.translation += translation_delta;
+            transform.rotation *= group_deltas.rotation;
+        }
+    }
+
+    for (group, group_deltas) in &groups {
+        let Some((center_entity, rotation, lock_rotation)) = group_deltas.rotate_around else {
+            continue;
+        };
+
+        let Ok(center_transform) = objects.get(center_entity) else {
+            continue;
+        };
+
+        let center_transform = center_transform.translation;
+
+        let mut iter = objects.iter_many_mut(&group.root_entities);
+
+        if !lock_rotation {
+            while let Some(mut transform) = iter.fetch_next() {
+                transform.rotate_around(center_transform, rotation);
+            }
+        } else {
+            while let Some(mut transform) = iter.fetch_next() {
+                transform.translate_around(center_transform, rotation);
             }
         }
     }

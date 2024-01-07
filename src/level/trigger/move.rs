@@ -5,7 +5,7 @@ use bevy::math::{BVec2, Vec2};
 use bevy::prelude::{Query, Res, Transform, With, Without, World};
 
 use crate::level::easing::Easing;
-use crate::level::group::{GlobalGroupDeltas, GlobalGroups, TransformDelta};
+use crate::level::group::{GlobalGroupDeltas, GlobalGroups};
 use crate::level::object::Object;
 use crate::level::player::Player;
 use crate::level::trigger::{Trigger, TriggerFunction};
@@ -64,9 +64,7 @@ impl TriggerFunction for MoveTrigger {
             }
         }
 
-        global_group_delta
-            .deltas
-            .push(TransformDelta::Translate { delta });
+        global_group_delta.translation_delta += delta;
     }
 
     fn create_system_state(&self, world: &mut World) -> Box<dyn Any + Send + Sync> {

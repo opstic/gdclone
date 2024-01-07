@@ -1,13 +1,11 @@
 use std::any::Any;
 
 use bevy::ecs::system::SystemState;
-use bevy::math::{Quat, Vec3Swizzles};
+use bevy::math::Quat;
 use bevy::prelude::{Query, Res, Transform, With, Without, World};
 
 use crate::level::easing::Easing;
-use crate::level::group::{
-    GlobalGroup, GlobalGroupDeltas, GlobalGroups, ObjectGroups, TransformDelta,
-};
+use crate::level::group::{GlobalGroup, GlobalGroupDeltas, GlobalGroups, ObjectGroups};
 use crate::level::object::Object;
 use crate::level::trigger::{Trigger, TriggerFunction};
 
@@ -56,22 +54,7 @@ impl TriggerFunction for RotateTrigger {
         let center = if let Some(center_group_entity) = global_groups.0.get(&self.center_group) {
             if let Ok(center_group) = group_query.get(*center_group_entity) {
                 if center_group.root_entities.len() == 1 {
-                    if let Ok((transform, object_groups)) =
-                        object_query.get(center_group.root_entities[0])
-                    {
-                        let mut transform = *transform;
-                        for (_, group_entity, _, _) in &object_groups.groups {
-                            if let Ok(group_deltas) = group_delta_query.get(*group_entity) {
-                                for delta in &group_deltas.deltas {
-                                    delta.apply(&mut transform);
-                                }
-                            }
-                        }
-
-                        Some(transform.translation.xy())
-                    } else {
-                        None
-                    }
+                    Some(center_group.root_entities[0])
                 } else {
                     None
                 }
@@ -93,13 +76,7 @@ impl TriggerFunction for RotateTrigger {
         );
 
         if let Some(center) = center {
-            global_group_delta
-                .deltas
-                .push(TransformDelta::RotateAround {
-                    center,
-                    rotation: delta,
-                    lock_rotation: self.lock_rotation,
-                })
+            global_group_delta.rotate_around = Some((center, delta, self.lock_rotation));
         } else {
             global_group_delta.rotation *= delta;
         }
