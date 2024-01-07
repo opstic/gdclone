@@ -299,6 +299,7 @@ struct Options {
     synchronize_cameras: bool,
     display_simulated_camera: bool,
     visible_sections_from_simulated: bool,
+    show_lines: bool,
 }
 
 impl Default for Options {
@@ -307,6 +308,7 @@ impl Default for Options {
             synchronize_cameras: true,
             display_simulated_camera: false,
             visible_sections_from_simulated: false,
+            show_lines: true,
         }
     }
 }
@@ -321,6 +323,9 @@ fn update_controls(
     let multiplier = time.delta_seconds() * 20.;
     if keys.just_pressed(KeyCode::U) {
         options.synchronize_cameras = !options.synchronize_cameras;
+    }
+    if keys.just_pressed(KeyCode::L) {
+        options.show_lines = !options.show_lines;
     }
     for mut transform in transforms.iter_mut() {
         if !options.synchronize_cameras {
@@ -377,19 +382,21 @@ fn update_level_world(
             // Render player line
             let mut players = world.query::<(&Player, &Transform)>();
 
-            for (player, transform) in players.iter(world) {
-                let (player_line_start, player_line_end) = if player.vertical_is_x {
-                    (
-                        Vec2::new(transform.translation.x - 500., transform.translation.y),
-                        Vec2::new(transform.translation.x + 500., transform.translation.y),
-                    )
-                } else {
-                    (
-                        Vec2::new(transform.translation.x, transform.translation.y - 500.),
-                        Vec2::new(transform.translation.x, transform.translation.y + 500.),
-                    )
-                };
-                gizmos.line_2d(player_line_start, player_line_end, Color::ORANGE_RED)
+            if options.show_lines {
+                for (player, transform) in players.iter(world) {
+                    let (player_line_start, player_line_end) = if player.vertical_is_x {
+                        (
+                            Vec2::new(transform.translation.x - 500., transform.translation.y),
+                            Vec2::new(transform.translation.x + 500., transform.translation.y),
+                        )
+                    } else {
+                        (
+                            Vec2::new(transform.translation.x, transform.translation.y - 500.),
+                            Vec2::new(transform.translation.x, transform.translation.y + 500.),
+                        )
+                    };
+                    gizmos.line_2d(player_line_start, player_line_end, Color::ORANGE_RED)
+                }
             }
 
             let (camera_projection, mut camera_transform) = camera.single_mut();
@@ -397,18 +404,31 @@ fn update_level_world(
             let (_, player_transform) = players.single(world);
 
             if options.synchronize_cameras {
-                camera_transform.translation.x = player_transform.translation.x;
-                gizmos.line_2d(
-                    Vec2::new(
-                        camera_transform.translation.x,
-                        camera_transform.translation.y - 500.,
-                    ),
-                    Vec2::new(
-                        camera_transform.translation.x,
-                        camera_transform.translation.y + 500.,
-                    ),
-                    Color::GREEN,
-                )
+                camera_transform.translation.x = player_transform.translation.x + 90.;
+                if options.show_lines {
+                    gizmos.line_2d(
+                        Vec2::new(
+                            camera_transform.translation.x,
+                            camera_transform.translation.y - 500.,
+                        ),
+                        Vec2::new(
+                            camera_transform.translation.x,
+                            camera_transform.translation.y + 500.,
+                        ),
+                        Color::GREEN,
+                    );
+                    gizmos.line_2d(
+                        Vec2::new(
+                            player_transform.translation.x,
+                            camera_transform.translation.y - 500.,
+                        ),
+                        Vec2::new(
+                            player_transform.translation.x,
+                            camera_transform.translation.y + 500.,
+                        ),
+                        Color::ORANGE_RED,
+                    );
+                }
             }
 
             let camera_min = camera_projection.area.min + camera_transform.translation.xy();
