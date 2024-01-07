@@ -117,7 +117,6 @@ fn spawn_level_world(
         sub_app.add_systems(
             PostUpdate,
             (
-                update_visible_sections,
                 update_object_group,
                 update_object_group_calculated.after(update_object_group),
                 update_color_channel_calculated,
@@ -127,6 +126,7 @@ fn spawn_level_world(
                     .after(update_entity_section)
                     .before(update_global_sections),
                 update_global_sections,
+                update_visible_sections.after(update_global_sections),
                 update_transform
                     .after(update_global_sections)
                     .after(update_visible_sections),
