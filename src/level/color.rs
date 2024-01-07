@@ -4,12 +4,11 @@ use std::sync::Mutex;
 use bevy::ecs::{
     component::Tick,
     query::{ReadOnlyWorldQuery, WorldQuery},
-    system::SystemChangeTick,
 };
 use bevy::hierarchy::{BuildChildren, BuildWorldChildren, Children, Parent};
 use bevy::prelude::{
-    Color, Commands, Component, DetectChanges, Entity, Local, Mut, Query, Ref, Res, ResMut,
-    Resource, With, Without, World,
+    Color, Commands, Component, DetectChanges, Entity, Mut, Query, Ref, Res, ResMut, Resource,
+    With, Without, World,
 };
 use bevy::reflect::Reflect;
 use bevy::tasks::ComputeTaskPool;
@@ -17,11 +16,7 @@ use bevy::utils::{hashbrown, HashMap as AHashMap};
 use dashmap::DashMap;
 use serde::Deserialize;
 
-use crate::level::{
-    de,
-    group::ObjectGroupsCalculated,
-    section::{GlobalSections, VisibleGlobalSections},
-};
+use crate::level::{de, group::ObjectGroupsCalculated, section::GlobalSections};
 use crate::utils::{hsv_to_rgb, rgb_to_hsv, u8_to_bool, U64Hash};
 
 #[derive(Default, Resource)]
@@ -354,7 +349,6 @@ pub(crate) struct ObjectColorCalculated {
 
 pub(crate) fn update_object_color(
     global_sections: Res<GlobalSections>,
-    visible_global_sections: Res<VisibleGlobalSections>,
     global_color_channels: Res<GlobalColorChannels>,
     objects: Query<(
         Ref<ObjectGroupsCalculated>,
@@ -362,7 +356,6 @@ pub(crate) fn update_object_color(
         &mut ObjectColorCalculated,
     )>,
     color_channels: Query<Ref<ColorChannelCalculated>>,
-    system_change_tick: SystemChangeTick,
 ) {
     let visible_sections = unsafe { &*global_sections.visible.1.get() };
 
@@ -375,7 +368,6 @@ pub(crate) fn update_object_color(
     let objects = &objects;
     let color_channels = &color_channels;
     let global_color_channels = &global_color_channels;
-    let system_change_tick = &system_change_tick;
 
     compute_task_pool.scope(|scope| {
         for thread_chunk in sections_to_update.chunks(thread_chunk_size) {
@@ -428,11 +420,12 @@ pub(crate) fn update_object_color(
                                 (Color::WHITE, false, Tick::new(0))
                             };
 
-                        if !(color_channel_tick.is_newer_than(
-                            object_color.last_changed(),
-                            system_change_tick.this_run(),
-                        ) || object_color.is_changed()
-                            || object_groups_calculated.is_changed())
+                        // TODO: This will only work for one hour until overflow messes it up
+                        if !(color_channel_tick.get() > calculated.last_changed().get()
+                            || object_color.last_changed().get() > calculated.last_changed().get()
+                            || object_groups_calculated.last_changed().get()
+                                > calculated.last_changed().get()
+                            || calculated.is_added())
                         {
                             continue;
                         }

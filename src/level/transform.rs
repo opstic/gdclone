@@ -1,9 +1,11 @@
-use bevy::ecs::query::{ReadOnlyWorldQuery, WorldQuery};
-use bevy::ecs::system::SystemChangeTick;
-use bevy::hierarchy::{Children, Parent};
-use bevy::prelude::{GlobalTransform, Mut, Query, Ref, Res, Transform, With, Without};
-use bevy::tasks::ComputeTaskPool;
 use std::sync::atomic::Ordering;
+
+use bevy::ecs::query::{ReadOnlyWorldQuery, WorldQuery};
+use bevy::hierarchy::{Children, Parent};
+use bevy::prelude::{
+    DetectChanges, GlobalTransform, Mut, Query, Ref, Res, Transform, With, Without,
+};
+use bevy::tasks::ComputeTaskPool;
 
 use crate::level::section::GlobalSections;
 
@@ -11,7 +13,6 @@ pub(crate) fn update_transform(
     global_sections: Res<GlobalSections>,
     object_query: Query<(Ref<Transform>, &mut GlobalTransform, Option<&Children>), Without<Parent>>,
     children_query: Query<(&Transform, &mut GlobalTransform, Option<&Children>), With<Parent>>,
-    system_change_tick: SystemChangeTick,
 ) {
     let visible_sections = unsafe { &*global_sections.visible.1.get() };
 
@@ -23,7 +24,6 @@ pub(crate) fn update_transform(
 
     let object_query = &object_query;
     let children_query = &children_query;
-    let system_change_tick = &system_change_tick;
 
     compute_task_pool.scope(|scope| {
         for thread_chunk in sections_to_update.chunks(thread_chunk_size) {
@@ -33,10 +33,8 @@ pub(crate) fn update_transform(
                     let mut iter = unsafe { object_query.iter_many_unsafe(section) };
                     while let Some((transform, mut global_transform, children)) = iter.fetch_next()
                     {
-                        if !transform.last_changed().is_newer_than(
-                            global_transform.last_changed(),
-                            system_change_tick.this_run(),
-                        ) {
+                        // TODO: This will only work for one hour until overflow messes it up
+                        if transform.last_changed().get() < global_transform.last_changed().get() {
                             continue;
                         }
 
