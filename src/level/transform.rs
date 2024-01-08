@@ -47,7 +47,7 @@ pub(crate) fn update_transform(
                         unsafe {
                             propagate_transform_recursive(
                                 children,
-                                &children_query,
+                                children_query,
                                 &global_transform,
                             );
                         }
