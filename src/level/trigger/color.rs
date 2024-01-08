@@ -120,10 +120,10 @@ impl TriggerFunction for ColorTrigger {
             self.target_color
         };
 
-        let original_color = lerp_start_color(calculated.color, target_color, previous_progress);
+        let original_color = lerp_start_color(&calculated.color, &target_color, previous_progress);
 
         *color_channel = GlobalColorChannel::Base {
-            color: lerp_color(original_color, target_color, progress),
+            color: lerp_color(&original_color, &target_color, progress),
             blending: self.target_blending,
         };
     }

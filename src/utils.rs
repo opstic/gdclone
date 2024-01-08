@@ -61,7 +61,7 @@ pub(crate) fn lerp_start(current: f32, end: f32, x: f32) -> f32 {
     (current - end * x) / (1. - x)
 }
 
-pub(crate) fn lerp_color(start: Color, end: Color, x: f32) -> Color {
+pub(crate) fn lerp_color(start: &Color, end: &Color, x: f32) -> Color {
     Color::rgba(
         lerp(start.r(), end.r(), x),
         lerp(start.g(), end.g(), x),
@@ -70,7 +70,7 @@ pub(crate) fn lerp_color(start: Color, end: Color, x: f32) -> Color {
     )
 }
 
-pub(crate) fn lerp_start_color(current: Color, end: Color, x: f32) -> Color {
+pub(crate) fn lerp_start_color(current: &Color, end: &Color, x: f32) -> Color {
     Color::rgba(
         lerp_start(current.r(), end.r(), x),
         lerp_start(current.g(), end.g(), x),
