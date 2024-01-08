@@ -113,7 +113,7 @@ impl TriggerFunction for ColorTrigger {
         let target_color = if let Some((_, target_color)) = parent_data {
             let mut target_color = target_color;
             if let Some(hsv) = self.copied_hsv {
-                target_color = hsv.apply(&target_color);
+                hsv.apply(&mut target_color);
             }
             target_color
         } else {

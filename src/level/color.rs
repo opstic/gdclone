@@ -296,7 +296,7 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
             }
 
             if let Some(hsv) = hsv {
-                temp_color = hsv.apply(&temp_color);
+                hsv.apply(&mut temp_color);
             }
 
             calculated.color = temp_color;
@@ -385,7 +385,7 @@ pub(crate) fn update_object_color(
                             continue;
                         }
 
-                        let (color_channel_color, blending, color_channel_tick) =
+                        let (mut color_channel_color, blending, color_channel_tick) =
                             if let Some(result) = color_channel_cache.get(&object_color.channel_id)
                             {
                                 *result
@@ -434,9 +434,10 @@ pub(crate) fn update_object_color(
                             Color::WHITE.with_a(color_channel_color.a())
                         } else if object_color.object_color_kind == ObjectColorKind::Black {
                             Color::BLACK.with_a(color_channel_color.a())
-                        } else if let Some(hsv) = object_color.hsv {
-                            hsv.apply(&color_channel_color)
                         } else {
+                            if let Some(hsv) = object_color.hsv {
+                                hsv.apply(&mut color_channel_color);
+                            }
                             color_channel_color
                         };
 
@@ -487,7 +488,7 @@ impl HsvMod {
 }
 
 impl HsvMod {
-    pub(crate) fn apply(&self, color: &Color) -> Color {
+    pub(crate) fn apply(&self, color: &mut Color) {
         let (h, s, v) = rgb_to_hsv([color.r(), color.g(), color.b()]);
         let [r, g, b] = hsv_to_rgb((
             h + self.h,
@@ -502,7 +503,9 @@ impl HsvMod {
                 v * self.v
             },
         ));
-        Color::rgba(r, g, b, color.a())
+        color.set_r(r);
+        color.set_g(g);
+        color.set_b(b);
     }
 }
 
