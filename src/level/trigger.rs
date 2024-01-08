@@ -15,6 +15,7 @@ use ordered_float::OrderedFloat;
 // use bevy::log::info_span;
 use crate::level::color::HsvMod;
 use crate::level::easing::Easing;
+use crate::level::group::ObjectGroupsCalculated;
 use crate::level::player::Player;
 use crate::level::trigger::alpha::AlphaTrigger;
 use crate::level::trigger::color::ColorTrigger;
@@ -179,14 +180,14 @@ pub(crate) fn process_triggers(world: &mut World) {
             let system_state: &mut SystemState<(
                 ResMut<GlobalTriggers>,
                 Query<(&Player, &Transform, &TriggerActivator)>,
-                Query<&Trigger>,
+                Query<(&Trigger, &ObjectGroupsCalculated)>,
             )> = if let Some(cell) = trigger_system_state_cache.cache.get(&TypeId::of::<World>()) {
                 unsafe { &mut *cell.get() }
             } else {
                 let system_state: SystemState<(
                     ResMut<GlobalTriggers>,
                     Query<(&Player, &Transform, &TriggerActivator)>,
-                    Query<&Trigger>,
+                    Query<(&Trigger, &ObjectGroupsCalculated)>,
                 )> = SystemState::new(unsafe { world_cell.world_mut() });
 
                 trigger_system_state_cache.cache.insert(
@@ -249,9 +250,13 @@ pub(crate) fn process_triggers(world: &mut World) {
                     for entity_index in entity_indices {
                         let trigger_entity = global_trigger_channel.x.1[*entity_index as usize];
 
-                        let Ok(trigger) = triggers.get(trigger_entity) else {
+                        let Ok((trigger, groups_calculated)) = triggers.get(trigger_entity) else {
                             continue;
                         };
+
+                        if !groups_calculated.enabled {
+                            continue;
+                        }
 
                         // Very unsafe but works for now
                         let world_mut = unsafe { world_cell.world_mut() };
