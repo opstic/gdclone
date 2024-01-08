@@ -196,8 +196,11 @@ pub(crate) fn update_object_group_calculated(
             object_groups_calculated.opacity = 1.;
             object_groups_calculated.enabled = true;
             for (_, _, group_opacity, group_enabled) in &object_groups.groups {
+                if !group_enabled {
+                    object_groups_calculated.enabled = false;
+                    break;
+                }
                 object_groups_calculated.opacity *= group_opacity;
-                object_groups_calculated.enabled &= *group_enabled;
             }
         });
 }
