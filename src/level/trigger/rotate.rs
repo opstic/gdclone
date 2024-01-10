@@ -46,24 +46,25 @@ impl TriggerFunction for RotateTrigger {
         let (global_groups, group_query, mut group_delta_query, object_query) =
             system_state.get_mut(world);
 
-        let Some(group_entity) = global_groups.0.get(&self.target_group) else {
+        let Some(group_entity) = global_groups.0.get(self.target_group as usize) else {
             return;
         };
 
         // This is horrendously bad
-        let center = if let Some(center_group_entity) = global_groups.0.get(&self.center_group) {
-            if let Ok(center_group) = group_query.get(*center_group_entity) {
-                if center_group.root_entities.len() == 1 {
-                    Some(center_group.root_entities[0])
+        let center =
+            if let Some(center_group_entity) = global_groups.0.get(self.center_group as usize) {
+                if let Ok(center_group) = group_query.get(*center_group_entity) {
+                    if center_group.root_entities.len() == 1 {
+                        Some(center_group.root_entities[0])
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
             } else {
                 None
-            }
-        } else {
-            None
-        };
+            };
 
         let Ok(mut global_group_delta) = group_delta_query.get_mut(*group_entity) else {
             return;

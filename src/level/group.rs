@@ -4,14 +4,20 @@ use bevy::prelude::{
     Changed, Component, DetectChangesMut, Entity, Query, Resource, Transform, Without, World,
 };
 use bevy::utils::default;
-use dashmap::DashMap;
 use indexmap::IndexMap;
+use smallvec::SmallVec;
 
 use crate::level::trigger::Trigger;
 use crate::utils::U64Hash;
 
-#[derive(Default, Resource)]
-pub(crate) struct GlobalGroups(pub(crate) DashMap<u64, Entity, U64Hash>);
+#[derive(Resource)]
+pub(crate) struct GlobalGroups(pub(crate) SmallVec<[Entity; 1000]>);
+
+impl Default for GlobalGroups {
+    fn default() -> Self {
+        Self(SmallVec::from_buf([Entity::PLACEHOLDER; 1000]))
+    }
+}
 
 #[derive(Component)]
 pub(crate) struct GlobalGroup {
@@ -130,7 +136,7 @@ pub(crate) fn spawn_groups(
     world: &mut World,
     global_groups_data: IndexMap<u64, Vec<Entity>, U64Hash>,
 ) {
-    let global_groups = GlobalGroups::default();
+    let mut global_groups = GlobalGroups::default();
 
     for (group, entities) in global_groups_data {
         let group_entity = world
@@ -160,7 +166,13 @@ pub(crate) fn spawn_groups(
             }
         }
 
-        global_groups.0.insert(group, group_entity);
+        if group >= global_groups.0.len() as u64 {
+            global_groups
+                .0
+                .resize((group + 1) as usize, Entity::PLACEHOLDER);
+        }
+
+        global_groups.0[group as usize] = group_entity;
     }
 
     world.insert_resource(global_groups);

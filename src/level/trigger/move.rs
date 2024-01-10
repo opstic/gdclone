@@ -40,7 +40,7 @@ impl TriggerFunction for MoveTrigger {
         let (global_groups, mut group_delta_query, object_transform_query, player_query) =
             system_state.get_mut(world);
 
-        let Some(group_entity) = global_groups.0.get(&self.target_group) else {
+        let Some(group_entity) = global_groups.0.get(self.target_group as usize) else {
             return;
         };
 

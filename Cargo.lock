@@ -1702,6 +1702,7 @@ dependencies = [
  "radsort",
  "serde",
  "serde_json",
+ "smallvec",
  "thread_local",
  "zstd",
 ]
