@@ -123,27 +123,28 @@ pub(crate) fn update_visible_sections(
 }
 
 pub(crate) fn update_entity_section(
-    mut entities: Query<(&Transform, &mut Section), (Without<Parent>, Changed<Transform>)>,
+    mut entities: Query<
+        (&Transform, &mut Section, Option<&Children>),
+        (Without<Parent>, Changed<Transform>),
+    >,
+    children_query: Query<(&mut Section, Option<&Children>), With<Parent>>,
 ) {
     entities
         .par_iter_mut()
-        .for_each(|(transform, mut section)| {
+        .for_each(|(transform, mut section, children)| {
             let new_section = SectionIndex::from_pos(transform.translation.xy());
-            if section.current != new_section {
-                section.old = section.current;
-                section.current = new_section;
+            if section.current == new_section {
+                return;
             }
-        });
-}
 
-pub(crate) fn propagate_section_change(
-    section_changed_entities: Query<(&Section, &Children), (Changed<Section>, Without<Parent>)>,
-    children_query: Query<(&mut Section, Option<&Children>), With<Parent>>,
-) {
-    section_changed_entities
-        .par_iter()
-        .for_each(|(section, children)| unsafe {
-            propagate_section_recursive(children, &children_query, section)
+            section.old = section.current;
+            section.current = new_section;
+
+            let Some(children) = children else {
+                return;
+            };
+
+            unsafe { propagate_section_recursive(children, &children_query, &section) }
         });
 }
 

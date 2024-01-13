@@ -122,9 +122,9 @@ fn spawn_level_world(
                 update_color_channel_calculated,
                 apply_group_delta.before(update_entity_section),
                 update_entity_section.before(update_global_sections),
-                propagate_section_change
-                    .after(update_entity_section)
-                    .before(update_global_sections),
+                // propagate_section_change
+                //     .after(update_entity_section)
+                //     .before(update_global_sections),
                 update_global_sections,
                 update_visible_sections.after(update_global_sections),
                 update_transform
