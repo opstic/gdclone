@@ -86,11 +86,14 @@ pub(crate) fn update_visible_sections(
     let section_len = visible_global_sections.x.len() * visible_global_sections.y.len();
 
     global_sections.visible.0.store(0, Ordering::Relaxed);
-    global_sections
-        .visible
-        .1
-        .get_mut()
-        .resize(section_len, MaybeUninit::uninit());
+    let visible_sections_len = global_sections.visible.1.get_mut().len();
+    if visible_sections_len < section_len {
+        global_sections
+            .visible
+            .1
+            .get_mut()
+            .resize(section_len, MaybeUninit::uninit());
+    }
     let compute_task_pool = ComputeTaskPool::get();
 
     let x_list = visible_global_sections.x.clone().collect::<Vec<_>>();
