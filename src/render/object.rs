@@ -1,4 +1,3 @@
-use std::cell::Cell;
 use std::hash::Hash;
 use std::num::NonZeroU32;
 use std::ops::Range;
@@ -46,7 +45,6 @@ use bevy::render::{
 };
 use bevy::tasks::ComputeTaskPool;
 use bevy::utils::{syncunsafecell::SyncUnsafeCell, FloatOrd};
-use thread_local::ThreadLocal;
 
 use crate::asset::compressed_image::CompressedImage;
 use crate::level::color::ObjectColorCalculated;
@@ -384,7 +382,6 @@ pub(crate) struct ExtractSystemStateCache {
 }
 
 pub(crate) fn extract_objects(
-    mut thread_extracted_layers: Local<ThreadLocal<Cell<Vec<(LayerIndex, Vec<ExtractedObject>)>>>>,
     mut extract_system_state_cache: ResMut<ExtractSystemStateCache>,
     mut extracted_layers: ResMut<ExtractedLayers>,
     level_world: Extract<Res<LevelWorld>>,
@@ -437,86 +434,47 @@ pub(crate) fn extract_objects(
         extracted_layer.get_mut().clear();
     }
 
-    let compute_task_pool = ComputeTaskPool::get();
-
     let sections_to_extract = unsafe { &*global_sections.visible.1.get() };
 
-    let filtered_sections =
-        &sections_to_extract[..global_sections.visible.0.load(Ordering::Relaxed)];
+    for section in &sections_to_extract[..global_sections.visible.0.load(Ordering::Relaxed)] {
+        for (entity, transform, object, object_color, object_groups_calculated, image_handle) in
+            objects.iter_many(unsafe { section.assume_init() })
+        {
+            if !object_groups_calculated.enabled {
+                continue;
+            }
 
-    let thread_chunk_size = (filtered_sections.len() / compute_task_pool.thread_num()).max(1);
+            let z_layer = object.z_layer - if object_color.blending { 1 } else { 0 };
 
-    compute_task_pool.scope(|scope| {
-        let objects = &objects;
-        let thread_extracted_layers = &thread_extracted_layers;
-
-        for chunk in filtered_sections.chunks(thread_chunk_size) {
-            scope.spawn(async move {
-                let cell = thread_extracted_layers.get_or_default();
-                let mut extracted_layers = cell.take();
-                for section in chunk {
-                    for (
-                        entity,
-                        transform,
-                        object,
-                        object_color,
-                        object_groups_calculated,
-                        image_handle,
-                    ) in objects.iter_many(unsafe { section.assume_init() })
-                    {
-                        if !object_groups_calculated.enabled {
-                            continue;
-                        }
-
-                        let z_layer = object.z_layer - if object_color.blending { 1 } else { 0 };
-
-                        let extracted_layer = if let Some((_, extracted_layer)) = extracted_layers
-                            .iter_mut()
-                            .find(|(layer_index, _)| layer_index.0 == z_layer)
-                        {
-                            extracted_layer
-                        } else {
-                            let layer_index = extracted_layers.len();
-                            extracted_layers.push((LayerIndex(z_layer), Vec::with_capacity(5000)));
-                            &mut extracted_layers[layer_index].1
-                        };
-
-                        extracted_layer.push(ExtractedObject {
-                            transform: *transform,
-                            color: object_color.color,
-                            blending: object_color.blending,
-                            rect: Some(object.frame.rect),
-                            custom_size: None,
-                            image_handle_id: image_handle.id(),
-                            flip_x: false,
-                            flip_y: false,
-                            anchor: object.frame.anchor + object.anchor,
-                            z_layer,
-                            rotated: object.frame.rotated,
-                            entity,
-                        });
-                    }
-                }
-                cell.set(extracted_layers);
-            })
-        }
-    });
-
-    for cell in &mut thread_extracted_layers {
-        for (thread_layer_index, thread_extracted_layer) in cell.get_mut() {
-            let Some((_, extracted_layer)) = extracted_layers
+            let extracted_layer = if let Some((_, extracted_layer)) = extracted_layers
                 .layers
                 .iter_mut()
-                .find(|(layer_index, _)| layer_index.0 == thread_layer_index.0)
-            else {
+                .find(|(layer_index, _)| layer_index.0 == z_layer)
+            {
+                extracted_layer
+            } else {
+                let layer_index = extracted_layers.layers.len();
                 extracted_layers.layers.push((
-                    *thread_layer_index,
-                    SyncUnsafeCell::new(std::mem::take(thread_extracted_layer)),
+                    LayerIndex(z_layer),
+                    SyncUnsafeCell::new(Vec::with_capacity(5000)),
                 ));
-                continue;
+                &mut extracted_layers.layers[layer_index].1
             };
 
-            extracted_layer.get_mut().append(thread_extracted_layer);
+            extracted_layer.get_mut().push(ExtractedObject {
+                transform: *transform,
+                color: object_color.color,
+                blending: object_color.blending,
+                rect: Some(object.frame.rect),
+                custom_size: None,
+                image_handle_id: image_handle.id(),
+                flip_x: false,
+                flip_y: false,
+                anchor: object.frame.anchor + object.anchor,
+                z_layer,
+                rotated: object.frame.rotated,
+                entity,
+            });
         }
     }
 }
