@@ -70,14 +70,20 @@ impl Default for ObjectGroupsCalculated {
 pub(crate) fn clear_group_delta(
     mut global_group_query: Query<&mut GlobalGroupDeltas, Changed<GlobalGroupDeltas>>,
 ) {
-    global_group_query
-        .par_iter_mut()
-        .for_each(|mut global_group| {
-            let global_group = global_group.bypass_change_detection();
-            global_group.translation_delta = Vec2::ZERO;
-            global_group.rotate_around = None;
-            global_group.rotation = Quat::IDENTITY;
-        })
+    // global_group_query
+    //     .par_iter_mut()
+    //     .for_each(|mut global_group| {
+    //         let global_group = global_group.bypass_change_detection();
+    //         global_group.translation_delta = Vec2::ZERO;
+    //         global_group.rotate_around = None;
+    //         global_group.rotation = Quat::IDENTITY;
+    //     })
+    for mut global_group in &mut global_group_query {
+        let global_group = global_group.bypass_change_detection();
+        global_group.translation_delta = Vec2::ZERO;
+        global_group.rotate_around = None;
+        global_group.rotation = Quat::IDENTITY;
+    }
 }
 
 pub(crate) fn apply_group_delta(
