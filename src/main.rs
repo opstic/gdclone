@@ -4,15 +4,17 @@ use bevy::app::{App, PluginGroup, Startup, Update};
 use bevy::core_pipeline::tonemapping::{DebandDither, Tonemapping};
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::hierarchy::BuildChildren;
+use bevy::input::Input;
+use bevy::log::info;
 use bevy::prelude::{
-    Camera2dBundle, ClearColor, Color, Commands, Component, Event, EventReader, NodeBundle,
-    OrthographicProjection, Query, Res, TextBundle, With,
+    Camera2dBundle, ClearColor, Color, Commands, Component, Event, EventReader, KeyCode,
+    NodeBundle, OrthographicProjection, Query, Res, TextBundle, With,
 };
 use bevy::render::camera::ScalingMode;
 use bevy::text::{Text, TextSection, TextStyle};
 use bevy::ui::{PositionType, Style, UiRect, Val, ZIndex};
 use bevy::utils::default;
-use bevy::window::{PresentMode, Window, WindowPlugin, WindowResized};
+use bevy::window::{PresentMode, Window, WindowMode, WindowPlugin, WindowResized};
 use bevy::DefaultPlugins;
 
 use crate::asset::AssetPlugin;
@@ -43,7 +45,7 @@ fn main() {
     ));
 
     app.add_systems(Startup, setup)
-        .add_systems(Update, (update_fps, update_scale_factor));
+        .add_systems(Update, (update_fps, update_scale_factor, toggle_fullscreen));
 
     app.run()
 }
@@ -123,5 +125,20 @@ fn update_scale_factor(
         for mut projection in &mut projections {
             projection.scaling_mode = ScalingMode::WindowSize(scale_factor as f32);
         }
+    }
+}
+
+fn toggle_fullscreen(input: Res<Input<KeyCode>>, mut windows: Query<&mut Window>) {
+    if input.just_pressed(KeyCode::F11) {
+        let mut window = windows.single_mut();
+
+        window.mode = match window.mode {
+            WindowMode::Windowed => WindowMode::Fullscreen,
+            WindowMode::Fullscreen => WindowMode::BorderlessFullscreen,
+            WindowMode::BorderlessFullscreen => WindowMode::SizedFullscreen,
+            WindowMode::SizedFullscreen => WindowMode::Windowed,
+        };
+
+        info!("Switching window mode to {:?}", window.mode);
     }
 }
