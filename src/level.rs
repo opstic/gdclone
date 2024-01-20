@@ -55,7 +55,7 @@ pub(crate) mod object;
 mod player;
 pub(crate) mod section;
 mod transform;
-mod trigger;
+pub(crate) mod trigger;
 
 #[derive(Default, Resource)]
 pub(crate) enum LevelWorld {

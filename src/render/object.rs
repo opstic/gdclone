@@ -15,7 +15,7 @@ use bevy::log::warn;
 use bevy::math::{Affine3A, Quat, Rect, Vec2, Vec4};
 use bevy::prelude::{
     Color, Commands, Component, Entity, FromWorld, GlobalTransform, Image, IntoSystemConfigs,
-    Local, Msaa, Query, Res, ResMut, Resource, Shader, World,
+    Local, Msaa, Query, Res, ResMut, Resource, Shader, Without, World,
 };
 use bevy::render::{
     mesh::PrimitiveTopology,
@@ -49,6 +49,7 @@ use bevy::utils::{syncunsafecell::SyncUnsafeCell, FloatOrd};
 use crate::asset::compressed_image::CompressedImage;
 use crate::level::color::ObjectColorCalculated;
 use crate::level::group::ObjectGroupsCalculated;
+use crate::level::trigger::Trigger;
 use crate::level::{object::Object, section::GlobalSections, LevelWorld};
 
 #[derive(Default)]
@@ -376,6 +377,7 @@ pub(crate) struct ExtractSystemStateCache {
                     &'static ObjectGroupsCalculated,
                     &'static Handle<CompressedImage>,
                 ),
+                Without<Trigger>,
             >,
         )>,
     >,
@@ -409,14 +411,17 @@ pub(crate) fn extract_objects(
 
             let system_state: SystemState<(
                 Res<GlobalSections>,
-                Query<(
-                    Entity,
-                    &GlobalTransform,
-                    &Object,
-                    &ObjectColorCalculated,
-                    &ObjectGroupsCalculated,
-                    &Handle<CompressedImage>,
-                )>,
+                Query<
+                    (
+                        Entity,
+                        &GlobalTransform,
+                        &Object,
+                        &ObjectColorCalculated,
+                        &ObjectGroupsCalculated,
+                        &Handle<CompressedImage>,
+                    ),
+                    Without<Trigger>,
+                >,
             )> = SystemState::new(world_mut);
 
             extract_system_state_cache.cached_system_state = Some(system_state);
@@ -456,7 +461,7 @@ pub(crate) fn extract_objects(
                 let layer_index = extracted_layers.layers.len();
                 extracted_layers.layers.push((
                     LayerIndex(z_layer),
-                    SyncUnsafeCell::new(Vec::with_capacity(5000)),
+                    SyncUnsafeCell::new(Vec::with_capacity(10000)),
                 ));
                 &mut extracted_layers.layers[layer_index].1
             };

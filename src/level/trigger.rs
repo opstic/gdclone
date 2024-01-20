@@ -19,6 +19,7 @@ use crate::level::group::ObjectGroupsCalculated;
 use crate::level::player::Player;
 use crate::level::trigger::alpha::AlphaTrigger;
 use crate::level::trigger::color::ColorTrigger;
+use crate::level::trigger::empty::EmptyTrigger;
 use crate::level::trigger::r#move::MoveTrigger;
 use crate::level::trigger::rotate::RotateTrigger;
 use crate::level::trigger::toggle::ToggleTrigger;
@@ -26,6 +27,7 @@ use crate::utils::{u8_to_bool, U64Hash};
 
 mod alpha;
 mod color;
+mod empty;
 mod r#move;
 mod rotate;
 mod toggle;
@@ -492,6 +494,13 @@ pub(crate) fn insert_trigger_data(
                 trigger.lock_rotation = u8_to_bool(lock_rotation);
             }
             entity_world_mut.insert(Trigger(Box::new(trigger)));
+        }
+        29 | 30 | 31 | 32 | 33 | 34 | 104 | 105 | 221 | 717 | 718 | 743 | 744 | 900 | 915
+        | 1006 | 1268 | 1347 | 1520 | 1585 | 1595 | 1611 | 1612 | 1613 | 1616 | 1811 | 1812
+        | 1814 | 1815 | 1817 | 1818 | 1819 | 22 | 24 | 23 | 25 | 26 | 27 | 28 | 55 | 56 | 57
+        | 58 | 59 | 1912 | 1913 | 1914 | 1916 | 1917 | 1931 | 1932 | 1934 | 1935 | 2015 | 2016
+        | 2062 | 2067 | 2068 | 2701 | 2702 | 1586 | 1700 | 1755 | 1813 | 1829 | 1859 => {
+            entity_world_mut.insert(Trigger(Box::new(EmptyTrigger::default())));
         }
         _ => return Ok(()),
     }
