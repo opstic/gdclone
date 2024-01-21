@@ -46,6 +46,25 @@ pub(crate) unsafe fn dashmap_get_dirty<'map, K: Eq + Hash, V, S: BuildHasher + C
     }
 }
 
+pub(crate) unsafe fn dashmap_get_dirty_mut<'map, K: Eq + Hash, V, S: BuildHasher + Clone>(
+    key: &K,
+    map: &'map DashMap<K, V, S>,
+) -> Option<&'map mut V> {
+    let hash = map.hash_usize(key);
+    let index = map.determine_shard(hash);
+
+    let shard = unsafe { &mut *map.shards().get_unchecked(index).data_ptr() };
+
+    if let Some((_, vptr)) = shard.get_key_value_mut(key) {
+        unsafe {
+            let vptr: *mut V = vptr.get_mut();
+            Some(&mut *vptr)
+        }
+    } else {
+        None
+    }
+}
+
 #[inline(always)]
 pub(crate) const fn u8_to_bool(byte: &[u8]) -> bool {
     matches!(byte, b"1")

@@ -14,7 +14,7 @@ use bevy::utils::syncunsafecell::SyncUnsafeCell;
 use dashmap::DashMap;
 use indexmap::IndexSet;
 
-use crate::utils::{dashmap_get_dirty, U64Hash};
+use crate::utils::{dashmap_get_dirty_mut, U64Hash};
 
 #[derive(Default, Resource)]
 pub(crate) struct GlobalSections {
@@ -111,10 +111,13 @@ pub(crate) fn update_visible_sections(
                         let section_index = SectionIndex::new(*x, y);
 
                         let Some(global_section) = (unsafe {
-                            dashmap_get_dirty(&section_index, &global_sections.sections)
+                            dashmap_get_dirty_mut(&section_index, &global_sections.sections)
                         }) else {
                             continue;
                         };
+
+                        // Improve access pattern by sorting the section
+                        global_section.sort_unstable();
 
                         let index = global_sections.visible.0.fetch_add(1, Ordering::Relaxed);
                         sections_to_extract[index] = MaybeUninit::new(global_section);
