@@ -7,8 +7,8 @@ use bevy::hierarchy::BuildChildren;
 use bevy::input::Input;
 use bevy::log::info;
 use bevy::prelude::{
-    Camera2dBundle, ClearColor, Color, Commands, Component, Event, EventReader, KeyCode,
-    NodeBundle, OrthographicProjection, Query, Res, TextBundle, With,
+    Camera2dBundle, ClearColor, Color, Commands, Component, EventReader, KeyCode, NodeBundle,
+    OrthographicProjection, Query, Res, TextBundle, With,
 };
 use bevy::render::camera::ScalingMode;
 use bevy::text::{Text, TextSection, TextStyle};

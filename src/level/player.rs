@@ -34,7 +34,7 @@ impl Default for Player {
 
 pub(crate) fn update_player_pos(
     mut players: Query<(&mut Player, &mut Transform)>,
-    mut speed_changes: Query<&SpeedChange>,
+    speed_changes: Query<&SpeedChange>,
     time: Res<Time>,
     triggers: Res<GlobalTriggers>,
 ) {

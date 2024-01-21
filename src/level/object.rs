@@ -94,8 +94,6 @@ pub(crate) struct Object {
     pub(crate) id: u64,
     pub(crate) frame: Cocos2dFrame,
     pub(crate) anchor: Vec2,
-    pub(crate) flip_x: bool,
-    pub(crate) flip_y: bool,
     pub(crate) z_layer: i32,
 }
 
@@ -298,7 +296,7 @@ fn recursive_spawn_children(
     base_hsv: Option<HsvMod>,
     detail_hsv: Option<HsvMod>,
     z_layer: i32,
-    mut global_section: &mut IndexSet<Entity, U64Hash>,
+    global_section: &mut IndexSet<Entity, U64Hash>,
     global_color_channels: &GlobalColorChannels,
     cocos2d_frames: &Cocos2dFrames,
     parent_entity: Entity,

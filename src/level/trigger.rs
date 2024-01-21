@@ -500,7 +500,7 @@ pub(crate) fn insert_trigger_data(
         | 1814 | 1815 | 1817 | 1818 | 1819 | 22 | 24 | 23 | 25 | 26 | 27 | 28 | 55 | 56 | 57
         | 58 | 59 | 1912 | 1913 | 1914 | 1916 | 1917 | 1931 | 1932 | 1934 | 1935 | 2015 | 2016
         | 2062 | 2067 | 2068 | 2701 | 2702 | 1586 | 1700 | 1755 | 1813 | 1829 | 1859 => {
-            entity_world_mut.insert(Trigger(Box::new(EmptyTrigger::default())));
+            entity_world_mut.insert(Trigger(Box::<EmptyTrigger>::default()));
         }
         _ => return Ok(()),
     }

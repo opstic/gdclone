@@ -8,16 +8,9 @@ use crate::level::trigger::TriggerFunction;
 pub(crate) struct EmptyTrigger;
 
 impl TriggerFunction for EmptyTrigger {
-    fn execute(
-        &self,
-        world: &mut World,
-        system_state: &mut Box<dyn Any + Send + Sync>,
-        previous_progress: f32,
-        progress: f32,
-    ) {
-    }
+    fn execute(&self, _: &mut World, _: &mut Box<dyn Any + Send + Sync>, _: f32, _: f32) {}
 
-    fn create_system_state(&self, world: &mut World) -> Box<dyn Any + Send + Sync> {
+    fn create_system_state(&self, _: &mut World) -> Box<dyn Any + Send + Sync> {
         Box::new(())
     }
 

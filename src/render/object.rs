@@ -249,22 +249,25 @@ impl SpecializedRenderPipeline for ObjectPipeline {
     type Key = ObjectPipelineKey;
 
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
-        let mut formats = vec![
-            // @location(0) i_model_transpose_col0: vec4<f32>,
-            VertexFormat::Float32x4,
-            // @location(1) i_model_transpose_col1: vec4<f32>,
-            VertexFormat::Float32x4,
-            // @location(2) i_model_transpose_col2: vec4<f32>,
-            VertexFormat::Float32x4,
-            // @location(3) i_color: vec4<f32>,
-            VertexFormat::Float32x4,
-            // @location(4) i_uv_offset_scale: vec4<f32>,
-            VertexFormat::Float32x4,
-            // @location(5) i_texture_index: u32
-            VertexFormat::Uint32,
-            // @location(5) i_padding: vec3<u32>
-            VertexFormat::Uint32x3,
-        ];
+        let vertex_layout = VertexBufferLayout::from_vertex_formats(
+            VertexStepMode::Instance,
+            vec![
+                // @location(0) i_model_transpose_col0: vec4<f32>,
+                VertexFormat::Float32x4,
+                // @location(1) i_model_transpose_col1: vec4<f32>,
+                VertexFormat::Float32x4,
+                // @location(2) i_model_transpose_col2: vec4<f32>,
+                VertexFormat::Float32x4,
+                // @location(3) i_color: vec4<f32>,
+                VertexFormat::Float32x4,
+                // @location(4) i_uv_offset_scale: vec4<f32>,
+                VertexFormat::Float32x4,
+                // @location(5) i_texture_index: u32
+                VertexFormat::Uint32,
+                // @location(5) i_padding: vec3<u32>
+                VertexFormat::Uint32x3,
+            ],
+        );
 
         let mut shader_defs = Vec::new();
 
@@ -279,9 +282,6 @@ impl SpecializedRenderPipeline for ObjectPipeline {
         if key.contains(ObjectPipelineKey::NO_TEXTURE_ARRAY) {
             shader_defs.push("NO_TEXTURE_ARRAY".into());
         }
-
-        let vertex_layout =
-            VertexBufferLayout::from_vertex_formats(VertexStepMode::Instance, formats);
 
         RenderPipelineDescriptor {
             vertex: VertexState {
@@ -326,7 +326,6 @@ impl SpecializedRenderPipeline for ObjectPipeline {
 pub struct ExtractedObject {
     transform: GlobalTransform,
     color: Color,
-    blending: bool,
     /// Select an area of the texture
     rect: Option<Rect>,
     /// Change the on-screen size of the sprite
@@ -337,7 +336,6 @@ pub struct ExtractedObject {
     flip_x: bool,
     flip_y: bool,
     anchor: Vec2,
-    z_layer: i32,
     rotated: bool,
     entity: Entity,
 }
@@ -469,14 +467,12 @@ pub(crate) fn extract_objects(
             extracted_layer.get_mut().push(ExtractedObject {
                 transform: *transform,
                 color: object_color.color,
-                blending: object_color.blending,
                 rect: Some(object.frame.rect),
                 custom_size: None,
                 image_handle_id: image_handle.id(),
                 flip_x: false,
                 flip_y: false,
                 anchor: object.frame.anchor + object.anchor,
-                z_layer,
                 rotated: object.frame.rotated,
                 entity,
             });

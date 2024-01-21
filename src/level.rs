@@ -10,8 +10,8 @@ use bevy::input::Input;
 use bevy::log::{info, warn};
 use bevy::math::{Vec2, Vec3Swizzles};
 use bevy::prelude::{
-    Camera, ClearColor, Commands, Component, Gizmos, GlobalTransform, IntoSystemConfigs, KeyCode,
-    Local, Mut, OrthographicProjection, Query, Res, ResMut, Resource, Time, Transform, With, World,
+    Camera, ClearColor, Commands, Gizmos, GlobalTransform, IntoSystemConfigs, KeyCode, Local, Mut,
+    OrthographicProjection, Query, Res, ResMut, Resource, Time, Transform, With, World,
 };
 use bevy::render::color::Color;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
@@ -511,20 +511,6 @@ fn update_level_world(
         _ => (),
     }
 }
-
-#[derive(Component)]
-struct MoveMarker;
-
-fn move_test(mut ent: Query<&mut Transform, (With<Section>, With<MoveMarker>)>, time: Res<Time>) {
-    let val = f32::sin(time.elapsed_seconds() * 10.);
-    let val2 = f32::cos(time.elapsed_seconds() * 10.);
-    ent.par_iter_mut().for_each(|mut transform| {
-        transform.translation.x += val;
-        transform.translation.y += val2;
-    })
-}
-
-struct Group {}
 
 fn decrypt_inner_level<'de, D>(deserializer: D) -> Result<Option<Vec<u8>>, D::Error>
 where

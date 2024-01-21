@@ -27,25 +27,6 @@ impl BuildHasher for U64Hash {
 /// Improves performance slightly
 ///
 /// Don't use if you can't guarantee there aren't any other threads writing to the [`DashMap`]
-pub(crate) unsafe fn dashmap_get_dirty<'map, K: Eq + Hash, V, S: BuildHasher + Clone>(
-    key: &K,
-    map: &'map DashMap<K, V, S>,
-) -> Option<&'map V> {
-    let hash = map.hash_usize(key);
-    let index = map.determine_shard(hash);
-
-    let shard = unsafe { &*map.shards().get_unchecked(index).data_ptr() };
-
-    if let Some((_, vptr)) = shard.get_key_value(key) {
-        unsafe {
-            let vptr: *const V = vptr.get();
-            Some(&*vptr)
-        }
-    } else {
-        None
-    }
-}
-
 pub(crate) unsafe fn dashmap_get_dirty_mut<'map, K: Eq + Hash, V, S: BuildHasher + Clone>(
     key: &K,
     map: &'map DashMap<K, V, S>,

@@ -2,13 +2,13 @@ use std::any::Any;
 
 use bevy::ecs::system::SystemState;
 use bevy::math::{BVec2, Vec2};
-use bevy::prelude::{Query, Res, Transform, With, Without, World};
+use bevy::prelude::{Query, Res, Transform, Without, World};
 
 use crate::level::easing::Easing;
 use crate::level::group::{GlobalGroupDeltas, GlobalGroups};
 use crate::level::object::Object;
 use crate::level::player::Player;
-use crate::level::trigger::{Trigger, TriggerFunction};
+use crate::level::trigger::TriggerFunction;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct MoveTrigger {
@@ -22,7 +22,6 @@ pub(crate) struct MoveTrigger {
 type MoveTriggerSystemParam = (
     Res<'static, GlobalGroups>,
     Query<'static, 'static, &'static mut GlobalGroupDeltas>,
-    Query<'static, 'static, &'static Transform, (With<Object>, Without<Trigger>)>,
     Query<'static, 'static, (&'static Player, &'static Transform), Without<Object>>,
 );
 
@@ -37,8 +36,7 @@ impl TriggerFunction for MoveTrigger {
         let system_state: &mut SystemState<MoveTriggerSystemParam> =
             &mut *system_state.downcast_mut().unwrap();
 
-        let (global_groups, mut group_delta_query, object_transform_query, player_query) =
-            system_state.get_mut(world);
+        let (global_groups, mut group_delta_query, player_query) = system_state.get_mut(world);
 
         let Some(group_entity) = global_groups.0.get(self.target_group as usize) else {
             return;
