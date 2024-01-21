@@ -99,6 +99,17 @@ pub(crate) struct Object {
     pub(crate) z_layer: i32,
 }
 
+pub(crate) fn get_object_pos(object_data: &HashMap<&[u8], &[u8]>) -> Result<Vec2, anyhow::Error> {
+    let mut translation = Vec2::ZERO;
+    if let Some(x) = object_data.get(b"2".as_ref()) {
+        translation.x = std::str::from_utf8(x)?.parse()?;
+    }
+    if let Some(y) = object_data.get(b"3".as_ref()) {
+        translation.y = std::str::from_utf8(y)?.parse()?;
+    }
+    Ok(translation)
+}
+
 pub(crate) fn spawn_object(
     world: &mut World,
     object_data: &HashMap<&[u8], &[u8]>,

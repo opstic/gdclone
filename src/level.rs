@@ -216,18 +216,67 @@ fn spawn_level_world(
         let mut global_groups = IndexMap::with_hasher(U64Hash);
 
         start = Instant::now();
-        for object_data in &parsed.objects {
-            if let Err(error) = object::spawn_object(
-                &mut world,
-                object_data,
-                &global_sections,
-                &mut global_groups,
-                &global_color_channels,
-                &cocos2d_frames,
-            ) {
-                warn!("Failed to spawn object: {:?}", error);
+
+        // Spawn the objects in order of the sections to hopefully improve access pattern
+        let mut temp_sections: HashMap<SectionIndex, Vec<usize>> = HashMap::new();
+        let mut highest_pos = Vec2::ZERO;
+        let mut lowest_pos = Vec2::ZERO;
+        for (index, object_data) in parsed.objects.iter().enumerate() {
+            let object_position = object::get_object_pos(object_data).unwrap();
+            if object_position.x < lowest_pos.x {
+                lowest_pos.x = object_position.x;
+            }
+            if object_position.y < lowest_pos.y {
+                lowest_pos.y = object_position.y;
+            }
+            if object_position.x > highest_pos.x {
+                highest_pos.x = object_position.x;
+            }
+            if object_position.y > highest_pos.y {
+                highest_pos.y = object_position.y;
+            }
+            let section_index = SectionIndex::from_pos(object_position);
+
+            let entry = temp_sections.entry(section_index).or_default();
+            entry.push(index);
+        }
+
+        let high = SectionIndex::from_pos(highest_pos);
+        let low = SectionIndex::from_pos(lowest_pos);
+
+        for x in (low.x - 5)..(high.x + 5) {
+            for y in (low.y - 5)..(high.y + 5) {
+                let Some(temp) = temp_sections.get(&SectionIndex::new(x, y)) else {
+                    continue;
+                };
+
+                for index in temp {
+                    if let Err(error) = object::spawn_object(
+                        &mut world,
+                        &parsed.objects[*index],
+                        &global_sections,
+                        &mut global_groups,
+                        &global_color_channels,
+                        &cocos2d_frames,
+                    ) {
+                        warn!("Failed to spawn object: {:?}", error);
+                    }
+                }
             }
         }
+
+        // for object_data in &parsed.objects {
+        //     if let Err(error) = object::spawn_object(
+        //         &mut world,
+        //         object_data,
+        //         &global_sections,
+        //         &mut global_groups,
+        //         &global_color_channels,
+        //         &cocos2d_frames,
+        //     ) {
+        //         warn!("Failed to spawn object: {:?}", error);
+        //     }
+        // }
         info!("Spawning took {:?}", start.elapsed());
         info!("Spawned {} objects", parsed.objects.len());
         info!("{} sections used", global_sections.sections.len());
