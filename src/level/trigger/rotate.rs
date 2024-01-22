@@ -1,7 +1,6 @@
 use std::any::Any;
 
 use bevy::ecs::system::SystemState;
-use bevy::math::Quat;
 use bevy::prelude::{Query, Res, World};
 
 use crate::level::easing::Easing;
@@ -64,14 +63,12 @@ impl TriggerFunction for RotateTrigger {
 
         let amount = self.easing.sample(progress) - self.easing.sample(previous_progress);
 
-        let delta = Quat::from_rotation_z(
-            -((360 * self.times360 + self.degrees) as f32 * amount).to_radians(),
-        );
+        let delta = -((360 * self.times360 + self.degrees) as f32 * amount).to_radians();
 
         if let Some(center) = center {
             global_group_delta.rotate_around = Some((center, delta, self.lock_rotation));
         } else {
-            global_group_delta.rotation *= delta;
+            global_group_delta.rotation += delta;
         }
     }
 

@@ -6,14 +6,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use bevy::ecs::query::{ReadOnlyWorldQuery, WorldQuery};
 use bevy::hierarchy::{Children, Parent};
 use bevy::math::{Vec2, Vec3Swizzles};
-use bevy::prelude::{
-    Changed, Component, Entity, Mut, Query, Res, ResMut, Resource, Transform, With, Without,
-};
+use bevy::prelude::{Changed, Component, Entity, Mut, Query, Res, ResMut, Resource, With, Without};
 use bevy::tasks::ComputeTaskPool;
 use bevy::utils::syncunsafecell::SyncUnsafeCell;
 use dashmap::DashMap;
 use indexmap::IndexSet;
 
+use crate::level::transform::Transform2d;
 use crate::utils::{dashmap_get_dirty_mut, U64Hash};
 
 #[derive(Default, Resource)]
@@ -130,8 +129,8 @@ pub(crate) fn update_visible_sections(
 
 pub(crate) fn update_entity_section(
     mut entities: Query<
-        (&Transform, &mut Section, Option<&Children>),
-        (Without<Parent>, Changed<Transform>),
+        (&Transform2d, &mut Section, Option<&Children>),
+        (Without<Parent>, Changed<Transform2d>),
     >,
     children_query: Query<(&mut Section, Option<&Children>), With<Parent>>,
 ) {

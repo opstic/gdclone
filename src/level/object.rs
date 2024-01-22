@@ -1,8 +1,8 @@
 use bevy::asset::Handle;
 use bevy::hierarchy::BuildWorldChildren;
 use bevy::log::warn;
-use bevy::math::{Quat, Vec2, Vec3, Vec3Swizzles};
-use bevy::prelude::{Component, Entity, GlobalTransform, Transform, World};
+use bevy::math::{Vec2, Vec3, Vec3Swizzles};
+use bevy::prelude::{Component, Entity, World};
 use bevy::utils::{default, HashMap};
 use indexmap::{IndexMap, IndexSet};
 
@@ -12,6 +12,7 @@ use crate::level::color::{ObjectColor, ObjectColorKind};
 use crate::level::de;
 use crate::level::group::ObjectGroupsCalculated;
 use crate::level::section::{GlobalSections, Section, SectionIndex};
+use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::insert_trigger_data;
 use crate::utils::{u8_to_bool, U64Hash};
 
@@ -118,7 +119,7 @@ pub(crate) fn spawn_object(
 ) -> Result<Entity, anyhow::Error> {
     let mut object = Object::default();
     let mut object_color = ObjectColor::default();
-    let mut transform = Transform::default();
+    let mut transform = Transform2d::default();
 
     if let Some(id) = object_data.get(b"1".as_ref()) {
         object.id = std::str::from_utf8(id)?.parse()?;
@@ -138,8 +139,7 @@ pub(crate) fn spawn_object(
         transform.translation.y = std::str::from_utf8(y)?.parse()?;
     }
     if let Some(rotation) = object_data.get(b"6".as_ref()) {
-        transform.rotation =
-            Quat::from_rotation_z(-std::str::from_utf8(rotation)?.parse::<f32>()?.to_radians());
+        transform.angle = -std::str::from_utf8(rotation)?.parse::<f32>()?.to_radians();
     }
     if let Some(z_layer) = object_data.get(b"24".as_ref()) {
         object.z_layer = std::str::from_utf8(z_layer)?.parse()?;
@@ -152,7 +152,7 @@ pub(crate) fn spawn_object(
         transform.translation.z = object_default_data.default_z_order as f32;
     }
     if let Some(scale) = object_data.get(b"32".as_ref()) {
-        transform.scale = Vec2::splat(std::str::from_utf8(scale)?.parse()?).extend(0.);
+        transform.scale = Vec2::splat(std::str::from_utf8(scale)?.parse()?);
     }
     if let Some(flip_x) = object_data.get(b"4".as_ref()) {
         transform.scale.x *= if u8_to_bool(flip_x) { -1. } else { 1. };
@@ -230,7 +230,7 @@ pub(crate) fn spawn_object(
 
     let object_id = object.id;
     let object_z_layer = object.z_layer;
-    let object_transform = GlobalTransform::from(transform);
+    let object_transform = GlobalTransform2d::from(transform);
     let mut entity = world.spawn((
         object,
         object_color,
@@ -300,7 +300,7 @@ fn recursive_spawn_children(
     global_color_channels: &GlobalColorChannels,
     cocos2d_frames: &Cocos2dFrames,
     parent_entity: Entity,
-    parent_transform: &GlobalTransform,
+    parent_transform: &GlobalTransform2d,
     spawned: &mut Vec<Entity>,
 ) -> Result<(), anyhow::Error> {
     for child in children {
@@ -336,10 +336,11 @@ fn recursive_spawn_children(
             if child.flip_x { -1. } else { 1. },
             if child.flip_y { -1. } else { 1. },
         );
-        let transform = Transform {
+        let transform = Transform2d {
             translation: child.offset.xy().extend(child.offset.z / 1000.),
-            rotation: Quat::from_rotation_z(child.rotation.to_radians()),
-            scale: (child.scale * flip).extend(0.),
+            angle: child.rotation.to_radians(),
+            scale: child.scale * flip,
+            ..default()
         };
 
         object.anchor = child.anchor * flip;

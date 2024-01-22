@@ -2,12 +2,13 @@ use std::any::Any;
 
 use bevy::ecs::system::SystemState;
 use bevy::math::{BVec2, Vec2};
-use bevy::prelude::{Query, Res, Transform, Without, World};
+use bevy::prelude::{Query, Res, Without, World};
 
 use crate::level::easing::Easing;
 use crate::level::group::{GlobalGroupDeltas, GlobalGroups};
 use crate::level::object::Object;
 use crate::level::player::Player;
+use crate::level::transform::Transform2d;
 use crate::level::trigger::TriggerFunction;
 
 #[derive(Clone, Debug, Default)]
@@ -22,7 +23,7 @@ pub(crate) struct MoveTrigger {
 type MoveTriggerSystemParam = (
     Res<'static, GlobalGroups>,
     Query<'static, 'static, &'static mut GlobalGroupDeltas>,
-    Query<'static, 'static, (&'static Player, &'static Transform), Without<Object>>,
+    Query<'static, 'static, (&'static Player, &'static Transform2d), Without<Object>>,
 );
 
 impl TriggerFunction for MoveTrigger {

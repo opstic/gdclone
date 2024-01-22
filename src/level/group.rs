@@ -1,12 +1,13 @@
 use bevy::hierarchy::Parent;
-use bevy::math::{Quat, Vec2};
+use bevy::math::{Vec2, Vec3Swizzles};
 use bevy::prelude::{
-    Changed, Component, DetectChangesMut, Entity, Query, Resource, Transform, Without, World,
+    Changed, Component, DetectChangesMut, Entity, Query, Resource, Without, World,
 };
 use bevy::utils::default;
 use indexmap::IndexMap;
 use smallvec::SmallVec;
 
+use crate::level::transform::Transform2d;
 use crate::level::trigger::Trigger;
 use crate::utils::U64Hash;
 
@@ -43,8 +44,8 @@ impl Default for GlobalGroup {
 #[derive(Default, Component)]
 pub(crate) struct GlobalGroupDeltas {
     pub(crate) translation_delta: Vec2,
-    pub(crate) rotate_around: Option<(Entity, Quat, bool)>,
-    pub(crate) rotation: Quat,
+    pub(crate) rotate_around: Option<(Entity, f32, bool)>,
+    pub(crate) rotation: f32,
 }
 
 #[derive(Component)]
@@ -82,12 +83,12 @@ pub(crate) fn clear_group_delta(
         let global_group = global_group.bypass_change_detection();
         global_group.translation_delta = Vec2::ZERO;
         global_group.rotate_around = None;
-        global_group.rotation = Quat::IDENTITY;
+        global_group.rotation = 0.;
     }
 }
 
 pub(crate) fn apply_group_delta(
-    mut objects: Query<&mut Transform, (Without<Parent>, Without<Trigger>)>,
+    mut objects: Query<&mut Transform2d, (Without<Parent>, Without<Trigger>)>,
     groups: Query<(&GlobalGroup, &GlobalGroupDeltas), Changed<GlobalGroupDeltas>>,
 ) {
     // Ugh, this might create shared access UB but it's twice as fast as doing it single-threaded
@@ -109,7 +110,7 @@ pub(crate) fn apply_group_delta(
 
         while let Some(mut transform) = iter.fetch_next() {
             transform.translation += translation_delta;
-            transform.rotation *= group_deltas.rotation;
+            transform.angle += group_deltas.rotation;
         }
     }
 
@@ -122,7 +123,7 @@ pub(crate) fn apply_group_delta(
             continue;
         };
 
-        let center_transform = center_transform.translation;
+        let center_transform = center_transform.translation.xy();
 
         let mut iter = objects.iter_many_mut(&group.root_entities);
 

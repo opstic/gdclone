@@ -10,13 +10,12 @@ use bevy::input::Input;
 use bevy::log::{info, warn};
 use bevy::math::{Vec2, Vec3Swizzles};
 use bevy::prelude::{
-    Camera, ClearColor, Commands, Gizmos, GlobalTransform, IntoSystemConfigs, KeyCode, Local, Mut,
+    Camera, ClearColor, Commands, Gizmos, IntoSystemConfigs, KeyCode, Local, Mut,
     OrthographicProjection, Query, Res, ResMut, Resource, Time, Transform, With, World,
 };
 use bevy::render::color::Color;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::time::TimePlugin;
-use bevy::transform::TransformBundle;
 use bevy::utils::{default, HashMap};
 use futures_lite::future;
 use indexmap::IndexMap;
@@ -28,6 +27,7 @@ use crate::asset::TestAssets;
 use crate::level::color::HsvMod;
 use crate::level::player::{update_player_pos, Player};
 use crate::level::section::SectionIndex;
+use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::{
     process_triggers, SpeedChange, TriggerActivator, TriggerSystemStateCache,
 };
@@ -54,7 +54,7 @@ pub(crate) mod group;
 pub(crate) mod object;
 mod player;
 pub(crate) mod section;
-mod transform;
+pub(crate) mod transform;
 pub(crate) mod trigger;
 
 #[derive(Default, Resource)]
@@ -284,8 +284,8 @@ fn spawn_level_world(
         let player = world
             .spawn((
                 Player::default(),
-                Transform::default(),
-                GlobalTransform::default(),
+                Transform2d::default(),
+                GlobalTransform2d::default(),
                 Section::default(),
                 TriggerActivator::default(),
             ))
@@ -319,7 +319,8 @@ fn spawn_level_world(
         };
 
         world.spawn((
-            TransformBundle::default(),
+            Transform2d::default(),
+            GlobalTransform2d::default(),
             SpeedChange {
                 forward_velocity: default_speed.0,
                 speed: default_speed.1,
@@ -426,7 +427,7 @@ fn update_level_world(
             world.run_schedule(Update);
 
             // Render player line
-            let mut players = world.query::<(&Player, &Transform)>();
+            let mut players = world.query::<(&Player, &Transform2d)>();
 
             if options.show_lines {
                 for (player, transform) in players.iter(world) {

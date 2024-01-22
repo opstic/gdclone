@@ -1,9 +1,7 @@
 use std::any::{Any, TypeId};
 
 use bevy::ecs::system::SystemState;
-use bevy::prelude::{
-    Component, Entity, EntityWorldMut, Mut, Query, ResMut, Resource, Transform, With, World,
-};
+use bevy::prelude::{Component, Entity, EntityWorldMut, Mut, Query, ResMut, Resource, With, World};
 use bevy::utils::petgraph::matrix_graph::Zero;
 use bevy::utils::syncunsafecell::SyncUnsafeCell;
 use bevy::utils::{default, HashMap};
@@ -17,6 +15,7 @@ use crate::level::color::HsvMod;
 use crate::level::easing::Easing;
 use crate::level::group::ObjectGroupsCalculated;
 use crate::level::player::Player;
+use crate::level::transform::Transform2d;
 use crate::level::trigger::alpha::AlphaTrigger;
 use crate::level::trigger::color::ColorTrigger;
 use crate::level::trigger::empty::EmptyTrigger;
@@ -181,14 +180,14 @@ pub(crate) fn process_triggers(world: &mut World) {
 
             let system_state: &mut SystemState<(
                 ResMut<GlobalTriggers>,
-                Query<(&Player, &Transform, &TriggerActivator)>,
+                Query<(&Player, &Transform2d, &TriggerActivator)>,
                 Query<(&Trigger, &ObjectGroupsCalculated)>,
             )> = if let Some(cell) = trigger_system_state_cache.cache.get(&TypeId::of::<World>()) {
                 unsafe { &mut *cell.get() }
             } else {
                 let system_state: SystemState<(
                     ResMut<GlobalTriggers>,
-                    Query<(&Player, &Transform, &TriggerActivator)>,
+                    Query<(&Player, &Transform2d, &TriggerActivator)>,
                     Query<(&Trigger, &ObjectGroupsCalculated)>,
                 )> = SystemState::new(unsafe { world_cell.world_mut() });
 
@@ -526,7 +525,7 @@ pub(crate) fn construct_trigger_index(world: &mut World) {
     let mut speed_changes = SpeedChanges::default();
 
     // Start by indexing speed changes
-    let mut speed_change_query = world.query::<(Entity, &SpeedChange, &Transform)>();
+    let mut speed_change_query = world.query::<(Entity, &SpeedChange, &Transform2d)>();
 
     for (entity, speed_change, transform) in speed_change_query.iter(world) {
         speed_changes.0.push((
@@ -549,7 +548,7 @@ pub(crate) fn construct_trigger_index(world: &mut World) {
 
     // Then get each of the position activated triggers and precompute their range to create a timeline
     let mut triggers_query =
-        world.query_filtered::<(Entity, &Trigger, &Transform), With<PosActivate>>();
+        world.query_filtered::<(Entity, &Trigger, &Transform2d), With<PosActivate>>();
 
     let mut trigger_entities = Vec::new();
     let mut trigger_intervals = Vec::new();

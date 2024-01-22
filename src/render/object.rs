@@ -12,10 +12,10 @@ use bevy::ecs::system::{
     SystemParamItem, SystemState,
 };
 use bevy::log::warn;
-use bevy::math::{Affine3A, Quat, Rect, Vec2, Vec4};
+use bevy::math::{Affine2, Rect, Vec2, Vec3, Vec4};
 use bevy::prelude::{
-    Color, Commands, Component, Entity, FromWorld, GlobalTransform, Image, IntoSystemConfigs,
-    Local, Msaa, Query, Res, ResMut, Resource, Shader, Without, World,
+    Color, Commands, Component, Entity, FromWorld, Image, IntoSystemConfigs, Local, Msaa, Query,
+    Res, ResMut, Resource, Shader, Without, World,
 };
 use bevy::render::{
     mesh::PrimitiveTopology,
@@ -49,6 +49,7 @@ use bevy::utils::{syncunsafecell::SyncUnsafeCell, FloatOrd};
 use crate::asset::compressed_image::CompressedImage;
 use crate::level::color::ObjectColorCalculated;
 use crate::level::group::ObjectGroupsCalculated;
+use crate::level::transform::GlobalTransform2d;
 use crate::level::trigger::Trigger;
 use crate::level::{object::Object, section::GlobalSections, LevelWorld};
 
@@ -252,20 +253,16 @@ impl SpecializedRenderPipeline for ObjectPipeline {
         let vertex_layout = VertexBufferLayout::from_vertex_formats(
             VertexStepMode::Instance,
             vec![
-                // @location(0) i_model_transpose_col0: vec4<f32>,
+                // @location(0) i_model_transpose_col0: vec3<f32>,
+                VertexFormat::Float32x3,
+                // @location(1) i_model_transpose_col1: vec3<f32>,
+                VertexFormat::Float32x3,
+                // @location(2) i_color: vec4<f32>,
                 VertexFormat::Float32x4,
-                // @location(1) i_model_transpose_col1: vec4<f32>,
+                // @location(3) i_uv_offset_scale: vec4<f32>,
                 VertexFormat::Float32x4,
-                // @location(2) i_model_transpose_col2: vec4<f32>,
-                VertexFormat::Float32x4,
-                // @location(3) i_color: vec4<f32>,
-                VertexFormat::Float32x4,
-                // @location(4) i_uv_offset_scale: vec4<f32>,
-                VertexFormat::Float32x4,
-                // @location(5) i_texture_index: u32
+                // @location(4) i_texture_index: u32
                 VertexFormat::Uint32,
-                // @location(5) i_padding: vec3<u32>
-                VertexFormat::Uint32x3,
             ],
         );
 
@@ -324,7 +321,7 @@ impl SpecializedRenderPipeline for ObjectPipeline {
 
 #[derive(Copy, Clone)]
 pub struct ExtractedObject {
-    transform: GlobalTransform,
+    transform: GlobalTransform2d,
     color: Color,
     /// Select an area of the texture
     rect: Option<Rect>,
@@ -369,7 +366,7 @@ pub(crate) struct ExtractSystemStateCache {
                 'static,
                 (
                     Entity,
-                    &'static GlobalTransform,
+                    &'static GlobalTransform2d,
                     &'static Object,
                     &'static ObjectColorCalculated,
                     &'static ObjectGroupsCalculated,
@@ -412,7 +409,7 @@ pub(crate) fn extract_objects(
                 Query<
                     (
                         Entity,
-                        &GlobalTransform,
+                        &GlobalTransform2d,
                         &Object,
                         &ObjectColorCalculated,
                         &ObjectGroupsCalculated,
@@ -483,33 +480,30 @@ pub(crate) fn extract_objects(
 #[repr(C)]
 #[derive(Copy, Clone, Default, Pod, Zeroable)]
 struct ObjectInstance {
-    // Affine 4x3 transposed to 3x4
-    i_model_transpose: [Vec4; 3],
+    // Affine 2x3 transposed to 3x2
+    i_model_transpose: [Vec3; 2],
     i_color: [f32; 4],
     i_uv_offset_scale: [f32; 4],
     i_texture_index: u32,
-    _padding: [u32; 3],
 }
 
 impl ObjectInstance {
     #[inline]
     fn from(
-        transform: &Affine3A,
+        transform: &Affine2,
         color: [f32; 4],
         uv_offset_scale: &Vec4,
         texture_index: u32,
     ) -> Self {
-        let transpose_model_3x3 = transform.matrix3.transpose();
+        let transpose_model_2x2 = transform.matrix2.transpose();
         Self {
             i_model_transpose: [
-                transpose_model_3x3.x_axis.extend(transform.translation.x),
-                transpose_model_3x3.y_axis.extend(transform.translation.y),
-                transpose_model_3x3.z_axis.extend(transform.translation.z),
+                transpose_model_2x2.x_axis.extend(transform.translation.x),
+                transpose_model_2x2.y_axis.extend(transform.translation.y),
             ],
             i_color: color,
             i_uv_offset_scale: uv_offset_scale.to_array(),
             i_texture_index: texture_index,
-            _padding: [0; 3],
         }
     }
 }
@@ -608,7 +602,7 @@ pub(crate) fn queue_objects(
                 radsort::sort_by_cached_key(
                     unsafe { &mut *extracted_layer.get() },
                     |extracted_object| {
-                        extracted_object.transform.translation().z
+                        extracted_object.transform.z()
                             + extracted_object.entity.index() as f32 / 100_000.
                     },
                 )
@@ -783,13 +777,13 @@ pub(crate) fn prepare_objects(
                         let mut transform = extracted_object.transform.affine();
 
                         if extracted_object.rotated {
-                            transform *= Affine3A::from_rotation_z(90_f32.to_radians());
+                            transform *= Affine2::from_angle(90_f32.to_radians());
                         }
 
-                        transform *= Affine3A::from_scale_rotation_translation(
-                            quad_size.extend(1.0),
-                            Quat::IDENTITY,
-                            (quad_size * (-extracted_object.anchor - Vec2::splat(0.5))).extend(0.0),
+                        transform *= Affine2::from_scale_angle_translation(
+                            quad_size,
+                            0.,
+                            quad_size * (-extracted_object.anchor - Vec2::splat(0.5)),
                         );
 
                         // Store the vertex data and add the item to the render phase

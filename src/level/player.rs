@@ -1,7 +1,8 @@
 use bevy::math::{Vec2, Vec3Swizzles};
-use bevy::prelude::{Component, Query, Res, Transform};
+use bevy::prelude::{Component, Query, Res};
 use bevy::time::Time;
 
+use crate::level::transform::Transform2d;
 use crate::level::trigger::{GlobalTriggers, SpeedChange};
 
 #[derive(Component)]
@@ -33,7 +34,7 @@ impl Default for Player {
 // }
 
 pub(crate) fn update_player_pos(
-    mut players: Query<(&mut Player, &mut Transform)>,
+    mut players: Query<(&mut Player, &mut Transform2d)>,
     speed_changes: Query<&SpeedChange>,
     time: Res<Time>,
     triggers: Res<GlobalTriggers>,
