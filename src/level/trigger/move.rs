@@ -1,15 +1,15 @@
 use std::any::Any;
 
 use bevy::ecs::system::SystemState;
-use bevy::math::{BVec2, Vec2};
-use bevy::prelude::{Query, Res, Without, World};
+use bevy::math::{BVec2, Vec2, Vec3Swizzles};
+use bevy::prelude::{Entity, Query, Res, With, Without, World};
 
 use crate::level::easing::Easing;
 use crate::level::group::{GlobalGroupDeltas, GlobalGroups};
 use crate::level::object::Object;
 use crate::level::player::Player;
 use crate::level::transform::Transform2d;
-use crate::level::trigger::TriggerFunction;
+use crate::level::trigger::{Trigger, TriggerFunction};
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct MoveTrigger {
@@ -22,6 +22,7 @@ pub(crate) struct MoveTrigger {
 
 type MoveTriggerSystemParam = (
     Res<'static, GlobalGroups>,
+    Query<'static, 'static, &'static Transform2d, With<Trigger>>,
     Query<'static, 'static, &'static mut GlobalGroupDeltas>,
     Query<'static, 'static, (&'static Player, &'static Transform2d), Without<Object>>,
 );
@@ -30,6 +31,7 @@ impl TriggerFunction for MoveTrigger {
     fn execute(
         &self,
         world: &mut World,
+        entity: Entity,
         system_state: &mut Box<dyn Any + Send + Sync>,
         previous_progress: f32,
         progress: f32,
@@ -37,7 +39,8 @@ impl TriggerFunction for MoveTrigger {
         let system_state: &mut SystemState<MoveTriggerSystemParam> =
             &mut *system_state.downcast_mut().unwrap();
 
-        let (global_groups, mut group_delta_query, player_query) = system_state.get_mut(world);
+        let (global_groups, transform_query, mut group_delta_query, player_query) =
+            system_state.get_mut(world);
 
         let Some(group_entity) = global_groups.0.get(self.target_group as usize) else {
             return;
@@ -54,12 +57,18 @@ impl TriggerFunction for MoveTrigger {
         if self.lock.any() {
             let (player, transform) = player_query.single();
 
+            let last_translation = if previous_progress == 0. {
+                transform_query.get(entity).unwrap().translation.xy()
+            } else {
+                player.last_translation
+            };
+
             if self.lock.x {
-                delta.x += transform.translation.x - player.last_translation.x;
+                delta.x += transform.translation.x - last_translation.x;
             }
 
             if self.lock.y {
-                delta.y += transform.translation.y - player.last_translation.y;
+                delta.y += transform.translation.y - last_translation.y;
             }
         }
 

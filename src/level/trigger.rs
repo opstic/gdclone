@@ -152,6 +152,7 @@ pub(crate) trait TriggerFunction: Send + Sync + 'static {
     fn execute(
         &self,
         world: &mut World,
+        entity: Entity,
         system_state: &mut Box<dyn Any + Send + Sync>,
         previous_progress: f32,
         progress: f32,
@@ -282,6 +283,7 @@ pub(crate) fn process_triggers(world: &mut World) {
 
                         trigger.0.execute(
                             world_mut,
+                            trigger_entity,
                             trigger_system_state.get_mut(),
                             previous_progress,
                             current_progress,

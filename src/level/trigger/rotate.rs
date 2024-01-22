@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use bevy::ecs::system::SystemState;
-use bevy::prelude::{Query, Res, World};
+use bevy::prelude::{Entity, Query, Res, World};
 
 use crate::level::easing::Easing;
 use crate::level::group::{GlobalGroup, GlobalGroupDeltas, GlobalGroups};
@@ -28,6 +28,7 @@ impl TriggerFunction for RotateTrigger {
     fn execute(
         &self,
         world: &mut World,
+        _: Entity,
         system_state: &mut Box<dyn Any + Send + Sync>,
         previous_progress: f32,
         progress: f32,

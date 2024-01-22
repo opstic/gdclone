@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use bevy::ecs::system::SystemState;
-use bevy::prelude::{Color, Mut, Query, World};
+use bevy::prelude::{Color, Entity, Mut, Query, World};
 
 use crate::level::color::{
     ColorChannelCalculated, GlobalColorChannel, GlobalColorChannels, HsvMod,
@@ -33,6 +33,7 @@ impl TriggerFunction for ColorTrigger {
     fn execute(
         &self,
         world: &mut World,
+        _: Entity,
         system_state: &mut Box<dyn Any + Send + Sync>,
         previous_progress: f32,
         progress: f32,

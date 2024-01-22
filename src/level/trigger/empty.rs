@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use bevy::prelude::World;
+use bevy::prelude::{Entity, World};
 
 use crate::level::trigger::TriggerFunction;
 
@@ -8,7 +8,15 @@ use crate::level::trigger::TriggerFunction;
 pub(crate) struct EmptyTrigger;
 
 impl TriggerFunction for EmptyTrigger {
-    fn execute(&self, _: &mut World, _: &mut Box<dyn Any + Send + Sync>, _: f32, _: f32) {}
+    fn execute(
+        &self,
+        _: &mut World,
+        _: Entity,
+        _: &mut Box<dyn Any + Send + Sync>,
+        _: f32,
+        _: f32,
+    ) {
+    }
 
     fn create_system_state(&self, _: &mut World) -> Box<dyn Any + Send + Sync> {
         Box::new(())
