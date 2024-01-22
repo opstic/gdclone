@@ -242,12 +242,12 @@ pub(crate) fn process_triggers(world: &mut World) {
 
                 for (trigger_range, entity_indices) in query.iter() {
                     let trigger_range_length = trigger_range.end.0 - trigger_range.start.0;
-                    let previous_progress = (player.last_translation.x - trigger_range.start.0)
-                        .max(0.)
-                        / trigger_range_length;
+                    let previous_progress = ((player.last_translation.x - trigger_range.start.0)
+                        / trigger_range_length)
+                        .clamp(0., 1.);
                     let current_progress = ((transform.translation.x - trigger_range.start.0)
                         / trigger_range_length)
-                        .min(1.);
+                        .clamp(0., 1.);
 
                     for entity_index in entity_indices {
                         let trigger_entity = global_trigger_channel.x.1[*entity_index as usize];
