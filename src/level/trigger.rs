@@ -218,12 +218,14 @@ pub(crate) fn process_triggers(world: &mut World) {
                     continue;
                 };
 
-                let mut activate_range =
-                    OrderedFloat(player.last_translation.x)..OrderedFloat(transform.translation.x);
+                let mut last_translation = player.last_translation;
 
-                if player.last_translation.x.is_zero() {
-                    activate_range.start = OrderedFloat(f32::NEG_INFINITY);
+                if transform.translation.x.is_zero() {
+                    last_translation.x = f32::NEG_INFINITY;
                 }
+
+                let activate_range =
+                    OrderedFloat(last_translation.x)..OrderedFloat(transform.translation.x);
 
                 // let span_a = info_span!("interval lookup");
                 // let span_b = info_span!("trigger");
@@ -242,7 +244,7 @@ pub(crate) fn process_triggers(world: &mut World) {
 
                 for (trigger_range, entity_indices) in query.iter() {
                     let trigger_range_length = trigger_range.end.0 - trigger_range.start.0;
-                    let previous_progress = ((player.last_translation.x - trigger_range.start.0)
+                    let previous_progress = ((last_translation.x - trigger_range.start.0)
                         / trigger_range_length)
                         .clamp(0., 1.);
                     let current_progress = ((transform.translation.x - trigger_range.start.0)
