@@ -34162,7 +34162,7 @@
     "swap_base_detail": true
   },
   "1758": {
-    "texture": "blockOutline_14_001.png",
+    "texture": "emptyFrame.png",
     "default_z_layer": 1,
     "default_z_order": 9,
     "default_base_color_channel": 1,
@@ -34186,7 +34186,7 @@
     "swap_base_detail": true
   },
   "1759": {
-    "texture": "blockOutline_15_001.png",
+    "texture": "emptyFrame.png",
     "default_z_layer": 1,
     "default_z_order": 9,
     "default_base_color_channel": 1,
@@ -34210,7 +34210,7 @@
     "swap_base_detail": true
   },
   "1760": {
-    "texture": "blockOutline_14_001.png",
+    "texture": "emptyFrame.png",
     "default_z_layer": 1,
     "default_z_order": 9,
     "default_base_color_channel": 1,
@@ -34234,7 +34234,7 @@
     "swap_base_detail": true
   },
   "1761": {
-    "texture": "blockOutline_15_001.png",
+    "texture": "emptyFrame.png",
     "default_z_layer": 1,
     "default_z_order": 9,
     "default_base_color_channel": 1,
@@ -34258,7 +34258,7 @@
     "swap_base_detail": true
   },
   "1762": {
-    "texture": "blockOutline_14_001.png",
+    "texture": "emptyFrame.png",
     "default_z_layer": 1,
     "default_z_order": 9,
     "default_base_color_channel": 1,
@@ -34282,7 +34282,7 @@
     "swap_base_detail": true
   },
   "1763": {
-    "texture": "blockOutline_15_001.png",
+    "texture": "emptyFrame.png",
     "default_z_layer": 1,
     "default_z_order": 9,
     "default_base_color_channel": 1,
