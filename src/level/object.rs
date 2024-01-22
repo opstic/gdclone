@@ -1,6 +1,6 @@
 use bevy::asset::Handle;
 use bevy::hierarchy::BuildWorldChildren;
-use bevy::log::warn;
+use bevy::log::debug;
 use bevy::math::{Vec2, Vec3, Vec3Swizzles};
 use bevy::prelude::{Component, Entity, World};
 use bevy::utils::{default, HashMap};
@@ -217,7 +217,7 @@ pub(crate) fn spawn_object(
         if let Some(frame_index) = cocos2d_frames.index.get(object_default_data.texture) {
             frame_index
         } else {
-            warn!(
+            debug!(
             "Object {}: Cannot find texture with name \"{}\". Using \"emptyFrame.png\" instead.",
             object.id, object_default_data.texture
         );
@@ -350,7 +350,7 @@ fn recursive_spawn_children(
         }
 
         let Some(frame_index) = cocos2d_frames.index.get(child.texture) else {
-            warn!(
+            debug!(
                 "Object {}: Cannot find texture with name \"{}\". Skipping child.",
                 object_id, child.texture
             );
