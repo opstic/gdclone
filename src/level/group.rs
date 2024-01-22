@@ -91,18 +91,6 @@ pub(crate) fn apply_group_delta(
     mut objects: Query<&mut Transform2d, (Without<Parent>, Without<Trigger>)>,
     groups: Query<(&GlobalGroup, &GlobalGroupDeltas), Changed<GlobalGroupDeltas>>,
 ) {
-    // Ugh, this might create shared access UB but it's twice as fast as doing it single-threaded
-    // TODO: Yeah this actually breaks objects rotating, restructure this later
-    // groups.par_iter().for_each(|(group, group_deltas)| {
-    //     let mut iter = unsafe { objects.iter_many_unsafe(&group.root_entities) };
-    //
-    //     while let Some(mut transform) = iter.fetch_next() {
-    //         transform.rotate(group_deltas.rotation);
-    //         for delta in &group_deltas.deltas {
-    //             delta.apply(&mut transform);
-    //         }
-    //     }
-    // });
     for (group, group_deltas) in &groups {
         let mut iter = objects.iter_many_mut(&group.root_entities);
 
@@ -119,6 +107,8 @@ pub(crate) fn apply_group_delta(
             continue;
         };
 
+        let cos_sin = Vec2::from_angle(rotation);
+
         let Ok(center_transform) = objects.get(center_entity) else {
             continue;
         };
@@ -129,11 +119,12 @@ pub(crate) fn apply_group_delta(
 
         if !lock_rotation {
             while let Some(mut transform) = iter.fetch_next() {
-                transform.rotate_around(center_transform, rotation);
+                transform.translate_around_cos_sin(center_transform, cos_sin);
+                transform.angle += rotation
             }
         } else {
             while let Some(mut transform) = iter.fetch_next() {
-                transform.translate_around(center_transform, rotation);
+                transform.translate_around_cos_sin(center_transform, cos_sin);
             }
         }
     }

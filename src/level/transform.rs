@@ -35,6 +35,12 @@ impl Transform2d {
     }
 
     #[inline]
+    pub(crate) fn translate_around_cos_sin(&mut self, point: Vec2, angle: Vec2) {
+        self.translation =
+            (point + (self.translation.xy() - point).rotate(angle)).extend(self.translation.z)
+    }
+
+    #[inline]
     pub(crate) fn rotate_around(&mut self, point: Vec2, angle: f32) {
         self.translate_around(point, angle);
         self.angle += angle;
@@ -54,10 +60,13 @@ impl From<Transform2d> for GlobalTransform2d {
             transform.angle,
             transform.translation.xy(),
         );
-        affine.matrix2 *= Mat2::from_cols_array_2d(&[
-            [1., transform.shear.x.tan().copysign(transform.scale.x)],
-            [transform.shear.y.tan().copysign(transform.scale.y), 1.],
-        ]);
+
+        if transform.shear != Vec2::ZERO {
+            affine.matrix2 *= Mat2::from_cols_array_2d(&[
+                [1., transform.shear.x.tan().copysign(transform.scale.x)],
+                [transform.shear.y.tan().copysign(transform.scale.y), 1.],
+            ]);
+        }
 
         Self {
             affine,
