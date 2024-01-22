@@ -451,7 +451,7 @@ fn update_level_world(
             let (_, player_transform) = players.single(world);
 
             if options.synchronize_cameras {
-                camera_transform.translation.x = player_transform.translation.x + 90.;
+                camera_transform.translation.x = player_transform.translation.x + 75.;
                 if options.show_lines {
                     gizmos.line_2d(
                         Vec2::new(
