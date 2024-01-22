@@ -777,7 +777,9 @@ pub(crate) fn prepare_objects(
                         let mut transform = extracted_object.transform.affine();
 
                         if extracted_object.rotated {
-                            transform *= Affine2::from_angle(90_f32.to_radians());
+                            let y_axis = -transform.x_axis;
+                            transform.x_axis = transform.y_axis;
+                            transform.y_axis = y_axis;
                         }
 
                         transform *= Affine2::from_scale_angle_translation(
