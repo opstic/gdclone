@@ -3,12 +3,12 @@
 }
 
 fn affine2_to_square(affine: mat2x3<f32>) -> mat4x4<f32> {
-    return transpose(mat4x4<f32>(
-        vec4<f32>(affine[0].xy, 0.0, affine[0].z),
-        vec4<f32>(affine[1].xy, 0.0, affine[1].z),
+    return mat4x4<f32>(
+        vec4<f32>(affine[0].xy, 0.0, 0.0),
+        vec4<f32>(affine[1].xy, 0.0, 0.0),
         vec4<f32>(0.0, 0.0, 1.0, 0.0),
-        vec4<f32>(0.0, 0.0, 0.0, 1.0),
-    ));
+        vec4<f32>(affine[0].z, affine[1].z, 0.0, 1.0),
+    );
 }
 
 @group(0) @binding(0) var<uniform> view: View;

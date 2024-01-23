@@ -495,11 +495,10 @@ impl ObjectInstance {
         uv_offset_scale: &Vec4,
         texture_index: u32,
     ) -> Self {
-        let transpose_model_2x2 = transform.matrix2.transpose();
         Self {
             i_model_transpose: [
-                transpose_model_2x2.x_axis.extend(transform.translation.x),
-                transpose_model_2x2.y_axis.extend(transform.translation.y),
+                transform.matrix2.x_axis.extend(transform.translation.x),
+                transform.matrix2.y_axis.extend(transform.translation.y),
             ],
             i_color: color,
             i_uv_offset_scale: uv_offset_scale.to_array(),
