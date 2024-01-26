@@ -446,7 +446,7 @@ fn update_level_world(
             let max_section = section_index_from_x(camera_max) as usize;
 
             let mut global_sections = world.resource_mut::<GlobalSections>();
-            global_sections.visible = min_section.saturating_sub(1)..max_section.saturating_add(1);
+            global_sections.visible = min_section.saturating_sub(2)..max_section.saturating_add(2);
 
             world.run_schedule(PostUpdate);
             world.run_schedule(Last);
