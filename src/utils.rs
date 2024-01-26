@@ -195,7 +195,7 @@ pub(crate) fn decrypt<const KEY: u8>(bytes: &[u8]) -> Result<Vec<u8>, anyhow::Er
                     let temp = &mut temp[..len];
                     temp.copy_from_slice(encoded_chunk);
                     for byte in &mut *temp {
-                        *byte ^= 11;
+                        *byte ^= KEY;
                     }
                     base64_simd::URL_SAFE
                         .decode(temp, base64_simd::Out::from_slice(decoded_chunk))
