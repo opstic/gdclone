@@ -1,10 +1,9 @@
-use std::hash::{BuildHasher, Hash};
+use std::hash::BuildHasher;
 
 use bevy::log::{info, warn};
 use bevy::prelude::Color;
 use bevy::tasks::AsyncComputeTaskPool;
 use bevy::utils::EntityHasher;
-use dashmap::DashMap;
 use libdeflater::Decompressor;
 
 /// A copy of [`bevy::utils::EntityHash`] with [`Clone`] derived
@@ -19,30 +18,6 @@ impl BuildHasher for U64Hash {
 
     fn build_hasher(&self) -> Self::Hasher {
         EntityHasher::default()
-    }
-}
-
-/// Extremely unsafe way of reading an entry in the [`DashMap`] without getting a lock
-///
-/// Improves performance slightly
-///
-/// Don't use if you can't guarantee there aren't any other threads writing to the [`DashMap`]
-pub(crate) unsafe fn dashmap_get_dirty_mut<'map, K: Eq + Hash, V, S: BuildHasher + Clone>(
-    key: &K,
-    map: &'map DashMap<K, V, S>,
-) -> Option<&'map mut V> {
-    let hash = map.hash_usize(key);
-    let index = map.determine_shard(hash);
-
-    let shard = unsafe { &mut *map.shards().get_unchecked(index).data_ptr() };
-
-    if let Some((_, vptr)) = shard.get_key_value_mut(key) {
-        unsafe {
-            let vptr: *mut V = vptr.get_mut();
-            Some(&mut *vptr)
-        }
-    } else {
-        None
     }
 }
 
@@ -137,6 +112,14 @@ pub(crate) fn hsv_to_rgb((h, s, v): (f32, f32, f32)) -> [f32; 3] {
         5 => [v, p, q],
         _ => unreachable!(),
     }
+}
+
+const SECTION_SIZE_POWER: u32 = 7;
+const SECTION_SIZE: f32 = 2_u32.pow(SECTION_SIZE_POWER) as f32;
+
+#[inline(always)]
+pub(crate) fn section_index_from_x(x: f32) -> u32 {
+    (x / SECTION_SIZE) as u32
 }
 
 #[inline]

@@ -8,7 +8,7 @@ use bevy::asset::{AssetServer, LoadState};
 use bevy::core::FrameCountPlugin;
 use bevy::input::Input;
 use bevy::log::{info, warn};
-use bevy::math::{Vec2, Vec3Swizzles};
+use bevy::math::Vec2;
 use bevy::prelude::{
     Camera, ClearColor, Commands, Gizmos, IntoSystemConfigs, KeyCode, Local, Mut,
     OrthographicProjection, Query, Res, ResMut, Resource, Time, Transform, With, World,
@@ -26,7 +26,6 @@ use crate::asset::cocos2d_atlas::Cocos2dFrames;
 use crate::asset::TestAssets;
 use crate::level::color::HsvMod;
 use crate::level::player::{update_player_pos, Player};
-use crate::level::section::SectionIndex;
 use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::{
     process_triggers, SpeedChange, TriggerActivator, TriggerSystemStateCache,
@@ -39,13 +38,10 @@ use crate::level::{
     group::{
         apply_group_delta, clear_group_delta, update_object_group, update_object_group_calculated,
     },
-    section::{
-        update_entity_section, update_global_sections, update_visible_sections, GlobalSections,
-        Section, VisibleGlobalSections,
-    },
+    section::{update_entity_section, update_global_sections, GlobalSections, Section},
     transform::update_transform,
 };
-use crate::utils::{decompress, decrypt, U64Hash};
+use crate::utils::{decompress, decrypt, section_index_from_x, U64Hash};
 
 pub(crate) mod color;
 mod de;
@@ -123,13 +119,9 @@ fn spawn_level_world(
                 apply_group_delta.before(update_entity_section),
                 update_entity_section.before(update_global_sections),
                 update_global_sections,
-                update_visible_sections.after(update_global_sections),
-                update_transform
-                    .after(update_global_sections)
-                    .after(update_visible_sections),
+                update_transform.after(update_global_sections),
                 update_object_color
                     .after(update_global_sections)
-                    .after(update_visible_sections)
                     .after(update_object_group_calculated)
                     .after(update_color_channel_calculated),
             ),
@@ -212,56 +204,30 @@ fn spawn_level_world(
         color::construct_color_channel_hierarchy(&mut world, &mut global_color_channels);
         info!("Color channel parsing took {:?}", start.elapsed());
 
-        let global_sections = GlobalSections::default();
+        let mut global_sections = GlobalSections::default();
         let mut global_groups = IndexMap::with_hasher(U64Hash);
 
         start = Instant::now();
 
         // Spawn the objects in order of the sections to hopefully improve access pattern
-        let mut temp_sections: HashMap<SectionIndex, Vec<usize>> = HashMap::new();
-        let mut highest_pos = Vec2::ZERO;
-        let mut lowest_pos = Vec2::ZERO;
+        let mut temp_objects = Vec::with_capacity(parsed.objects.len());
         for (index, object_data) in parsed.objects.iter().enumerate() {
             let object_position = object::get_object_pos(object_data).unwrap();
-            if object_position.x < lowest_pos.x {
-                lowest_pos.x = object_position.x;
-            }
-            if object_position.y < lowest_pos.y {
-                lowest_pos.y = object_position.y;
-            }
-            if object_position.x > highest_pos.x {
-                highest_pos.x = object_position.x;
-            }
-            if object_position.y > highest_pos.y {
-                highest_pos.y = object_position.y;
-            }
-            let section_index = SectionIndex::from_pos(object_position);
-
-            let entry = temp_sections.entry(section_index).or_default();
-            entry.push(index);
+            temp_objects.push((object_position.x, index as u32));
         }
 
-        let high = SectionIndex::from_pos(highest_pos);
-        let low = SectionIndex::from_pos(lowest_pos);
+        radsort::sort_by_key(&mut temp_objects, |temp| temp.0);
 
-        for x in (low.x - 5)..(high.x + 5) {
-            for y in (low.y - 5)..(high.y + 5) {
-                let Some(temp) = temp_sections.get(&SectionIndex::new(x, y)) else {
-                    continue;
-                };
-
-                for index in temp {
-                    if let Err(error) = object::spawn_object(
-                        &mut world,
-                        &parsed.objects[*index],
-                        &global_sections,
-                        &mut global_groups,
-                        &global_color_channels,
-                        &cocos2d_frames,
-                    ) {
-                        warn!("Failed to spawn object: {:?}", error);
-                    }
-                }
+        for (_, index) in temp_objects {
+            if let Err(error) = object::spawn_object(
+                &mut world,
+                &parsed.objects[index as usize],
+                &mut global_sections,
+                &mut global_groups,
+                &global_color_channels,
+                &cocos2d_frames,
+            ) {
+                warn!("Failed to spawn object: {:?}", error);
             }
         }
 
@@ -291,14 +257,9 @@ fn spawn_level_world(
             ))
             .id();
 
-        global_sections
-            .sections
-            .entry(SectionIndex::new(0, 0))
-            .or_default()
-            .insert(player);
+        global_sections.sections[0].insert(player);
 
         world.insert_resource(global_sections);
-        world.insert_resource(VisibleGlobalSections { x: 0..1, y: 0..1 });
         world.insert_resource(global_color_channels);
 
         start = Instant::now();
@@ -478,17 +439,14 @@ fn update_level_world(
                 }
             }
 
-            let camera_min = camera_projection.area.min + camera_transform.translation.xy();
-            let camera_max = camera_projection.area.max + camera_transform.translation.xy();
-            let min_section = SectionIndex::from_pos(camera_min);
-            let max_section = SectionIndex::from_pos(camera_max);
+            let camera_min = camera_projection.area.min.x + camera_transform.translation.x;
+            let camera_max = camera_projection.area.max.x + camera_transform.translation.x;
 
-            let x_range = min_section.x - 2..max_section.x + 2;
-            let y_range = min_section.y - 2..max_section.y + 2;
+            let min_section = section_index_from_x(camera_min) as usize;
+            let max_section = section_index_from_x(camera_max) as usize;
 
-            let mut visible_global_sections = world.resource_mut::<VisibleGlobalSections>();
-            visible_global_sections.x = x_range;
-            visible_global_sections.y = y_range;
+            let mut global_sections = world.resource_mut::<GlobalSections>();
+            global_sections.visible = min_section.saturating_sub(1)..max_section.saturating_add(1);
 
             world.run_schedule(PostUpdate);
             world.run_schedule(Last);

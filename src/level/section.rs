@@ -1,130 +1,34 @@
-use std::hash::Hash;
-use std::mem::MaybeUninit;
 use std::ops::Range;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
 
 use bevy::ecs::query::{ReadOnlyWorldQuery, WorldQuery};
 use bevy::hierarchy::{Children, Parent};
-use bevy::math::{Vec2, Vec3Swizzles};
-use bevy::prelude::{Changed, Component, Entity, Mut, Query, Res, ResMut, Resource, With, Without};
-use bevy::tasks::ComputeTaskPool;
-use bevy::utils::syncunsafecell::SyncUnsafeCell;
-use dashmap::DashMap;
+use bevy::prelude::{Changed, Component, Entity, Mut, Query, ResMut, Resource, With, Without};
 use indexmap::IndexSet;
+use smallvec::SmallVec;
 
 use crate::level::transform::Transform2d;
-use crate::utils::{dashmap_get_dirty_mut, U64Hash};
+use crate::utils::{section_index_from_x, U64Hash};
 
 #[derive(Default, Resource)]
 pub(crate) struct GlobalSections {
-    pub(crate) sections: DashMap<SectionIndex, IndexSet<Entity, U64Hash>, U64Hash>,
-    pub(crate) visible: (
-        AtomicUsize,
-        SyncUnsafeCell<Vec<MaybeUninit<&'static IndexSet<Entity, U64Hash>>>>,
-    ),
-}
-
-#[derive(Default, Resource)]
-pub(crate) struct VisibleGlobalSections {
-    pub(crate) x: Range<i32>,
-    pub(crate) y: Range<i32>,
+    pub(crate) sections: SmallVec<[IndexSet<Entity, U64Hash>; 4000]>,
+    pub(crate) visible: Range<usize>,
 }
 
 #[derive(Copy, Clone, Component, Default)]
 pub(crate) struct Section {
-    pub(crate) current: SectionIndex,
-    pub(crate) old: SectionIndex,
+    pub(crate) current: u32,
+    pub(crate) old: u32,
 }
 
 impl Section {
-    pub(crate) fn from_section_index(index: SectionIndex) -> Section {
+    pub(crate) fn from_section_index(index: u32) -> Section {
         Section {
             current: index,
-            old: SectionIndex::new(0, 0),
+            old: 0,
         }
     }
-}
-
-#[derive(Clone, Copy, Default, Eq, PartialEq)]
-pub(crate) struct SectionIndex {
-    pub(crate) x: i32,
-    pub(crate) y: i32,
-}
-
-impl SectionIndex {
-    const SIZE: f32 = 200.;
-    const INVERSE: f32 = 1. / Self::SIZE;
-
-    #[inline]
-    pub(crate) fn new(x: i32, y: i32) -> Self {
-        Self { x, y }
-    }
-
-    #[inline]
-    pub(crate) fn from_pos(pos: Vec2) -> Self {
-        Self {
-            x: (pos.x * Self::INVERSE) as i32,
-            y: (pos.y * Self::INVERSE) as i32,
-        }
-    }
-}
-
-impl Hash for SectionIndex {
-    #[inline]
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        ((unsafe { std::mem::transmute::<i32, u32>(self.x) } as u64) << 32
-            | unsafe { std::mem::transmute::<i32, u32>(self.y) } as u64)
-            .hash(state)
-    }
-}
-
-pub(crate) fn update_visible_sections(
-    mut global_sections: ResMut<GlobalSections>,
-    visible_global_sections: Res<VisibleGlobalSections>,
-) {
-    let section_len = visible_global_sections.x.len() * visible_global_sections.y.len();
-
-    global_sections.visible.0.store(0, Ordering::Relaxed);
-    let visible_sections_len = global_sections.visible.1.get_mut().len();
-    if visible_sections_len < section_len {
-        global_sections
-            .visible
-            .1
-            .get_mut()
-            .resize(section_len, MaybeUninit::uninit());
-    }
-    let compute_task_pool = ComputeTaskPool::get();
-
-    let x_list = visible_global_sections.x.clone().collect::<Vec<_>>();
-    let global_sections = unsafe { &*((&*global_sections) as *const GlobalSections) };
-    compute_task_pool.scope(|scope| {
-        let visible_global_sections = &visible_global_sections;
-
-        let chunk_size = (x_list.len() / compute_task_pool.thread_num()).max(1);
-        for chunk in x_list.chunks(chunk_size) {
-            scope.spawn(async move {
-                let a = &global_sections.visible.1;
-                let sections_to_extract = unsafe { &mut *a.get() };
-                for x in chunk {
-                    for y in visible_global_sections.y.clone() {
-                        let section_index = SectionIndex::new(*x, y);
-
-                        let Some(global_section) = (unsafe {
-                            dashmap_get_dirty_mut(&section_index, &global_sections.sections)
-                        }) else {
-                            continue;
-                        };
-
-                        // Improve access pattern by sorting the section
-                        global_section.sort_unstable();
-
-                        let index = global_sections.visible.0.fetch_add(1, Ordering::Relaxed);
-                        sections_to_extract[index] = MaybeUninit::new(global_section);
-                    }
-                }
-            });
-        }
-    });
 }
 
 pub(crate) fn update_entity_section(
@@ -137,7 +41,7 @@ pub(crate) fn update_entity_section(
     entities
         .par_iter_mut()
         .for_each(|(transform, mut section, children)| {
-            let new_section = SectionIndex::from_pos(transform.translation.xy());
+            let new_section = section_index_from_x(transform.translation.x);
             if section.current == new_section {
                 return;
             }
@@ -176,18 +80,32 @@ unsafe fn propagate_section_recursive<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQue
 }
 
 pub(crate) fn update_global_sections(
-    global_sections: ResMut<GlobalSections>,
+    mut global_sections: ResMut<GlobalSections>,
     section_changed_entities: Query<(Entity, &Section), Changed<Section>>,
 ) {
+    let sections_lock = Mutex::new(&mut global_sections.sections);
     section_changed_entities
         .par_iter()
         .for_each(|(entity, section)| {
-            if let Some(mut global_section) = global_sections.sections.get_mut(&section.old) {
-                global_section.remove(&entity);
+            let mut global_sections = sections_lock.lock().unwrap();
+            global_sections[section.old as usize].remove(&entity);
+
+            if section.current >= global_sections.len() as u32 {
+                global_sections.resize(
+                    (section.current + 1) as usize,
+                    IndexSet::with_capacity_and_hasher(1000, U64Hash),
+                );
             }
 
-            let global_section_entry = global_sections.sections.entry(section.current);
-            let mut global_section = global_section_entry.or_default();
-            global_section.insert(entity);
+            global_sections[section.current as usize].insert(entity);
         });
+
+    global_sections.visible.start = global_sections
+        .visible
+        .start
+        .min(global_sections.sections.len());
+    global_sections.visible.end = global_sections
+        .visible
+        .end
+        .min(global_sections.sections.len());
 }

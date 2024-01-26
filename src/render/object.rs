@@ -434,11 +434,9 @@ pub(crate) fn extract_objects(
         extracted_layer.get_mut().clear();
     }
 
-    let sections_to_extract = unsafe { &*global_sections.visible.1.get() };
-
-    for section in &sections_to_extract[..global_sections.visible.0.load(Ordering::Relaxed)] {
+    for section in &global_sections.sections[global_sections.visible.clone()] {
         for (entity, transform, object, object_color, object_groups_calculated, image_handle) in
-            objects.iter_many(unsafe { section.assume_init() })
+            objects.iter_many(section)
         {
             if !object_groups_calculated.enabled {
                 continue;

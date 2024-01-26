@@ -1,4 +1,3 @@
-use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 
 use bevy::ecs::{
@@ -357,9 +356,7 @@ pub(crate) fn update_object_color(
     )>,
     color_channels: Query<Ref<ColorChannelCalculated>>,
 ) {
-    let visible_sections = unsafe { &*global_sections.visible.1.get() };
-
-    let sections_to_update = &visible_sections[..global_sections.visible.0.load(Ordering::Relaxed)];
+    let sections_to_update = &global_sections.sections[global_sections.visible.clone()];
 
     let compute_task_pool = ComputeTaskPool::get();
 
@@ -376,7 +373,6 @@ pub(crate) fn update_object_color(
                     hashbrown::HashMap::with_capacity_and_hasher(300, U64Hash);
 
                 for section in thread_chunk {
-                    let section = unsafe { section.assume_init() };
                     let mut iter = unsafe { objects.iter_many_unsafe(section) };
                     while let Some((object_groups_calculated, mut object_color, mut calculated)) =
                         iter.fetch_next()

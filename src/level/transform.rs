@@ -1,5 +1,3 @@
-use std::sync::atomic::Ordering;
-
 use bevy::ecs::query::{ReadOnlyWorldQuery, WorldQuery};
 use bevy::hierarchy::{Children, Parent};
 use bevy::math::{Affine2, Mat2, Vec2, Vec3, Vec3Swizzles};
@@ -29,21 +27,9 @@ impl Default for Transform2d {
 
 impl Transform2d {
     #[inline]
-    pub(crate) fn translate_around(&mut self, point: Vec2, angle: f32) {
-        self.translation = (point + (self.translation.xy() - point).rotate(Vec2::from_angle(angle)))
-            .extend(self.translation.z)
-    }
-
-    #[inline]
     pub(crate) fn translate_around_cos_sin(&mut self, point: Vec2, angle: Vec2) {
         self.translation =
             (point + (self.translation.xy() - point).rotate(angle)).extend(self.translation.z)
-    }
-
-    #[inline]
-    pub(crate) fn rotate_around(&mut self, point: Vec2, angle: f32) {
-        self.translate_around(point, angle);
-        self.angle += angle;
     }
 }
 
@@ -101,9 +87,7 @@ pub(crate) fn update_transform(
     >,
     children_query: Query<(&Transform2d, &mut GlobalTransform2d, Option<&Children>), With<Parent>>,
 ) {
-    let visible_sections = unsafe { &*global_sections.visible.1.get() };
-
-    let sections_to_update = &visible_sections[..global_sections.visible.0.load(Ordering::Relaxed)];
+    let sections_to_update = &global_sections.sections[global_sections.visible.clone()];
 
     let compute_task_pool = ComputeTaskPool::get();
 
@@ -116,7 +100,6 @@ pub(crate) fn update_transform(
         for thread_chunk in sections_to_update.chunks(thread_chunk_size) {
             scope.spawn(async move {
                 for section in thread_chunk {
-                    let section = unsafe { section.assume_init() };
                     let mut iter = unsafe { object_query.iter_many_unsafe(section) };
                     while let Some((transform, mut global_transform, children)) = iter.fetch_next()
                     {

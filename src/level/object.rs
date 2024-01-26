@@ -11,10 +11,10 @@ use crate::level::color::{GlobalColorChannels, HsvMod, ObjectColorCalculated};
 use crate::level::color::{ObjectColor, ObjectColorKind};
 use crate::level::de;
 use crate::level::group::ObjectGroupsCalculated;
-use crate::level::section::{GlobalSections, Section, SectionIndex};
+use crate::level::section::{GlobalSections, Section};
 use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::insert_trigger_data;
-use crate::utils::{u8_to_bool, U64Hash};
+use crate::utils::{section_index_from_x, u8_to_bool, U64Hash};
 
 struct ObjectDefaultData {
     texture: &'static str,
@@ -112,7 +112,7 @@ pub(crate) fn get_object_pos(object_data: &HashMap<&[u8], &[u8]>) -> Result<Vec2
 pub(crate) fn spawn_object(
     world: &mut World,
     object_data: &HashMap<&[u8], &[u8]>,
-    global_sections: &GlobalSections,
+    global_sections: &mut GlobalSections,
     global_groups: &mut IndexMap<u64, Vec<Entity>, U64Hash>,
     global_color_channels: &GlobalColorChannels,
     cocos2d_frames: &Cocos2dFrames,
@@ -228,6 +228,8 @@ pub(crate) fn spawn_object(
 
     object.frame = *frame;
 
+    let section_index = section_index_from_x(transform.translation.x);
+
     let object_id = object.id;
     let object_z_layer = object.z_layer;
     let object_transform = GlobalTransform2d::from(transform);
@@ -235,7 +237,7 @@ pub(crate) fn spawn_object(
         object,
         object_color,
         ObjectColorCalculated::default(),
-        Section::from_section_index(SectionIndex::from_pos(transform.translation.xy())),
+        Section::from_section_index(section_index),
         transform,
         object_transform,
         Handle::Weak(*image_asset_id),
@@ -246,10 +248,14 @@ pub(crate) fn spawn_object(
 
     let entity = entity.id();
 
-    let mut global_section = global_sections
-        .sections
-        .entry(SectionIndex::from_pos(transform.translation.xy()))
-        .or_default();
+    if section_index >= global_sections.sections.len() as u32 {
+        global_sections.sections.resize(
+            (section_index + 1) as usize,
+            IndexSet::with_capacity_and_hasher(1000, U64Hash),
+        );
+    }
+
+    let mut global_section = &mut global_sections.sections[section_index as usize];
 
     global_section.insert(entity);
 
