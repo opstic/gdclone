@@ -38,7 +38,7 @@ use crate::level::{
     group::{
         apply_group_delta, clear_group_delta, update_object_group, update_object_group_calculated,
     },
-    section::{update_entity_section, update_global_sections, GlobalSections, Section},
+    section::{update_sections, GlobalSections, Section},
     transform::update_transform,
 };
 use crate::utils::{decompress, decrypt, section_index_from_x, U64Hash};
@@ -116,12 +116,11 @@ fn spawn_level_world(
                 update_object_group,
                 update_object_group_calculated.after(update_object_group),
                 update_color_channel_calculated,
-                apply_group_delta.before(update_entity_section),
-                update_entity_section.before(update_global_sections),
-                update_global_sections,
-                update_transform.after(update_global_sections),
+                apply_group_delta.before(update_sections),
+                update_sections,
+                update_transform.after(update_sections),
                 update_object_color
-                    .after(update_global_sections)
+                    .after(update_sections)
                     .after(update_object_group_calculated)
                     .after(update_color_channel_calculated),
             ),

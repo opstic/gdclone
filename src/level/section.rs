@@ -31,16 +31,18 @@ impl Section {
     }
 }
 
-pub(crate) fn update_entity_section(
+pub(crate) fn update_sections(
+    mut global_sections: ResMut<GlobalSections>,
     mut entities: Query<
-        (&Transform2d, &mut Section, Option<&Children>),
+        (Entity, &Transform2d, &mut Section, Option<&Children>),
         (Without<Parent>, Changed<Transform2d>),
     >,
     children_query: Query<(&mut Section, Option<&Children>), With<Parent>>,
 ) {
+    let sections_mutex = Mutex::new(&mut global_sections.sections);
     entities
         .par_iter_mut()
-        .for_each(|(transform, mut section, children)| {
+        .for_each(|(entity, transform, mut section, children)| {
             let new_section = section_index_from_x(transform.translation.x);
             if section.current == new_section {
                 return;
@@ -49,46 +51,7 @@ pub(crate) fn update_entity_section(
             section.old = section.current;
             section.current = new_section;
 
-            let Some(children) = children else {
-                return;
-            };
-
-            unsafe { propagate_section_recursive(children, &children_query, &section) }
-        });
-}
-
-unsafe fn propagate_section_recursive<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery>(
-    children: &Children,
-    children_query: &'w Query<'w, 's, Q, F>,
-    parent_section: &Section,
-) where
-    Q: WorldQuery<Item<'w> = (Mut<'w, Section>, Option<&'w Children>)>,
-{
-    for child_entity in children {
-        let Ok((mut section, children)) = children_query.get_unchecked(*child_entity) else {
-            continue;
-        };
-
-        *section = *parent_section;
-
-        let Some(children) = children else {
-            continue;
-        };
-
-        propagate_section_recursive(children, children_query, parent_section);
-    }
-}
-
-pub(crate) fn update_global_sections(
-    mut global_sections: ResMut<GlobalSections>,
-    section_changed_entities: Query<(Entity, &Section), Changed<Section>>,
-) {
-    let sections_lock = Mutex::new(&mut global_sections.sections);
-    section_changed_entities
-        .par_iter()
-        .for_each(|(entity, section)| {
-            let mut global_sections = sections_lock.lock().unwrap();
-            global_sections[section.old as usize].remove(&entity);
+            let mut global_sections = sections_mutex.lock().unwrap();
 
             if section.current >= global_sections.len() as u32 {
                 global_sections.resize(
@@ -97,7 +60,16 @@ pub(crate) fn update_global_sections(
                 );
             }
 
+            global_sections[section.old as usize].remove(&entity);
             global_sections[section.current as usize].insert(entity);
+
+            let Some(children) = children else {
+                return;
+            };
+
+            unsafe {
+                propagate_section_recursive(children, &children_query, &section, *global_sections)
+            }
         });
 
     global_sections.visible.start = global_sections
@@ -108,4 +80,30 @@ pub(crate) fn update_global_sections(
         .visible
         .end
         .min(global_sections.sections.len());
+}
+
+unsafe fn propagate_section_recursive<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery>(
+    children: &Children,
+    children_query: &'w Query<'w, 's, Q, F>,
+    parent_section: &Section,
+    global_sections: &mut [IndexSet<Entity, U64Hash>],
+) where
+    Q: WorldQuery<Item<'w> = (Mut<'w, Section>, Option<&'w Children>)>,
+{
+    for child_entity in children {
+        let Ok((mut section, children)) = children_query.get_unchecked(*child_entity) else {
+            continue;
+        };
+
+        *section = *parent_section;
+
+        global_sections[section.old as usize].remove(child_entity);
+        global_sections[section.current as usize].insert(*child_entity);
+
+        let Some(children) = children else {
+            continue;
+        };
+
+        propagate_section_recursive(children, children_query, parent_section, global_sections);
+    }
 }
