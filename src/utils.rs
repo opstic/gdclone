@@ -61,6 +61,7 @@ pub(crate) fn lerp_start(current: f32, end: f32, x: f32) -> f32 {
     (current - end * x) / (1. - x)
 }
 
+#[inline(always)]
 pub(crate) fn lerp_color(start: &Color, end: &Color, x: f32) -> Color {
     Color::rgba(
         lerp(start.r(), end.r(), x),
@@ -70,6 +71,7 @@ pub(crate) fn lerp_color(start: &Color, end: &Color, x: f32) -> Color {
     )
 }
 
+#[inline(always)]
 pub(crate) fn lerp_start_color(current: &Color, end: &Color, x: f32) -> Color {
     Color::rgba(
         lerp_start(current.r(), end.r(), x),
@@ -137,7 +139,7 @@ pub(crate) fn hsv_to_rgb((h, s, v): (f32, f32, f32)) -> [f32; 3] {
     }
 }
 
-#[inline(always)]
+#[inline]
 pub(crate) fn decrypt<const KEY: u8>(bytes: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
     const BUFFER_SIZE: usize = 1024;
     const RPOSITION_LIMIT: usize = 4;
@@ -210,7 +212,7 @@ pub(crate) fn decrypt<const KEY: u8>(bytes: &[u8]) -> Result<Vec<u8>, anyhow::Er
     Ok(decode_output)
 }
 
-#[inline(always)]
+#[inline]
 pub(crate) fn decompress(bytes: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
     let decompressed_size_data = &bytes[bytes.len() - 4..];
     let mut decompressed_size: u32 = decompressed_size_data[0] as u32;
