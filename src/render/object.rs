@@ -599,8 +599,10 @@ pub(crate) fn queue_objects(
                 radsort::sort_by_cached_key(
                     unsafe { &mut *extracted_layer.get() },
                     |extracted_object| {
-                        extracted_object.transform.z()
-                            + extracted_object.entity.index() as f32 / 100_000.
+                        (
+                            extracted_object.transform.z(),
+                            extracted_object.entity.index(),
+                        )
                     },
                 )
             });
