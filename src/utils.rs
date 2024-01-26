@@ -139,8 +139,8 @@ pub(crate) fn hsv_to_rgb((h, s, v): (f32, f32, f32)) -> [f32; 3] {
 
 #[inline(always)]
 pub(crate) fn decrypt<const KEY: u8>(bytes: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
-    const BUFFER_SIZE: usize = 512;
-    const RPOSITION_LIMIT: usize = 8;
+    const BUFFER_SIZE: usize = 1024;
+    const RPOSITION_LIMIT: usize = 4;
 
     let invalid_bytes_end = bytes[bytes.len() - RPOSITION_LIMIT..]
         .iter()
@@ -191,14 +191,16 @@ pub(crate) fn decrypt<const KEY: u8>(bytes: &[u8]) -> Result<Vec<u8>, anyhow::Er
                     .chunks(BUFFER_SIZE)
                     .zip(decoded.chunks_mut(BUFFER_SIZE / 4 * 3))
                 {
-                    let len = temp.len().min(encoded_chunk.len());
-                    let temp = &mut temp[..len];
-                    temp.copy_from_slice(encoded_chunk);
-                    for byte in &mut *temp {
+                    let temp_subslice = &mut temp[..encoded_chunk.len()];
+                    temp_subslice.copy_from_slice(encoded_chunk);
+                    for byte in &mut temp {
                         *byte ^= KEY;
                     }
                     base64_simd::URL_SAFE
-                        .decode(temp, base64_simd::Out::from_slice(decoded_chunk))
+                        .decode(
+                            &temp[..encoded_chunk.len()],
+                            base64_simd::Out::from_slice(decoded_chunk),
+                        )
                         .unwrap();
                 }
             })
