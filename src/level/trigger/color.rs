@@ -133,6 +133,10 @@ impl TriggerFunction for ColorTrigger {
         Box::new(SystemState::<ColorTriggerSystemParam>::new(world))
     }
 
+    fn target_id(&self) -> u64 {
+        self.target_channel
+    }
+
     fn duration(&self) -> f32 {
         self.duration
     }

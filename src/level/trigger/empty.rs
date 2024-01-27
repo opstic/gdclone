@@ -22,6 +22,10 @@ impl TriggerFunction for EmptyTrigger {
         Box::new(())
     }
 
+    fn target_id(&self) -> u64 {
+        0
+    }
+
     fn duration(&self) -> f32 {
         0.
     }

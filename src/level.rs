@@ -27,9 +27,7 @@ use crate::asset::TestAssets;
 use crate::level::color::HsvMod;
 use crate::level::player::{update_player_pos, Player};
 use crate::level::transform::{GlobalTransform2d, Transform2d};
-use crate::level::trigger::{
-    process_triggers, SpeedChange, TriggerActivator, TriggerSystemStateCache,
-};
+use crate::level::trigger::{process_triggers, SpeedChange, TriggerActivator, TriggerData};
 use crate::level::{
     color::{
         update_color_channel_calculated, update_object_color, ColorChannelCalculated,
@@ -294,7 +292,7 @@ fn spawn_level_world(
         trigger::construct_trigger_index(&mut world);
         info!("Trigger timeline construction took {:?}", start.elapsed());
 
-        world.init_resource::<TriggerSystemStateCache>();
+        world.init_resource::<TriggerData>();
 
         info!("Total time: {:?}", start_all.elapsed());
 

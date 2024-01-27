@@ -77,6 +77,10 @@ impl TriggerFunction for RotateTrigger {
         Box::new(SystemState::<RotateTriggerSystemParam>::new(world))
     }
 
+    fn target_id(&self) -> u64 {
+        self.target_group
+    }
+
     fn duration(&self) -> f32 {
         self.duration
     }

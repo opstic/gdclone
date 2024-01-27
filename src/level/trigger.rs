@@ -2,9 +2,8 @@ use std::any::{Any, TypeId};
 
 use bevy::ecs::system::SystemState;
 use bevy::prelude::{Component, Entity, EntityWorldMut, Mut, Query, ResMut, Resource, With, World};
-use bevy::utils::petgraph::matrix_graph::Zero;
 use bevy::utils::syncunsafecell::SyncUnsafeCell;
-use bevy::utils::{default, HashMap};
+use bevy::utils::{default, hashbrown, HashMap as AHashMap};
 use float_next_after::NextAfter;
 use indexmap::IndexMap;
 use nested_intervals::IntervalSetGeneric;
@@ -161,6 +160,8 @@ pub(crate) trait TriggerFunction: Send + Sync + 'static {
 
     fn duration(&self) -> f32;
 
+    fn target_id(&self) -> u64;
+
     fn exclusive(&self) -> bool;
 
     fn concrete_type_id(&self) -> TypeId {
@@ -169,147 +170,167 @@ pub(crate) trait TriggerFunction: Send + Sync + 'static {
 }
 
 #[derive(Default, Resource)]
-pub(crate) struct TriggerSystemStateCache {
-    cache: HashMap<TypeId, SyncUnsafeCell<Box<dyn Any + Send + Sync>>>,
+pub(crate) struct TriggerData {
+    data: AHashMap<
+        TypeId,
+        (
+            hashbrown::HashMap<u64, u32, U64Hash>,
+            SyncUnsafeCell<Box<dyn Any + Send + Sync>>,
+        ),
+    >,
 }
 
 pub(crate) fn process_triggers(world: &mut World) {
-    world.resource_scope(
-        |world, mut trigger_system_state_cache: Mut<TriggerSystemStateCache>| {
-            let world_cell = world.as_unsafe_world_cell();
+    world.resource_scope(|world, mut trigger_data: Mut<TriggerData>| {
+        let world_cell = world.as_unsafe_world_cell();
 
-            let system_state: &mut SystemState<(
+        let system_state: &mut SystemState<(
+            ResMut<GlobalTriggers>,
+            Query<(&Player, &Transform2d, &TriggerActivator)>,
+            Query<(&Trigger, &ObjectColorCalculated)>,
+        )> = if let Some((_, cell)) = trigger_data.data.get(&TypeId::of::<World>()) {
+            unsafe { &mut *cell.get() }
+        } else {
+            let system_state: SystemState<(
                 ResMut<GlobalTriggers>,
                 Query<(&Player, &Transform2d, &TriggerActivator)>,
                 Query<(&Trigger, &ObjectColorCalculated)>,
-            )> = if let Some(cell) = trigger_system_state_cache.cache.get(&TypeId::of::<World>()) {
-                unsafe { &mut *cell.get() }
-            } else {
-                let system_state: SystemState<(
-                    ResMut<GlobalTriggers>,
-                    Query<(&Player, &Transform2d, &TriggerActivator)>,
-                    Query<(&Trigger, &ObjectColorCalculated)>,
-                )> = SystemState::new(unsafe { world_cell.world_mut() });
+            )> = SystemState::new(unsafe { world_cell.world_mut() });
 
-                trigger_system_state_cache.cache.insert(
-                    TypeId::of::<World>(),
+            trigger_data.data.insert(
+                TypeId::of::<World>(),
+                (
+                    hashbrown::HashMap::with_hasher(U64Hash),
                     SyncUnsafeCell::new(Box::new(system_state)),
-                );
+                ),
+            );
 
-                let cell = trigger_system_state_cache
-                    .cache
-                    .get(&TypeId::of::<World>())
-                    .unwrap();
+            let (_, cell) = trigger_data.data.get(&TypeId::of::<World>()).unwrap();
 
-                unsafe { &mut *cell.get() }
+            unsafe { &mut *cell.get() }
+        }
+        .downcast_mut()
+        .unwrap();
+
+        let (mut global_triggers, players, triggers) =
+            system_state.get_mut(unsafe { world_cell.world_mut() });
+
+        for (player, transform, trigger_activator) in &players {
+            let Some(global_trigger_channel) = global_triggers
+                .pos_triggers
+                .get_mut(&trigger_activator.channel)
+            else {
+                continue;
+            };
+
+            let mut last_translation = player.last_translation;
+
+            if transform.translation.x == 0. {
+                last_translation.x = f32::NEG_INFINITY;
             }
-            .downcast_mut()
-            .unwrap();
 
-            let (mut global_triggers, players, triggers) =
-                system_state.get_mut(unsafe { world_cell.world_mut() });
+            let activate_range =
+                OrderedFloat(last_translation.x)..OrderedFloat(transform.translation.x);
 
-            for (player, transform, trigger_activator) in &players {
-                let Some(global_trigger_channel) = global_triggers
-                    .pos_triggers
-                    .get_mut(&trigger_activator.channel)
-                else {
-                    continue;
-                };
+            // let span_a = info_span!("interval lookup");
+            // let span_b = info_span!("trigger");
+            //
+            // let query = span_a.in_scope(|| {
+            //     global_trigger_channel
+            //         .x
+            //         .0
+            //         .query_overlapping(&activate_range)
+            // });
 
-                let mut last_translation = player.last_translation;
+            let query = global_trigger_channel
+                .x
+                .0
+                .query_overlapping(&activate_range);
 
-                if transform.translation.x.is_zero() {
-                    last_translation.x = f32::NEG_INFINITY;
-                }
+            for (trigger_range, entity_indices) in query.iter() {
+                let trigger_range_length = trigger_range.end.0 - trigger_range.start.0;
+                let previous_progress = ((last_translation.x - trigger_range.start.0)
+                    / trigger_range_length)
+                    .clamp(0., 1.);
+                let current_progress = ((transform.translation.x - trigger_range.start.0)
+                    / trigger_range_length)
+                    .clamp(0., 1.);
 
-                let activate_range =
-                    OrderedFloat(last_translation.x)..OrderedFloat(transform.translation.x);
+                for entity_index in entity_indices {
+                    let trigger_entity = global_trigger_channel.x.1[*entity_index as usize];
 
-                // let span_a = info_span!("interval lookup");
-                // let span_b = info_span!("trigger");
-                //
-                // let query = span_a.in_scope(|| {
-                //     global_trigger_channel
-                //         .x
-                //         .0
-                //         .query_overlapping(&activate_range)
-                // });
+                    let Ok((trigger, object_color_calculated)) = triggers.get(trigger_entity)
+                    else {
+                        continue;
+                    };
 
-                let query = global_trigger_channel
-                    .x
-                    .0
-                    .query_overlapping(&activate_range);
+                    if !object_color_calculated.enabled {
+                        continue;
+                    }
 
-                for (trigger_range, entity_indices) in query.iter() {
-                    let trigger_range_length = trigger_range.end.0 - trigger_range.start.0;
-                    let previous_progress = ((last_translation.x - trigger_range.start.0)
-                        / trigger_range_length)
-                        .clamp(0., 1.);
-                    let current_progress = ((transform.translation.x - trigger_range.start.0)
-                        / trigger_range_length)
-                        .clamp(0., 1.);
+                    // Very unsafe but works for now
+                    let world_mut = unsafe { world_cell.world_mut() };
 
-                    for entity_index in entity_indices {
-                        let trigger_entity = global_trigger_channel.x.1[*entity_index as usize];
-
-                        let Ok((trigger, object_color_calculated)) = triggers.get(trigger_entity)
-                        else {
-                            continue;
-                        };
-
-                        if !object_color_calculated.enabled {
-                            continue;
+                    let trigger_system_state = if let Some((exclusive_data, system_state)) =
+                        trigger_data.data.get_mut(&trigger.0.concrete_type_id())
+                    {
+                        if let Some(last_index) = exclusive_data.get_mut(&trigger.0.target_id()) {
+                            if entity_index < last_index {
+                                continue;
+                            }
+                            if trigger.0.exclusive() {
+                                *last_index = *entity_index;
+                            }
+                        } else if trigger.0.exclusive() {
+                            exclusive_data.insert(trigger.0.target_id(), *entity_index);
                         }
-
-                        // Very unsafe but works for now
-                        let world_mut = unsafe { world_cell.world_mut() };
-
-                        let trigger_system_state = if let Some(system_state) =
-                            trigger_system_state_cache
-                                .cache
-                                .get_mut(&trigger.0.concrete_type_id())
-                        {
-                            system_state
-                        } else {
-                            trigger_system_state_cache.cache.insert(
-                                trigger.0.concrete_type_id(),
+                        system_state
+                    } else {
+                        let mut exclusive_data = hashbrown::HashMap::with_hasher(U64Hash);
+                        if trigger.0.exclusive() {
+                            exclusive_data.insert(trigger.0.target_id(), *entity_index);
+                        }
+                        trigger_data.data.insert(
+                            trigger.0.concrete_type_id(),
+                            (
+                                exclusive_data,
                                 SyncUnsafeCell::new(trigger.0.create_system_state(world_mut)),
-                            );
-
-                            trigger_system_state_cache
-                                .cache
-                                .get_mut(&trigger.0.concrete_type_id())
-                                .unwrap()
-                        };
-
-                        trigger.0.execute(
-                            world_mut,
-                            trigger_entity,
-                            trigger_system_state.get_mut(),
-                            previous_progress,
-                            current_progress,
+                            ),
                         );
 
-                        // span_b.in_scope(|| {
-                        //     trigger.0.execute(
-                        //         world_mut,
-                        //         trigger_system_state.get_mut(),
-                        //         previous_progress,
-                        //         current_progress,
-                        //     );
-                        // });
-                    }
+                        &mut trigger_data
+                            .data
+                            .get_mut(&trigger.0.concrete_type_id())
+                            .unwrap()
+                            .1
+                    };
+
+                    trigger.0.execute(
+                        world_mut,
+                        trigger_entity,
+                        trigger_system_state.get_mut(),
+                        previous_progress,
+                        current_progress,
+                    );
+
+                    // span_b.in_scope(|| {
+                    //     trigger.0.execute(
+                    //         world_mut,
+                    //         trigger_system_state.get_mut(),
+                    //         previous_progress,
+                    //         current_progress,
+                    //     );
+                    // });
                 }
             }
-        },
-    );
+        }
+    });
 }
 
 pub(crate) fn insert_trigger_data(
     entity_world_mut: &mut EntityWorldMut,
     object_id: u64,
-    object_data: &HashMap<&[u8], &[u8]>,
+    object_data: &AHashMap<&[u8], &[u8]>,
 ) -> Result<(), anyhow::Error> {
     match object_id {
         200 => {
@@ -557,7 +578,17 @@ pub(crate) fn construct_trigger_index(world: &mut World) {
     let mut trigger_entities = Vec::new();
     let mut trigger_intervals = Vec::new();
 
-    for (entity, trigger, transform) in triggers_query.iter(world) {
+    let mut sorted_triggers = Vec::new();
+
+    for (entity, _, transform) in triggers_query.iter(world) {
+        sorted_triggers.push((OrderedFloat(transform.translation.x), entity));
+    }
+
+    sorted_triggers.sort_unstable();
+
+    for (entity, trigger, transform) in
+        triggers_query.iter_many(world, sorted_triggers.iter().map(|(_, entity)| entity))
+    {
         let trigger_start_pos = transform.translation.x;
         let trigger_end_pos = if trigger.0.duration() > 0. {
             let start_pos_time = global_triggers
