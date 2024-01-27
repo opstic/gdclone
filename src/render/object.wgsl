@@ -2,12 +2,12 @@
     view::View,
 }
 
-fn affine2_to_square(affine: mat2x3<f32>) -> mat4x4<f32> {
+fn affine2_to_square(affine: mat3x2<f32>) -> mat4x4<f32> {
     return mat4x4<f32>(
-        vec4<f32>(affine[0].xy, 0.0, 0.0),
-        vec4<f32>(affine[1].xy, 0.0, 0.0),
+        vec4<f32>(affine[0], 0.0, 0.0),
+        vec4<f32>(affine[1], 0.0, 0.0),
         vec4<f32>(0.0, 0.0, 1.0, 0.0),
-        vec4<f32>(affine[0].z, affine[1].z, 0.0, 1.0),
+        vec4<f32>(affine[2], 0.0, 1.0),
     );
 }
 
@@ -15,13 +15,12 @@ fn affine2_to_square(affine: mat2x3<f32>) -> mat4x4<f32> {
 
 struct VertexInput {
     // NOTE: Instance-rate vertex buffer members prefixed with i_
-    // NOTE: i_model_transpose_colN are the 2 columns of a 2x3 matrix that is the transpose of the
-    // affine 3x2 model matrix.
-    @location(0) i_model_transpose_col0: vec3<f32>,
-    @location(1) i_model_transpose_col1: vec3<f32>,
-    @location(2) i_color: vec4<f32>,
-    @location(3) i_uv_offset_scale: vec4<f32>,
-    @location(4) i_texture_index: u32,
+    @location(0) i_model_col0: vec2<f32>,
+    @location(1) i_model_col1: vec2<f32>,
+    @location(2) i_model_col2: vec2<f32>,
+    @location(3) i_color: vec4<f32>,
+    @location(4) i_uv_offset_scale: vec4<f32>,
+    @location(5) i_texture_index: u32,
     @builtin(vertex_index) index: u32,
 }
 
@@ -42,17 +41,21 @@ fn vertex(in: VertexInput) -> VertexOutput {
         0.0
     );
 
-    out.clip_position = view.view_proj * affine2_to_square(mat2x3<f32>(
-        in.i_model_transpose_col0,
-        in.i_model_transpose_col1,
+    out.clip_position = view.view_proj * affine2_to_square(mat3x2<f32>(
+        in.i_model_col0,
+        in.i_model_col1,
+        in.i_model_col2,
     )) * vec4<f32>(vertex_position, 1.0);
+
     out.uv = vec2<f32>(vertex_position.xy) * in.i_uv_offset_scale.zw + in.i_uv_offset_scale.xy;
+
 #ifndef ADDITIVE_BLENDING
     out.color = vec4<f32>(in.i_color.rgb * in.i_color.a, in.i_color.a);
 #else
     var alpha = pow(in.i_color.a, 2.0);
     out.color = vec4<f32>(in.i_color.rgb * alpha, 0.0);
 #endif
+
     out.texture_index = in.i_texture_index;
 
     return out;

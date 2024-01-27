@@ -12,7 +12,7 @@ use bevy::ecs::system::{
     SystemParamItem, SystemState,
 };
 use bevy::log::warn;
-use bevy::math::{Affine2, Rect, Vec2, Vec3, Vec4};
+use bevy::math::{Affine2, Rect, Vec2, Vec2Swizzles, Vec4};
 use bevy::prelude::{
     Color, Commands, Component, Entity, FromWorld, Image, IntoSystemConfigs, Local, Msaa, Query,
     Res, ResMut, Resource, Shader, Without, World,
@@ -253,15 +253,17 @@ impl SpecializedRenderPipeline for ObjectPipeline {
         let vertex_layout = VertexBufferLayout::from_vertex_formats(
             VertexStepMode::Instance,
             vec![
-                // @location(0) i_model_transpose_col0: vec3<f32>,
-                VertexFormat::Float32x3,
-                // @location(1) i_model_transpose_col1: vec3<f32>,
-                VertexFormat::Float32x3,
-                // @location(2) i_color: vec4<f32>,
+                // @location(0) i_model_col0: vec2<f32>,
+                VertexFormat::Float32x2,
+                // @location(1) i_model_col1: vec2<f32>,
+                VertexFormat::Float32x2,
+                // @location(2) i_model_col2: vec2<f32>,
+                VertexFormat::Float32x2,
+                // @location(3) i_color: vec4<f32>,
                 VertexFormat::Float32x4,
-                // @location(3) i_uv_offset_scale: vec4<f32>,
+                // @location(4) i_uv_offset_scale: vec4<f32>,
                 VertexFormat::Float32x4,
-                // @location(4) i_texture_index: u32
+                // @location(5) i_texture_index: u32
                 VertexFormat::Uint32,
             ],
         );
@@ -478,8 +480,7 @@ pub(crate) fn extract_objects(
 #[repr(C)]
 #[derive(Copy, Clone, Default, Pod, Zeroable)]
 struct ObjectInstance {
-    // Affine 2x3 transposed to 3x2
-    i_model_transpose: [Vec3; 2],
+    i_model: [Vec2; 3],
     i_color: [f32; 4],
     i_uv_offset_scale: [f32; 4],
     i_texture_index: u32,
@@ -494,9 +495,10 @@ impl ObjectInstance {
         texture_index: u32,
     ) -> Self {
         Self {
-            i_model_transpose: [
-                transform.matrix2.x_axis.extend(transform.translation.x),
-                transform.matrix2.y_axis.extend(transform.translation.y),
+            i_model: [
+                transform.matrix2.x_axis,
+                transform.matrix2.y_axis,
+                transform.translation.xy(),
             ],
             i_color: color,
             i_uv_offset_scale: uv_offset_scale.to_array(),
