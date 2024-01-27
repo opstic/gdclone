@@ -17,7 +17,7 @@ pub(crate) enum DeError {
 }
 
 impl Display for DeError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             DeError::Custom(s) => write!(f, "{}", s),
             DeError::InvalidInt(e) => write!(f, "Invalid int: {}", e),
@@ -147,7 +147,7 @@ where
 
     fn read_string(&mut self) -> Result<Cow<'de, str>, DeError> {
         match self.next() {
-            Some(bytes) => Ok(Cow::Borrowed(std::str::from_utf8(bytes)?)),
+            Some(bytes) => Ok(Cow::Borrowed(str::from_utf8(bytes)?)),
             None => Ok("".into()),
         }
     }
