@@ -10,7 +10,6 @@ use crate::asset::cocos2d_atlas::{Cocos2dFrame, Cocos2dFrames};
 use crate::level::color::{GlobalColorChannels, HsvMod, ObjectColorCalculated};
 use crate::level::color::{ObjectColor, ObjectColorKind};
 use crate::level::de;
-use crate::level::group::ObjectGroupsCalculated;
 use crate::level::section::{GlobalSections, Section};
 use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::insert_trigger_data;
@@ -114,6 +113,7 @@ pub(crate) fn spawn_object(
     object_data: &HashMap<&[u8], &[u8]>,
     global_sections: &mut GlobalSections,
     global_groups: &mut IndexMap<u64, Vec<Entity>, U64Hash>,
+    group_archetypes: &mut IndexMap<Vec<u64>, Vec<Entity>>,
     global_color_channels: &GlobalColorChannels,
     cocos2d_frames: &Cocos2dFrames,
 ) -> Result<Entity, anyhow::Error> {
@@ -241,7 +241,6 @@ pub(crate) fn spawn_object(
         transform,
         object_transform,
         Handle::Weak(*image_asset_id),
-        ObjectGroupsCalculated::default(),
     ));
 
     insert_trigger_data(&mut entity, object_id, object_data)?;
@@ -259,11 +258,17 @@ pub(crate) fn spawn_object(
 
     global_section.insert(entity);
 
-    let groups: Vec<u64> = if let Some(group_string) = object_data.get(b"57".as_ref()) {
+    let mut groups: Vec<u64> = if let Some(group_string) = object_data.get(b"57".as_ref()) {
         de::from_slice(group_string, b'.')?
     } else {
         Vec::new()
     };
+
+    groups.sort_unstable();
+
+    let group_archetype_entry = group_archetypes.entry(groups.clone()).or_default();
+
+    group_archetype_entry.push(entity);
 
     let mut spawned = Vec::new();
 
@@ -289,6 +294,8 @@ pub(crate) fn spawn_object(
         global_group.push(entity);
         global_group.extend(&spawned)
     }
+
+    group_archetype_entry.append(&mut spawned);
 
     Ok(entity)
 }
@@ -378,7 +385,6 @@ fn recursive_spawn_children(
                 transform,
                 child_transform,
                 Handle::Weak(*image_asset_id),
-                ObjectGroupsCalculated::default(),
             ))
             .id();
 

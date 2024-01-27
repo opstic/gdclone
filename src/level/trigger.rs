@@ -11,9 +11,8 @@ use nested_intervals::IntervalSetGeneric;
 use ordered_float::OrderedFloat;
 
 // use bevy::log::info_span;
-use crate::level::color::HsvMod;
+use crate::level::color::{HsvMod, ObjectColorCalculated};
 use crate::level::easing::Easing;
-use crate::level::group::ObjectGroupsCalculated;
 use crate::level::player::Player;
 use crate::level::transform::Transform2d;
 use crate::level::trigger::alpha::AlphaTrigger;
@@ -182,14 +181,14 @@ pub(crate) fn process_triggers(world: &mut World) {
             let system_state: &mut SystemState<(
                 ResMut<GlobalTriggers>,
                 Query<(&Player, &Transform2d, &TriggerActivator)>,
-                Query<(&Trigger, &ObjectGroupsCalculated)>,
+                Query<(&Trigger, &ObjectColorCalculated)>,
             )> = if let Some(cell) = trigger_system_state_cache.cache.get(&TypeId::of::<World>()) {
                 unsafe { &mut *cell.get() }
             } else {
                 let system_state: SystemState<(
                     ResMut<GlobalTriggers>,
                     Query<(&Player, &Transform2d, &TriggerActivator)>,
-                    Query<(&Trigger, &ObjectGroupsCalculated)>,
+                    Query<(&Trigger, &ObjectColorCalculated)>,
                 )> = SystemState::new(unsafe { world_cell.world_mut() });
 
                 trigger_system_state_cache.cache.insert(
@@ -254,11 +253,12 @@ pub(crate) fn process_triggers(world: &mut World) {
                     for entity_index in entity_indices {
                         let trigger_entity = global_trigger_channel.x.1[*entity_index as usize];
 
-                        let Ok((trigger, groups_calculated)) = triggers.get(trigger_entity) else {
+                        let Ok((trigger, object_color_calculated)) = triggers.get(trigger_entity)
+                        else {
                             continue;
                         };
 
-                        if !groups_calculated.enabled {
+                        if !object_color_calculated.enabled {
                             continue;
                         }
 

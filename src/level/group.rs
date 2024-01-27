@@ -25,6 +25,7 @@ pub(crate) struct GlobalGroup {
     id: u64,
     pub(crate) entities: Vec<Entity>,
     pub(crate) root_entities: Vec<Entity>,
+    pub(crate) archetypes: SmallVec<[Entity; 250]>,
     pub(crate) opacity: f32,
     pub(crate) enabled: bool,
 }
@@ -35,6 +36,7 @@ impl Default for GlobalGroup {
             id: u64::MAX,
             entities: Vec::with_capacity(1000),
             root_entities: Vec::with_capacity(1000),
+            archetypes: SmallVec::from_buf([Entity::PLACEHOLDER; 250]),
             opacity: 1.,
             enabled: true,
         }
@@ -48,18 +50,19 @@ pub(crate) struct GlobalGroupDeltas {
     pub(crate) rotation: f32,
 }
 
-#[derive(Component)]
-pub(crate) struct ObjectGroups {
-    pub(crate) groups: Vec<(u64, Entity, f32, bool)>,
+#[derive(Component, Default)]
+pub(crate) struct GroupArchetype {
+    pub(crate) groups: Vec<(u64, f32, bool)>,
+    pub(crate) want_to_enable: bool,
 }
 
 #[derive(Component)]
-pub(crate) struct ObjectGroupsCalculated {
+pub(crate) struct GroupArchetypeCalculated {
     pub(crate) opacity: f32,
     pub(crate) enabled: bool,
 }
 
-impl Default for ObjectGroupsCalculated {
+impl Default for GroupArchetypeCalculated {
     fn default() -> Self {
         Self {
             opacity: 1.,
@@ -68,17 +71,15 @@ impl Default for ObjectGroupsCalculated {
     }
 }
 
+#[derive(Component)]
+pub(crate) struct ObjectGroups {
+    pub(crate) groups: Vec<u64>,
+    pub(crate) archetype_entity: Entity,
+}
+
 pub(crate) fn clear_group_delta(
     mut global_group_query: Query<&mut GlobalGroupDeltas, Changed<GlobalGroupDeltas>>,
 ) {
-    // global_group_query
-    //     .par_iter_mut()
-    //     .for_each(|mut global_group| {
-    //         let global_group = global_group.bypass_change_detection();
-    //         global_group.translation_delta = Vec2::ZERO;
-    //         global_group.rotate_around = None;
-    //         global_group.rotation = Quat::IDENTITY;
-    //     })
     for mut global_group in &mut global_group_query {
         let global_group = global_group.bypass_change_detection();
         global_group.translation_delta = Vec2::ZERO;
@@ -133,8 +134,42 @@ pub(crate) fn apply_group_delta(
 pub(crate) fn spawn_groups(
     world: &mut World,
     global_groups_data: IndexMap<u64, Vec<Entity>, U64Hash>,
+    group_archetypes: IndexMap<Vec<u64>, Vec<Entity>>,
 ) {
     let mut global_groups = GlobalGroups::default();
+
+    let mut group_archetype_group: IndexMap<u64, Vec<Entity>, U64Hash> =
+        IndexMap::with_capacity_and_hasher(global_groups_data.len(), U64Hash);
+
+    for (groups, entities) in group_archetypes {
+        let archetype_entity = world
+            .spawn((
+                GroupArchetype {
+                    groups: groups
+                        .iter()
+                        .map(|group_id| (*group_id, 1., true))
+                        .collect(),
+                    ..default()
+                },
+                GroupArchetypeCalculated::default(),
+            ))
+            .id();
+
+        for entity in entities {
+            let mut world_entity_mut = world.entity_mut(entity);
+            world_entity_mut.insert(ObjectGroups {
+                groups: groups.to_vec(),
+                archetype_entity,
+            });
+        }
+
+        for group in groups {
+            group_archetype_group
+                .entry(group)
+                .or_default()
+                .push(archetype_entity);
+        }
+    }
 
     for (group, entities) in global_groups_data {
         let group_entity = world
@@ -147,22 +182,12 @@ pub(crate) fn spawn_groups(
                         .filter(|entity| !world.entity(**entity).contains::<Parent>())
                         .copied()
                         .collect(),
+                    archetypes: (*group_archetype_group.get(&group).unwrap()).clone().into(),
                     ..default()
                 },
                 GlobalGroupDeltas::default(),
             ))
             .id();
-
-        for entity in entities {
-            let mut world_entity_mut = world.entity_mut(entity);
-            if let Some(mut object_groups) = world_entity_mut.get_mut::<ObjectGroups>() {
-                object_groups.groups.push((group, group_entity, 1., true));
-            } else {
-                world_entity_mut.insert(ObjectGroups {
-                    groups: vec![(group, group_entity, 1., true)],
-                });
-            }
-        }
 
         if group >= global_groups.0.len() as u64 {
             global_groups
@@ -176,41 +201,57 @@ pub(crate) fn spawn_groups(
     world.insert_resource(global_groups);
 }
 
-pub(crate) fn update_object_group(
-    mut objects: Query<&mut ObjectGroups>,
+pub(crate) fn update_group_archetype(
+    mut group_archetypes: Query<(&mut GroupArchetype, &mut GroupArchetypeCalculated)>,
     groups: Query<&GlobalGroup, Changed<GlobalGroup>>,
 ) {
     for global_group in &groups {
-        let mut iter = objects.iter_many_mut(&global_group.entities);
+        let mut iter = group_archetypes.iter_many_mut(&global_group.archetypes);
 
-        while let Some(mut object_groups) = iter.fetch_next() {
-            let Some((_, _, group_opacity, group_enabled)) = object_groups
+        while let Some((mut group_archetype, mut group_archetype_calculated)) = iter.fetch_next() {
+            let Some((_, group_opacity, group_enabled)) = group_archetype
                 .groups
                 .iter_mut()
-                .find(|(id, _, _, _)| *id == global_group.id)
+                .find(|(id, _, _)| *id == global_group.id)
             else {
-                panic!("Object doesn't have group in list??");
+                panic!("Archetype doesn't have group in list??");
             };
             *group_opacity = global_group.opacity;
             *group_enabled = global_group.enabled;
+
+            if !global_group.enabled {
+                group_archetype_calculated.enabled = false;
+            } else {
+                group_archetype.want_to_enable = true;
+            }
         }
     }
 }
 
-pub(crate) fn update_object_group_calculated(
-    mut objects: Query<(&ObjectGroups, &mut ObjectGroupsCalculated), Changed<ObjectGroups>>,
+pub(crate) fn update_group_archetype_calculated(
+    mut group_archetypes: Query<
+        (&mut GroupArchetype, &mut GroupArchetypeCalculated),
+        Changed<GroupArchetype>,
+    >,
 ) {
-    objects
-        .par_iter_mut()
-        .for_each(|(object_groups, mut object_groups_calculated)| {
-            object_groups_calculated.opacity = 1.;
-            object_groups_calculated.enabled = true;
-            for (_, _, group_opacity, group_enabled) in &object_groups.groups {
-                if !group_enabled {
-                    object_groups_calculated.enabled = false;
-                    break;
-                }
-                object_groups_calculated.opacity *= group_opacity;
+    group_archetypes.par_iter_mut().for_each(
+        |(mut group_archetype, mut group_archetype_calculated)| {
+            if !group_archetype_calculated.enabled && !group_archetype.want_to_enable {
+                return;
             }
-        });
+
+            group_archetype_calculated.opacity = 1.;
+            for (_, group_opacity, group_enabled) in &group_archetype.groups {
+                if !group_enabled {
+                    group_archetype_calculated.enabled = false;
+                    group_archetype.want_to_enable = false;
+                    return;
+                }
+                group_archetype_calculated.opacity *= group_opacity;
+            }
+
+            group_archetype_calculated.enabled = true;
+            group_archetype.want_to_enable = false;
+        },
+    );
 }

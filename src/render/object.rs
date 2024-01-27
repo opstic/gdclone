@@ -48,7 +48,6 @@ use bevy::utils::{syncunsafecell::SyncUnsafeCell, FloatOrd};
 
 use crate::asset::compressed_image::CompressedImage;
 use crate::level::color::ObjectColorCalculated;
-use crate::level::group::ObjectGroupsCalculated;
 use crate::level::transform::GlobalTransform2d;
 use crate::level::trigger::Trigger;
 use crate::level::{object::Object, section::GlobalSections, LevelWorld};
@@ -371,7 +370,6 @@ pub(crate) struct ExtractSystemStateCache {
                     &'static GlobalTransform2d,
                     &'static Object,
                     &'static ObjectColorCalculated,
-                    &'static ObjectGroupsCalculated,
                     &'static Handle<CompressedImage>,
                 ),
                 Without<Trigger>,
@@ -414,7 +412,6 @@ pub(crate) fn extract_objects(
                         &GlobalTransform2d,
                         &Object,
                         &ObjectColorCalculated,
-                        &ObjectGroupsCalculated,
                         &Handle<CompressedImage>,
                     ),
                     Without<Trigger>,
@@ -437,10 +434,8 @@ pub(crate) fn extract_objects(
     }
 
     for section in &global_sections.sections[global_sections.visible.clone()] {
-        for (entity, transform, object, object_color, object_groups_calculated, image_handle) in
-            objects.iter_many(section)
-        {
-            if !object_groups_calculated.enabled {
+        for (entity, transform, object, object_color, image_handle) in objects.iter_many(section) {
+            if !object_color.enabled {
                 continue;
             }
 

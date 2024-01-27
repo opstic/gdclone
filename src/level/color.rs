@@ -6,8 +6,8 @@ use bevy::ecs::{
 };
 use bevy::hierarchy::{BuildChildren, BuildWorldChildren, Children, Parent};
 use bevy::prelude::{
-    Color, Commands, Component, DetectChanges, Entity, Mut, Query, Ref, Res, ResMut, Resource,
-    With, Without, World,
+    Color, Commands, Component, DetectChanges, DetectChangesMut, Entity, Mut, Query, Ref, Res,
+    ResMut, Resource, With, Without, World,
 };
 use bevy::reflect::Reflect;
 use bevy::tasks::ComputeTaskPool;
@@ -15,7 +15,8 @@ use bevy::utils::{hashbrown, HashMap as AHashMap};
 use dashmap::DashMap;
 use serde::Deserialize;
 
-use crate::level::{de, group::ObjectGroupsCalculated, section::GlobalSections};
+use crate::level::group::{GroupArchetypeCalculated, ObjectGroups};
+use crate::level::{de, section::GlobalSections};
 use crate::utils::{hsv_to_rgb, rgb_to_hsv, u8_to_bool, U64Hash};
 
 #[derive(Default, Resource)]
@@ -340,20 +341,28 @@ impl Default for ObjectColor {
     }
 }
 
-#[derive(Component, Default)]
+#[derive(Component)]
 pub(crate) struct ObjectColorCalculated {
     pub(crate) color: Color,
     pub(crate) blending: bool,
+    pub(crate) enabled: bool,
+}
+
+impl Default for ObjectColorCalculated {
+    fn default() -> Self {
+        Self {
+            color: Color::WHITE,
+            blending: false,
+            enabled: true,
+        }
+    }
 }
 
 pub(crate) fn update_object_color(
     global_sections: Res<GlobalSections>,
     global_color_channels: Res<GlobalColorChannels>,
-    objects: Query<(
-        Ref<ObjectGroupsCalculated>,
-        &mut ObjectColor,
-        &mut ObjectColorCalculated,
-    )>,
+    group_archetypes: Query<Ref<GroupArchetypeCalculated>>,
+    objects: Query<(&ObjectGroups, &mut ObjectColor, &mut ObjectColorCalculated)>,
     color_channels: Query<Ref<ColorChannelCalculated>>,
 ) {
     let sections_to_update = &global_sections.sections[global_sections.visible.clone()];
@@ -365,6 +374,7 @@ pub(crate) fn update_object_color(
     let objects = &objects;
     let color_channels = &color_channels;
     let global_color_channels = &global_color_channels;
+    let group_archetypes = &group_archetypes;
 
     compute_task_pool.scope(|scope| {
         for thread_chunk in sections_to_update.chunks(thread_chunk_size) {
@@ -374,12 +384,18 @@ pub(crate) fn update_object_color(
 
                 for section in thread_chunk {
                     let mut iter = unsafe { objects.iter_many_unsafe(section) };
-                    while let Some((object_groups_calculated, mut object_color, mut calculated)) =
+                    while let Some((object_groups, mut object_color, mut calculated)) =
                         iter.fetch_next()
                     {
-                        if !object_groups_calculated.enabled {
+                        let group_archetype = group_archetypes
+                            .get(object_groups.archetype_entity)
+                            .unwrap();
+
+                        if !group_archetype.enabled {
+                            calculated.bypass_change_detection().enabled = false;
                             continue;
                         }
+                        calculated.bypass_change_detection().enabled = true;
 
                         let (mut color_channel_color, blending, color_channel_tick) =
                             if let Some(result) = color_channel_cache.get(&object_color.channel_id)
@@ -419,7 +435,7 @@ pub(crate) fn update_object_color(
                         // TODO: This will only work for one hour until overflow messes it up
                         if !(color_channel_tick.get() > calculated.last_changed().get()
                             || object_color.last_changed().get() > calculated.last_changed().get()
-                            || object_groups_calculated.last_changed().get()
+                            || group_archetype.last_changed().get()
                                 > calculated.last_changed().get()
                             || calculated.is_added())
                         {
@@ -438,9 +454,7 @@ pub(crate) fn update_object_color(
                         };
 
                         color.set_a(
-                            object_groups_calculated.opacity
-                                * object_color.object_opacity
-                                * color.a(),
+                            group_archetype.opacity * object_color.object_opacity * color.a(),
                         );
 
                         calculated.color = color;

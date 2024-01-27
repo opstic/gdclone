@@ -36,7 +36,8 @@ use crate::level::{
         GlobalColorChannel, GlobalColorChannels,
     },
     group::{
-        apply_group_delta, clear_group_delta, update_object_group, update_object_group_calculated,
+        apply_group_delta, clear_group_delta, update_group_archetype,
+        update_group_archetype_calculated,
     },
     section::{update_sections, GlobalSections, Section},
     transform::update_transform,
@@ -113,15 +114,15 @@ fn spawn_level_world(
         sub_app.add_systems(
             PostUpdate,
             (
-                update_object_group,
-                update_object_group_calculated.after(update_object_group),
+                update_group_archetype,
+                update_group_archetype_calculated.after(update_group_archetype),
                 update_color_channel_calculated,
                 apply_group_delta.before(update_sections),
                 update_sections,
                 update_transform.after(update_sections),
                 update_object_color
                     .after(update_sections)
-                    .after(update_object_group_calculated)
+                    .after(update_group_archetype_calculated)
                     .after(update_color_channel_calculated),
             ),
         );
@@ -205,6 +206,7 @@ fn spawn_level_world(
 
         let mut global_sections = GlobalSections::default();
         let mut global_groups = IndexMap::with_hasher(U64Hash);
+        let mut group_archetypes = IndexMap::new();
 
         start = Instant::now();
 
@@ -223,6 +225,7 @@ fn spawn_level_world(
                 &parsed.objects[index as usize],
                 &mut global_sections,
                 &mut global_groups,
+                &mut group_archetypes,
                 &global_color_channels,
                 &cocos2d_frames,
             ) {
@@ -262,7 +265,7 @@ fn spawn_level_world(
         world.insert_resource(global_color_channels);
 
         start = Instant::now();
-        group::spawn_groups(&mut world, global_groups);
+        group::spawn_groups(&mut world, global_groups, group_archetypes);
         info!("Initializing groups took {:?}", start.elapsed());
 
         let default_speed = if let Some(speed) = parsed.start_object.get(b"kA4".as_ref()) {
