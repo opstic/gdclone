@@ -379,9 +379,6 @@ pub(crate) fn update_object_color(
     compute_task_pool.scope(|scope| {
         for thread_chunk in sections_to_update.chunks(thread_chunk_size) {
             scope.spawn(async move {
-                let mut color_channel_cache: hashbrown::HashMap<u64, (Color, bool, Tick), U64Hash> =
-                    hashbrown::HashMap::with_capacity_and_hasher(300, U64Hash);
-
                 for section in thread_chunk {
                     let mut iter = unsafe { objects.iter_many_unsafe(section) };
                     while let Some((object_groups, mut object_color, mut calculated)) =
@@ -398,33 +395,24 @@ pub(crate) fn update_object_color(
                         calculated.bypass_change_detection().enabled = true;
 
                         let (mut color_channel_color, blending, color_channel_tick) =
-                            if let Some(result) = color_channel_cache.get(&object_color.channel_id)
-                            {
-                                *result
-                            } else if let Ok(color_channel_calculated) =
+                            if let Ok(color_channel_calculated) =
                                 color_channels.get(object_color.channel_entity)
                             {
-                                let color_channel_data = (
+                                (
                                     color_channel_calculated.color,
                                     color_channel_calculated.blending,
                                     color_channel_calculated.last_changed(),
-                                );
-                                color_channel_cache
-                                    .insert(object_color.channel_id, color_channel_data);
-                                color_channel_data
+                                )
                             } else if let Some(entity) =
                                 global_color_channels.0.get(&object_color.channel_id)
                             {
                                 object_color.channel_entity = *entity;
                                 if let Ok(color_channel_calculated) = color_channels.get(*entity) {
-                                    let color_channel_data = (
+                                    (
                                         color_channel_calculated.color,
                                         color_channel_calculated.blending,
                                         color_channel_calculated.last_changed(),
-                                    );
-                                    color_channel_cache
-                                        .insert(object_color.channel_id, color_channel_data);
-                                    color_channel_data
+                                    )
                                 } else {
                                     (Color::WHITE, false, Tick::new(0))
                                 }
@@ -442,20 +430,20 @@ pub(crate) fn update_object_color(
                             continue;
                         }
 
-                        let mut color = if object_color.object_color_kind == ObjectColorKind::None {
-                            Color::WHITE.with_a(color_channel_color.a())
-                        } else if object_color.object_color_kind == ObjectColorKind::Black {
-                            Color::BLACK.with_a(color_channel_color.a())
-                        } else {
-                            if let Some(hsv) = object_color.hsv {
-                                hsv.apply(&mut color_channel_color);
-                            }
-                            color_channel_color
-                        };
+                        let alpha = group_archetype.opacity
+                            * object_color.object_opacity
+                            * color_channel_color.a();
 
-                        color.set_a(
-                            group_archetype.opacity * object_color.object_opacity * color.a(),
-                        );
+                        let color = match object_color.object_color_kind {
+                            ObjectColorKind::None => Color::WHITE.with_a(alpha),
+                            ObjectColorKind::Black => Color::BLACK.with_a(alpha),
+                            _ => {
+                                if let Some(hsv) = object_color.hsv {
+                                    hsv.apply(&mut color_channel_color);
+                                }
+                                color_channel_color.with_a(alpha)
+                            }
+                        };
 
                         calculated.color = color;
                         calculated.blending = blending;
