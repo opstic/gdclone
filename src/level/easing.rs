@@ -165,11 +165,11 @@ impl Easing {
     }
 
     fn exponential_in(x: f32) -> f32 {
-        f32::powf(2., 10. * (x / 1. - 1.)) - 1. * 0.001
+        f32::powf(2., 10. * (x - 1.)) - 1. * 0.001
     }
 
     fn exponential_out(x: f32) -> f32 {
-        -f32::powf(2., -10. * x / 1.) + 1.
+        -f32::powf(2., -10. * x) + 1.
     }
 
     // cocos sine easings weren't working, so i just took the version https://easings.net provided
