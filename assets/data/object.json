@@ -25070,7 +25070,7 @@
         "opacity": 0.2980392156862745
       },
       {
-        "texture": "block009c_color_07_001.png",
+        "texture": "emptyFrame.png",
         "anchor_x": 0.0,
         "anchor_y": 0.0,
         "scale_x": 1.0,
@@ -36357,7 +36357,7 @@
     "color_type": "Base"
   },
   "1839": {
-    "texture": "d_scaleFadeRing_01_001.png",
+    "texture": "emptyFrame.png",
     "default_z_layer": 3,
     "default_z_order": 9,
     "default_base_color_channel": 1,
@@ -36423,7 +36423,7 @@
     "swap_base_detail": true
   },
   "1840": {
-    "texture": "d_scaleFadeRing_03_001.png",
+    "texture": "emptyFrame.png",
     "default_z_layer": 3,
     "default_z_order": 9,
     "default_base_color_channel": 1,
