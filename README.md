@@ -17,9 +17,11 @@ Controls are WASD to move, use arrow keys to move slower.
 
 Q and E to zoom in and out.
 
-U to unlink the camera from the simulated player.
+U to (un)link the camera from the simulated player.
 
-L to disable player and camera line rendering.
+L to (de)activate player and camera line rendering.
+
+T to (un)hide triggers.
 
 ~~Use Esc to exit out of a level.~~
 
