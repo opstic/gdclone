@@ -5,6 +5,8 @@ authors = ["Opstic"]
 edition = "2021"
 repository = "https://github.com/opstic/gdclone"
 homepage = "https://github.com/opstic/gdclone"
+readme = "README.md"
+license = "MPL-2.0"
 
 [dependencies]
 anyhow = "1.0"
