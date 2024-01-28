@@ -1,6 +1,4 @@
-<img src="https://github.com/opstic/gdclone/raw/main/assets/branding/banner.png" alt="Banner">
-
-<br />
+![Banner](assets/branding/banner.png)
 
 **An attempt at an alternative GD client.**
 
@@ -35,9 +33,9 @@ L to disable player and camera line rendering.
 
 ## Screenshots / GIFs
 
-![White Space](/assets/screenshots/whitespace.gif)
-![Omorfia](/assets/screenshots/omorfia.gif)
-![Acu](/assets/screenshots/acu.gif)
+![White Space](assets/screenshots/whitespace.gif)
+![Omorfia](assets/screenshots/omorfia.gif)
+![Acu](assets/screenshots/acu.gif)
 
 ### Credits
 
