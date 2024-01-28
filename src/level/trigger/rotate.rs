@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::f32::consts::TAU;
 
 use bevy::ecs::system::SystemState;
 use bevy::prelude::{Entity, Query, Res, World};
@@ -13,8 +14,8 @@ pub(crate) struct RotateTrigger {
     pub(crate) easing: Easing,
     pub(crate) target_group: u64,
     pub(crate) center_group: u64,
-    pub(crate) degrees: i32,
-    pub(crate) times360: i32,
+    pub(crate) degrees: f32,
+    pub(crate) times360: f32,
     pub(crate) lock_rotation: bool,
 }
 
@@ -64,12 +65,12 @@ impl TriggerFunction for RotateTrigger {
 
         let amount = self.easing.sample(progress) - self.easing.sample(previous_progress);
 
-        let delta = -((360 * self.times360 + self.degrees) as f32 * amount).to_radians();
+        let delta = (TAU * self.times360 + self.degrees) * amount;
 
         if let Some(center) = center {
             global_group_delta.rotate_around = Some((center, delta, self.lock_rotation));
         } else {
-            global_group_delta.rotation += delta;
+            global_group_delta.rotation = delta;
         }
     }
 

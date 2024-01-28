@@ -509,10 +509,10 @@ pub(crate) fn insert_trigger_data(
                 trigger.center_group = std::str::from_utf8(center_group)?.parse()?;
             }
             if let Some(degrees) = object_data.get(b"68".as_ref()) {
-                trigger.degrees = std::str::from_utf8(degrees)?.parse()?;
+                trigger.degrees = -std::str::from_utf8(degrees)?.parse::<f32>()?.to_radians();
             }
             if let Some(times360) = object_data.get(b"69".as_ref()) {
-                trigger.times360 = std::str::from_utf8(times360)?.parse()?;
+                trigger.times360 = -std::str::from_utf8(times360)?.parse()?;
             }
             if let Some(lock_rotation) = object_data.get(b"70".as_ref()) {
                 trigger.lock_rotation = u8_to_bool(lock_rotation);
