@@ -318,8 +318,8 @@ impl Default for Options {
             synchronize_cameras: true,
             display_simulated_camera: false,
             visible_sections_from_simulated: false,
-            show_lines: true,
-            hide_triggers: false,
+            show_lines: false,
+            hide_triggers: true,
         }
     }
 }
