@@ -1,3 +1,4 @@
+use std::f32::consts::TAU;
 use std::hash::BuildHasher;
 
 use bevy::log::{info, warn};
@@ -80,10 +81,7 @@ pub(crate) fn rgb_to_hsv([r, g, b]: [f32; 3]) -> (f32, f32, f32) {
         4. + (r - g) / delta
     };
 
-    // To degrees
-    h *= 60.;
-
-    h = h.rem_euclid(360.);
+    h = h.rem_euclid(TAU);
 
     (h, if max == 0. { 0. } else { delta / max }, max)
 }
@@ -94,11 +92,10 @@ pub(crate) fn hsv_to_rgb((h, s, v): (f32, f32, f32)) -> [f32; 3] {
         return [v, v, v];
     }
 
-    let h = h.rem_euclid(360.);
+    let h = h.rem_euclid(TAU);
     let s = s.clamp(0., 1.);
     let v = v.clamp(0., 1.);
 
-    let h = h / 60.;
     let p = v * (1. - s);
     let q = v * (1. - (s * h.fract()));
     let t = v * (1. - (s * (1. - h.fract())));

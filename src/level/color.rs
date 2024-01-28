@@ -296,7 +296,7 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
             }
 
             if let Some(hsv) = hsv {
-                hsv.apply(&mut temp_color);
+                hsv.apply_rgb(&mut temp_color);
             }
 
             calculated.color = temp_color;
@@ -439,7 +439,7 @@ pub(crate) fn update_object_color(
                             ObjectColorKind::Black => Color::BLACK.with_a(alpha),
                             _ => {
                                 if let Some(hsv) = object_color.hsv {
-                                    hsv.apply(&mut color_channel_color);
+                                    hsv.apply_rgb(&mut color_channel_color);
                                 }
                                 color_channel_color.with_a(alpha)
                             }
@@ -475,18 +475,34 @@ pub(crate) struct HsvMod {
 impl HsvMod {
     pub(crate) fn parse(hsv_string: &[u8]) -> Result<HsvMod, anyhow::Error> {
         let hsv_data: [&[u8]; 5] = de::from_slice(hsv_string, b'a')?;
+        let h: f32 = std::str::from_utf8(hsv_data[0])?.parse()?;
+        let s = std::str::from_utf8(hsv_data[1])?.parse()?;
+        let v = std::str::from_utf8(hsv_data[2])?.parse()?;
+        let s_absolute = u8_to_bool(hsv_data[3]);
+        let v_absolute = u8_to_bool(hsv_data[4]);
+
         Ok(HsvMod {
-            h: std::str::from_utf8(hsv_data[0])?.parse()?,
-            s: std::str::from_utf8(hsv_data[1])?.parse()?,
-            v: std::str::from_utf8(hsv_data[2])?.parse()?,
-            s_absolute: u8_to_bool(hsv_data[3]),
-            v_absolute: u8_to_bool(hsv_data[4]),
+            h: h.to_radians(),
+            s,
+            v,
+            s_absolute,
+            v_absolute,
         })
     }
 }
 
 impl HsvMod {
-    pub(crate) fn apply(&self, color: &mut Color) {
+    pub(crate) fn new(h: f32, s: f32, v: f32, s_absolute: bool, v_absolute: bool) -> Self {
+        Self {
+            h,
+            s,
+            v,
+            s_absolute,
+            v_absolute,
+        }
+    }
+
+    pub(crate) fn apply_rgb(&self, color: &mut Color) {
         let (h, s, v) = rgb_to_hsv([color.r(), color.g(), color.b()]);
         let [r, g, b] = hsv_to_rgb((
             h + self.h,
