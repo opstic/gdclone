@@ -37,19 +37,18 @@ struct VertexOutput {
 fn vertex(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
 
-    let vertex_position = vec3<f32>(
+    let vertex_position = vec2<f32>(
         f32(in.index & 0x1u),
         f32((in.index & 0x2u) >> 1u),
-        0.0
     );
 
     out.clip_position = view.view_proj * affine2_to_square(mat3x2<f32>(
         in.i_model_row0,
         in.i_model_row1,
         in.i_model_row2,
-    )) * vec4<f32>(vertex_position, 1.0);
+    )) * vec4<f32>(vertex_position, 0.0, 1.0);
 
-    out.uv = vec2<f32>(vertex_position.xy) * in.i_uv_offset_scale.zw + in.i_uv_offset_scale.xy;
+    out.uv = vec2<f32>(vertex_position) * in.i_uv_offset_scale.zw + in.i_uv_offset_scale.xy;
 
 #ifndef ADDITIVE_BLENDING
     out.color = vec4<f32>(in.i_color.rgb * in.i_color.a, in.i_color.a);
