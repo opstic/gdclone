@@ -252,11 +252,11 @@ impl SpecializedRenderPipeline for ObjectPipeline {
         let vertex_layout = VertexBufferLayout::from_vertex_formats(
             VertexStepMode::Instance,
             vec![
-                // @location(0) i_model_col0: vec2<f32>,
+                // @location(0) i_model_row0: vec2<f32>,
                 VertexFormat::Float32x2,
-                // @location(1) i_model_col1: vec2<f32>,
+                // @location(1) i_model_row1: vec2<f32>,
                 VertexFormat::Float32x2,
-                // @location(2) i_model_col2: vec2<f32>,
+                // @location(2) i_model_row2: vec2<f32>,
                 VertexFormat::Float32x2,
                 // @location(3) i_color: vec4<f32>,
                 VertexFormat::Float32x4,

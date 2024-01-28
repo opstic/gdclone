@@ -15,9 +15,9 @@ fn affine2_to_square(affine: mat3x2<f32>) -> mat4x4<f32> {
 
 struct VertexInput {
     // NOTE: Instance-rate vertex buffer members prefixed with i_
-    @location(0) i_model_col0: vec2<f32>,
-    @location(1) i_model_col1: vec2<f32>,
-    @location(2) i_model_col2: vec2<f32>,
+    @location(0) i_model_row0: vec2<f32>,
+    @location(1) i_model_row1: vec2<f32>,
+    @location(2) i_model_row2: vec2<f32>,
     @location(3) i_color: vec4<f32>,
     @location(4) i_uv_offset_scale: vec4<f32>,
     @location(5) i_texture_index: u32,
@@ -42,9 +42,9 @@ fn vertex(in: VertexInput) -> VertexOutput {
     );
 
     out.clip_position = view.view_proj * affine2_to_square(mat3x2<f32>(
-        in.i_model_col0,
-        in.i_model_col1,
-        in.i_model_col2,
+        in.i_model_row0,
+        in.i_model_row1,
+        in.i_model_row2,
     )) * vec4<f32>(vertex_position, 1.0);
 
     out.uv = vec2<f32>(vertex_position.xy) * in.i_uv_offset_scale.zw + in.i_uv_offset_scale.xy;
