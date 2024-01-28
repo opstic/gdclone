@@ -33,7 +33,11 @@ L to disable player and camera line rendering.
 
 ~~*Support for web and mobile platforms are planned.*~~
 
-## Screenshots
+## Screenshots / GIFs
+
+![White Space](/assets/screenshots/whitespace.gif)
+![Omorfia](/assets/screenshots/omorfia.gif)
+![Acu](/assets/screenshots/acu.gif)
 
 ### Credits
 
