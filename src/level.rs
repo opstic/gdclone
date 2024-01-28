@@ -262,6 +262,7 @@ fn spawn_level_world(
         world.insert_resource(global_sections);
         world.insert_resource(global_color_channels);
 
+        info!("Found {} group archetypes", group_archetypes.len());
         start = Instant::now();
         group::spawn_groups(&mut world, global_groups, group_archetypes);
         info!("Initializing groups took {:?}", start.elapsed());
