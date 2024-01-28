@@ -28,7 +28,9 @@ struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) uv: vec2<f32>,
     @location(1) @interpolate(flat) color: vec4<f32>,
+#ifndef NO_TEXTURE_ARRAY
     @location(2) texture_index: u32,
+#endif
 };
 
 @vertex
@@ -56,7 +58,9 @@ fn vertex(in: VertexInput) -> VertexOutput {
     out.color = vec4<f32>(in.i_color.rgb * alpha, 0.0);
 #endif
 
+#ifndef NO_TEXTURE_ARRAY
     out.texture_index = in.i_texture_index;
+#endif
 
     return out;
 }
