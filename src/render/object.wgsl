@@ -48,7 +48,7 @@ fn vertex(in: VertexInput) -> VertexOutput {
         in.i_model_row2,
     )) * vec4<f32>(vertex_position, 0.0, 1.0);
 
-    out.uv = vec2<f32>(vertex_position) * in.i_uv_offset_scale.zw + in.i_uv_offset_scale.xy;
+    out.uv = vertex_position * in.i_uv_offset_scale.zw + in.i_uv_offset_scale.xy;
 
 #ifndef ADDITIVE_BLENDING
     out.color = vec4<f32>(in.i_color.rgb * in.i_color.a, in.i_color.a);
