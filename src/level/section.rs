@@ -1,9 +1,12 @@
 use std::ops::Range;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use bevy::ecs::query::{ReadOnlyWorldQuery, WorldQuery};
 use bevy::hierarchy::{Children, Parent};
-use bevy::prelude::{Changed, Component, Entity, Mut, Query, ResMut, Resource, With, Without};
+use bevy::prelude::{
+    Changed, Component, Entity, Local, Mut, Query, ResMut, Resource, With, Without,
+};
+use bevy::utils::syncunsafecell::SyncUnsafeCell;
 use indexmap::IndexSet;
 use smallvec::SmallVec;
 
@@ -33,13 +36,21 @@ impl Section {
 
 pub(crate) fn update_sections(
     mut global_sections: ResMut<GlobalSections>,
+    all_entities: Query<(), Changed<Transform2d>>,
     mut entities: Query<
         (Entity, &Transform2d, &mut Section, Option<&Children>),
         (Without<Parent>, Changed<Transform2d>),
     >,
     children_query: Query<(&mut Section, Option<&Children>), With<Parent>>,
+    mut changed_entities: Local<(AtomicUsize, SyncUnsafeCell<Vec<(u32, u32, Entity)>>)>,
 ) {
-    let sections_mutex = Mutex::new(&mut global_sections.sections);
+    let (lower_bound, upper_bound) = all_entities.iter().size_hint();
+    changed_entities.1.get_mut().resize(
+        upper_bound.unwrap_or(lower_bound),
+        (0, 0, Entity::PLACEHOLDER),
+    );
+    changed_entities.0.store(0, Ordering::Relaxed);
+
     entities
         .par_iter_mut()
         .for_each(|(entity, transform, mut section, children)| {
@@ -51,26 +62,31 @@ pub(crate) fn update_sections(
             section.old = section.current;
             section.current = new_section;
 
-            let mut global_sections = sections_mutex.lock().unwrap();
-
-            if section.current >= global_sections.len() as u32 {
-                global_sections.resize(
-                    (section.current + 1) as usize,
-                    IndexSet::with_capacity_and_hasher(1000, U64Hash),
-                );
-            }
-
-            global_sections[section.old as usize].remove(&entity);
-            global_sections[section.current as usize].insert(entity);
+            let index = changed_entities.0.fetch_add(1, Ordering::Relaxed);
+            let array = unsafe { &mut *changed_entities.1.get() };
+            array[index] = (section.old, section.current, entity);
 
             let Some(children) = children else {
                 return;
             };
 
             unsafe {
-                propagate_section_recursive(children, &children_query, &section, *global_sections)
+                propagate_section_recursive(children, &children_query, &section, &changed_entities)
             }
         });
+
+    let length = changed_entities.0.load(Ordering::Relaxed);
+    for (old, new, entity) in &changed_entities.1.get_mut()[..length] {
+        if *new >= global_sections.sections.len() as u32 {
+            global_sections.sections.resize(
+                (*new + 1) as usize,
+                IndexSet::with_capacity_and_hasher(1000, U64Hash),
+            );
+        }
+
+        global_sections.sections[*old as usize].remove(entity);
+        global_sections.sections[*new as usize].insert(*entity);
+    }
 
     global_sections.visible.start = global_sections
         .visible
@@ -86,7 +102,7 @@ unsafe fn propagate_section_recursive<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQue
     children: &Children,
     children_query: &'w Query<'w, 's, Q, F>,
     parent_section: &Section,
-    global_sections: &mut [IndexSet<Entity, U64Hash>],
+    changed_entities: &(AtomicUsize, SyncUnsafeCell<Vec<(u32, u32, Entity)>>),
 ) where
     Q: WorldQuery<Item<'w> = (Mut<'w, Section>, Option<&'w Children>)>,
 {
@@ -97,13 +113,14 @@ unsafe fn propagate_section_recursive<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQue
 
         *section = *parent_section;
 
-        global_sections[section.old as usize].remove(child_entity);
-        global_sections[section.current as usize].insert(*child_entity);
+        let index = changed_entities.0.fetch_add(1, Ordering::Relaxed);
+        let array = unsafe { &mut *changed_entities.1.get() };
+        array[index] = (section.old, section.current, *child_entity);
 
         let Some(children) = children else {
             continue;
         };
 
-        propagate_section_recursive(children, children_query, parent_section, global_sections);
+        propagate_section_recursive(children, children_query, parent_section, changed_entities);
     }
 }
