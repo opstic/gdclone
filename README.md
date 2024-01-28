@@ -21,7 +21,7 @@ Q and E to zoom in and out.
 
 U to unlink the camera from the simulated player.
 
-L to disable to player and camera line rendering.
+L to disable player and camera line rendering.
 
 ~~Use Esc to exit out of a level.~~
 
