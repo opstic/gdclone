@@ -1,5 +1,3 @@
-use std::io::{Cursor, Read, Write};
-
 use bevy::asset::Asset;
 use bevy::ecs::{system::lifetimeless::SRes, system::SystemParamItem};
 use bevy::math::Vec2;
@@ -11,7 +9,7 @@ use bevy::render::{
     renderer::{RenderDevice, RenderQueue},
     texture::{DefaultImageSampler, GpuImage, ImageSampler},
 };
-use zstd::{Decoder, Encoder};
+use zstd::bulk::{Compressor, Decompressor};
 
 /// A [`CompressedImage`] asset to store only the compressed version of the image in memory
 ///
@@ -23,6 +21,7 @@ use zstd::{Decoder, Encoder};
 #[reflect_value]
 pub(crate) struct CompressedImage {
     pub data: Vec<u8>,
+    pub uncompressed_size: usize,
     pub texture_descriptor: TextureDescriptor<'static>,
     pub sampler: ImageSampler,
     pub texture_view_descriptor: Option<TextureViewDescriptor<'static>>,
@@ -30,18 +29,14 @@ pub(crate) struct CompressedImage {
 
 impl From<Image> for CompressedImage {
     fn from(image: Image) -> Self {
-        let mut zstd_encoder = Encoder::new(Cursor::new(Vec::new()), 0)
-            .expect("Failed to create the zstd encoder??????");
-        zstd_encoder
-            .write_all(&image.data)
-            .expect("Failed to encode image data");
-        let zstd_encoded_image = zstd_encoder
-            .finish()
-            .expect("Failed to finish zstd encoder")
-            .into_inner();
+        let mut zstd_compressor = Compressor::new(0).expect("Failed to create zstd compressor");
+        let zstd_compressed_image = zstd_compressor
+            .compress(&image.data)
+            .expect("Failed to compress image data");
 
         CompressedImage {
-            data: zstd_encoded_image,
+            data: zstd_compressed_image,
+            uncompressed_size: image.data.len(),
             texture_descriptor: image.texture_descriptor,
             sampler: image.sampler,
             texture_view_descriptor: image.texture_view_descriptor,
@@ -68,9 +63,11 @@ impl RenderAsset for CompressedImage {
         image: Self::ExtractedAsset,
         (render_device, render_queue, default_sampler): &mut SystemParamItem<Self::Param>,
     ) -> Result<Self::PreparedAsset, PrepareAssetError<Self::ExtractedAsset>> {
-        let mut decompressed_image = Vec::with_capacity(image.data.len() * 3);
-        let mut zstd_decoder = Decoder::new(Cursor::new(image.data)).unwrap();
-        zstd_decoder.read_to_end(&mut decompressed_image).unwrap();
+        let mut zstd_decompressor =
+            Decompressor::new().expect("Failed to create zstd decompressor");
+        let decompressed_image = zstd_decompressor
+            .decompress(&image.data, image.uncompressed_size)
+            .expect("Failed to decompress image data");
 
         let texture = render_device.create_texture_with_data(
             render_queue,
