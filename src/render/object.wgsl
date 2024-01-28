@@ -4,10 +4,10 @@
 
 fn affine2_to_square(affine: mat3x2<f32>) -> mat4x4<f32> {
     return mat4x4<f32>(
-        vec4<f32>(affine[0], 0.0, 0.0),
-        vec4<f32>(affine[1], 0.0, 0.0),
+        vec4<f32>(affine.x, 0.0, 0.0),
+        vec4<f32>(affine.y, 0.0, 0.0),
         vec4<f32>(0.0, 0.0, 1.0, 0.0),
-        vec4<f32>(affine[2], 0.0, 1.0),
+        vec4<f32>(affine.z, 0.0, 1.0),
     );
 }
 
@@ -42,11 +42,12 @@ fn vertex(in: VertexInput) -> VertexOutput {
         f32((in.index & 0x2u) >> 1u),
     );
 
-    out.clip_position = view.view_proj * affine2_to_square(mat3x2<f32>(
+    out.clip_position = vec4<f32>(vertex_position, 0.0, 1.0)
+     * transpose(affine2_to_square(mat3x2<f32>(
         in.i_model_row0,
         in.i_model_row1,
         in.i_model_row2,
-    )) * vec4<f32>(vertex_position, 0.0, 1.0);
+    ))) * transpose(view.view_proj);
 
     out.uv = vertex_position * in.i_uv_offset_scale.zw + in.i_uv_offset_scale.xy;
 
