@@ -15,7 +15,7 @@ use bevy::log::warn;
 use bevy::math::{Affine2, Rect, Vec2, Vec2Swizzles, Vec4};
 use bevy::prelude::{
     Color, Commands, Component, Entity, FromWorld, Image, IntoSystemConfigs, Local, Msaa, Query,
-    Res, ResMut, Resource, Shader, Without, World,
+    Res, ResMut, Resource, Shader, World,
 };
 use bevy::render::{
     mesh::PrimitiveTopology,
@@ -49,8 +49,7 @@ use bevy::utils::{syncunsafecell::SyncUnsafeCell, FloatOrd};
 use crate::asset::compressed_image::CompressedImage;
 use crate::level::color::ObjectColorCalculated;
 use crate::level::transform::GlobalTransform2d;
-use crate::level::trigger::Trigger;
-use crate::level::{object::Object, section::GlobalSections, LevelWorld};
+use crate::level::{object::Object, section::GlobalSections, LevelWorld, Options};
 
 #[derive(Default)]
 pub(crate) struct ObjectRenderPlugin;
@@ -372,7 +371,6 @@ pub(crate) struct ExtractSystemStateCache {
                     &'static ObjectColorCalculated,
                     &'static Handle<CompressedImage>,
                 ),
-                Without<Trigger>,
             >,
         )>,
     >,
@@ -382,6 +380,7 @@ pub(crate) fn extract_objects(
     mut extract_system_state_cache: ResMut<ExtractSystemStateCache>,
     mut extracted_layers: ResMut<ExtractedLayers>,
     level_world: Extract<Res<LevelWorld>>,
+    options: Extract<Res<Options>>,
 ) {
     let LevelWorld::World(world) = &**level_world else {
         // There's nothing to render
@@ -406,16 +405,13 @@ pub(crate) fn extract_objects(
 
             let system_state: SystemState<(
                 Res<GlobalSections>,
-                Query<
-                    (
-                        Entity,
-                        &GlobalTransform2d,
-                        &Object,
-                        &ObjectColorCalculated,
-                        &Handle<CompressedImage>,
-                    ),
-                    Without<Trigger>,
-                >,
+                Query<(
+                    Entity,
+                    &GlobalTransform2d,
+                    &Object,
+                    &ObjectColorCalculated,
+                    &Handle<CompressedImage>,
+                )>,
             )> = SystemState::new(world_mut);
 
             extract_system_state_cache.cached_system_state = Some(system_state);
@@ -437,6 +433,21 @@ pub(crate) fn extract_objects(
         for (entity, transform, object, object_color, image_handle) in objects.iter_many(section) {
             if !object_color.enabled {
                 continue;
+            }
+
+            if options.hide_triggers {
+                match object.id {
+                    29 | 30 | 31 | 32 | 33 | 34 | 104 | 105 | 221 | 717 | 718 | 743 | 744 | 900
+                    | 915 | 1006 | 1268 | 1347 | 1520 | 1585 | 1595 | 1611 | 1612 | 1613 | 1616
+                    | 1811 | 1812 | 1814 | 1815 | 1817 | 1818 | 1819 | 22 | 24 | 23 | 25 | 26
+                    | 27 | 28 | 55 | 56 | 57 | 58 | 59 | 1912 | 1913 | 1914 | 1916 | 1917
+                    | 1931 | 1932 | 1934 | 1935 | 2015 | 2016 | 2062 | 2067 | 2068 | 2701
+                    | 2702 | 1586 | 1700 | 1755 | 1813 | 1829 | 1859 | 899 | 901 | 1007 | 1049
+                    | 1346 => {
+                        continue;
+                    }
+                    _ => (),
+                }
             }
 
             let z_layer = object.z_layer - if object_color.blending { 1 } else { 0 };

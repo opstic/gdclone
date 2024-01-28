@@ -318,6 +318,7 @@ fn recursive_spawn_children(
 ) -> Result<(), anyhow::Error> {
     for child in children {
         let mut object = Object {
+            id: object_id,
             z_layer,
             ..default()
         };

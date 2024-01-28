@@ -304,11 +304,12 @@ fn spawn_level_world(
 }
 
 #[derive(Resource)]
-struct Options {
+pub(crate) struct Options {
     synchronize_cameras: bool,
     display_simulated_camera: bool,
     visible_sections_from_simulated: bool,
     show_lines: bool,
+    pub(crate) hide_triggers: bool,
 }
 
 impl Default for Options {
@@ -318,6 +319,7 @@ impl Default for Options {
             display_simulated_camera: false,
             visible_sections_from_simulated: false,
             show_lines: true,
+            hide_triggers: false,
         }
     }
 }
@@ -335,6 +337,9 @@ fn update_controls(
     }
     if keys.just_pressed(KeyCode::L) {
         options.show_lines = !options.show_lines;
+    }
+    if keys.just_pressed(KeyCode::T) {
+        options.hide_triggers = !options.hide_triggers;
     }
     for mut transform in transforms.iter_mut() {
         if !options.synchronize_cameras {
