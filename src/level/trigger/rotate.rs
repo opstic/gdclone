@@ -5,7 +5,7 @@ use bevy::ecs::system::SystemState;
 use bevy::prelude::{Entity, Query, Res, World};
 
 use crate::level::easing::Easing;
-use crate::level::group::{GlobalGroup, GlobalGroupDeltas, GlobalGroups};
+use crate::level::group::{GlobalGroup, GlobalGroupDeltas, GlobalGroups, RotationKind};
 use crate::level::trigger::TriggerFunction;
 
 #[derive(Clone, Debug, Default)]
@@ -68,9 +68,9 @@ impl TriggerFunction for RotateTrigger {
         let delta = (TAU * self.times360 + self.degrees) * amount;
 
         if let Some(center) = center {
-            global_group_delta.rotate_around = Some((center, delta, self.lock_rotation));
+            global_group_delta.rotation = RotationKind::Around(center, delta, self.lock_rotation);
         } else {
-            global_group_delta.rotation = delta;
+            global_group_delta.rotation = RotationKind::Angle(delta);
         }
     }
 

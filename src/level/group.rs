@@ -46,8 +46,18 @@ impl Default for GlobalGroup {
 #[derive(Default, Component)]
 pub(crate) struct GlobalGroupDeltas {
     pub(crate) translation_delta: Vec2,
-    pub(crate) rotate_around: Option<(Entity, f32, bool)>,
-    pub(crate) rotation: f32,
+    pub(crate) rotation: RotationKind,
+}
+
+pub(crate) enum RotationKind {
+    Around(Entity, f32, bool),
+    Angle(f32),
+}
+
+impl Default for RotationKind {
+    fn default() -> Self {
+        Self::Angle(0.)
+    }
 }
 
 #[derive(Component, Default)]
@@ -83,8 +93,7 @@ pub(crate) fn clear_group_delta(
     for mut global_group in &mut global_group_query {
         let global_group = global_group.bypass_change_detection();
         global_group.translation_delta = Vec2::ZERO;
-        global_group.rotate_around = None;
-        global_group.rotation = 0.;
+        global_group.rotation = RotationKind::Angle(0.);
     }
 }
 
@@ -97,24 +106,30 @@ pub(crate) fn apply_group_delta(
 
         let translation_delta = group_deltas.translation_delta.extend(0.);
 
+        let rotation = match group_deltas.rotation {
+            RotationKind::Angle(rotation) => rotation,
+            _ => 0.,
+        };
+
         while let Some(mut transform) = iter.fetch_next() {
             transform.translation += translation_delta;
-            transform.angle += group_deltas.rotation;
+            transform.angle += rotation;
         }
     }
 
     for (group, group_deltas) in &groups {
-        let Some((center_entity, rotation, lock_rotation)) = group_deltas.rotate_around else {
+        let RotationKind::Around(center_entity, rotation, lock_rotation) = group_deltas.rotation
+        else {
             continue;
         };
-
-        let cos_sin = Vec2::from_angle(rotation);
 
         let Ok(center_transform) = objects.get(center_entity) else {
             continue;
         };
 
         let center_transform = center_transform.translation.xy();
+
+        let cos_sin = Vec2::from_angle(rotation);
 
         let mut iter = objects.iter_many_mut(&group.root_entities);
 

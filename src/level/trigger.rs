@@ -158,9 +158,9 @@ pub(crate) trait TriggerFunction: Send + Sync + 'static {
 
     fn create_system_state(&self, world: &mut World) -> Box<dyn Any + Send + Sync>;
 
-    fn duration(&self) -> f32;
-
     fn target_id(&self) -> u64;
+
+    fn duration(&self) -> f32;
 
     fn exclusive(&self) -> bool;
 
