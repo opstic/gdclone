@@ -421,12 +421,10 @@ pub(crate) fn update_object_color(
                             };
 
                         // TODO: This will only work for one hour until overflow messes it up
-                        if !(color_channel_tick.get() > calculated.last_changed().get()
-                            || object_color.last_changed().get() > calculated.last_changed().get()
-                            || group_archetype.last_changed().get()
-                                > calculated.last_changed().get()
-                            || calculated.is_added())
-                        {
+                        let most_recent_change = color_channel_tick
+                            .get()
+                            .max(group_archetype.last_changed().get());
+                        if most_recent_change < calculated.last_changed().get() {
                             continue;
                         }
 
