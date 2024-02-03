@@ -480,7 +480,7 @@ impl HsvMod {
         let v_absolute = u8_to_bool(hsv_data[4]);
 
         Ok(HsvMod {
-            h: h.to_radians(),
+            h: h * (1. / 60.),
             s,
             v,
             s_absolute,
