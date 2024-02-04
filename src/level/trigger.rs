@@ -466,12 +466,21 @@ pub(crate) fn insert_trigger_data(
             let mut trigger = PulseTrigger::default();
             if let Some(fade_in_duration) = object_data.get(b"45".as_ref()) {
                 trigger.fade_in_duration = std::str::from_utf8(fade_in_duration)?.parse()?;
+                if trigger.fade_in_duration.is_sign_negative() {
+                    trigger.fade_in_duration = 0.;
+                }
             }
             if let Some(hold_duration) = object_data.get(b"46".as_ref()) {
                 trigger.hold_duration = std::str::from_utf8(hold_duration)?.parse()?;
+                if trigger.hold_duration.is_sign_negative() {
+                    trigger.hold_duration = 0.;
+                }
             }
             if let Some(fade_out_duration) = object_data.get(b"47".as_ref()) {
                 trigger.fade_out_duration = std::str::from_utf8(fade_out_duration)?.parse()?;
+                if trigger.fade_out_duration.is_sign_negative() {
+                    trigger.fade_out_duration = 0.;
+                }
             }
             if let Some(target_id) = object_data.get(b"51".as_ref()) {
                 trigger.target_id = std::str::from_utf8(target_id)?.parse()?;
@@ -643,7 +652,7 @@ pub(crate) fn construct_trigger_index(world: &mut World) {
         triggers_query.iter_many(world, sorted_triggers.iter().map(|(_, entity)| entity))
     {
         let trigger_start_pos = transform.translation.x;
-        let trigger_end_pos = if trigger.0.duration() > 0. {
+        let mut trigger_end_pos = if trigger.0.duration() > 0. {
             let start_pos_time = global_triggers
                 .speed_changes
                 .time_for_pos(transform.translation.x);
@@ -653,6 +662,10 @@ pub(crate) fn construct_trigger_index(world: &mut World) {
         } else {
             trigger_start_pos.next_after(f32::INFINITY)
         };
+
+        if trigger_start_pos >= trigger_end_pos {
+            trigger_end_pos = trigger_start_pos.next_after(f32::INFINITY);
+        }
 
         trigger_entities.push(entity);
         trigger_intervals.push(OrderedFloat(trigger_start_pos)..OrderedFloat(trigger_end_pos));
