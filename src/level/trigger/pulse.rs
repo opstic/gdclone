@@ -4,8 +4,7 @@ use bevy::ecs::system::SystemState;
 use bevy::prelude::{Color, Entity, Query, Res, World};
 
 use crate::level::color::{
-    ColorChannelCalculated, ColorMod, GlobalColorChannel, GlobalColorChannels, ObjectColorKind,
-    Pulses,
+    ColorChannelCalculated, ColorMod, GlobalColorChannels, ObjectColorKind, Pulses,
 };
 use crate::level::group::GlobalGroups;
 use crate::level::trigger::TriggerFunction;
@@ -28,7 +27,7 @@ type PulseTriggerSystemParam = (
     Res<'static, GlobalGroups>,
     Res<'static, GlobalColorChannels>,
     Query<'static, 'static, &'static mut Pulses>,
-    Query<'static, 'static, (&'static GlobalColorChannel, &'static ColorChannelCalculated)>,
+    Query<'static, 'static, &'static ColorChannelCalculated>,
 );
 
 impl TriggerFunction for PulseTrigger {
@@ -74,13 +73,14 @@ impl TriggerFunction for PulseTrigger {
                 if self.copied_color_id == 0 {
                     self.color_mod
                 } else if let Some(entity) = global_color_channels.0.get(&self.copied_color_id) {
-                    if let Ok((color_channel, calculated)) = color_channel_query.get(*entity) {
+                    if let Ok(calculated) = color_channel_query.get(*entity) {
                         if hsv.empty() {
-                            ColorMod::Color(calculated.color)
+                            return;
                         } else {
-                            let mut color = match color_channel {
-                                GlobalColorChannel::Base { color, .. } => *color,
-                                GlobalColorChannel::Copy { .. } => calculated.color,
+                            let mut color = if self.copied_color_id == self.target_id {
+                                calculated.pre_pulse_color
+                            } else {
+                                calculated.color
                             };
                             hsv.apply_rgb(&mut color);
                             ColorMod::Color(color)
