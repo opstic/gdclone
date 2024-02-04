@@ -450,7 +450,12 @@ pub(crate) fn extract_objects(
                 }
             }
 
-            let z_layer = object.z_layer - if object_color.blending { 1 } else { 0 };
+            let z_layer = object.z_layer
+                - if object_color.blending ^ (object.z_layer % 2 == 0) {
+                    1
+                } else {
+                    0
+                };
 
             let extracted_layer = if let Some((_, extracted_layer)) = extracted_layers
                 .layers
@@ -576,7 +581,7 @@ pub(crate) fn queue_objects(
             let entity_bits = 55555_u64 << 32 | (layer_index.to_u32() as u64);
             transparent_phase.add(Transparent2d {
                 draw_function: draw_object_function,
-                pipeline: if (layer_index.0 % 2).abs() == 0 {
+                pipeline: if layer_index.0 % 2 == 0 {
                     blending_pipeline
                 } else {
                     pipeline
