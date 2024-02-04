@@ -6,7 +6,7 @@ use bevy::prelude::{Entity, Query, Res, World};
 use crate::level::group::{GlobalGroup, GlobalGroups};
 use crate::level::trigger::TriggerFunction;
 
-#[derive(Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct ToggleTrigger {
     pub(crate) target_group: u64,
     pub(crate) activate: bool,
