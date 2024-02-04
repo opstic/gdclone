@@ -1,11 +1,11 @@
 use std::sync::Mutex;
 
 use bevy::ecs::query::{ReadOnlyWorldQuery, WorldQuery};
-use bevy::ecs::system::Command;
 use bevy::hierarchy::{BuildChildren, BuildWorldChildren, Children, Parent};
+use bevy::math::{Vec3, Vec4, Vec4Swizzles};
 use bevy::prelude::{
-    Color, Commands, Component, DetectChanges, Entity, Mut, Query, Ref, Res, ResMut, Resource,
-    With, Without, World,
+    Commands, Component, DetectChanges, Entity, Mut, Query, Ref, Res, ResMut, Resource, With,
+    Without, World,
 };
 use bevy::reflect::Reflect;
 use bevy::tasks::ComputeTaskPool;
@@ -15,7 +15,7 @@ use serde::Deserialize;
 
 use crate::level::group::{GroupArchetypeCalculated, ObjectGroups};
 use crate::level::{de, section::GlobalSections};
-use crate::utils::{hsv_to_rgb, lerp_color, rgb_to_hsv, u8_to_bool, U64Hash};
+use crate::utils::{hsv_to_rgb, rgb_to_hsv, u8_to_bool, U64Hash};
 
 #[derive(Default, Resource)]
 pub(crate) struct GlobalColorChannels(pub(crate) DashMap<u64, Entity, U64Hash>);
@@ -23,7 +23,7 @@ pub(crate) struct GlobalColorChannels(pub(crate) DashMap<u64, Entity, U64Hash>);
 #[derive(Component, Debug)]
 pub(crate) enum GlobalColorChannel {
     Base {
-        color: Color,
+        color: Vec4,
         blending: bool,
     },
     Copy {
@@ -78,18 +78,18 @@ impl GlobalColorChannel {
                 hsv,
             }
         } else {
-            let mut temp_color = Color::WHITE;
+            let mut temp_color = Vec4::ONE;
             if let Some(r) = color_data.get(b"1".as_ref()) {
-                temp_color.set_r(std::str::from_utf8(r)?.parse::<u8>()? as f32 / u8::MAX as f32);
+                temp_color[0] = std::str::from_utf8(r)?.parse::<u8>()? as f32 / u8::MAX as f32;
             }
             if let Some(g) = color_data.get(b"2".as_ref()) {
-                temp_color.set_g(std::str::from_utf8(g)?.parse::<u8>()? as f32 / u8::MAX as f32);
+                temp_color[1] = std::str::from_utf8(g)?.parse::<u8>()? as f32 / u8::MAX as f32;
             }
             if let Some(b) = color_data.get(b"3".as_ref()) {
-                temp_color.set_b(std::str::from_utf8(b)?.parse::<u8>()? as f32 / u8::MAX as f32);
+                temp_color[2] = std::str::from_utf8(b)?.parse::<u8>()? as f32 / u8::MAX as f32;
             }
             if let Some(opacity) = color_data.get(b"7".as_ref()) {
-                temp_color.set_a(std::str::from_utf8(opacity)?.parse()?);
+                temp_color[3] = std::str::from_utf8(opacity)?.parse()?;
             }
             let blending = if let Some(blending) = color_data.get(b"5".as_ref()) {
                 u8_to_bool(blending)
@@ -108,7 +108,7 @@ impl GlobalColorChannel {
 impl Default for GlobalColorChannel {
     fn default() -> Self {
         GlobalColorChannel::Base {
-            color: Color::WHITE,
+            color: Vec4::ONE,
             blending: false,
         }
     }
@@ -116,7 +116,7 @@ impl Default for GlobalColorChannel {
 
 #[derive(Component, Default)]
 pub(crate) struct Pulses {
-    pub(crate) pulses: Vec<(f32, ColorMod, ObjectColorKind, Entity)>,
+    pub(crate) pulses: Vec<(f32, ColorMod, ObjectColorKind)>,
 }
 
 pub(crate) fn clear_pulses(mut pulses: Query<&mut Pulses>) {
@@ -175,8 +175,8 @@ pub(crate) fn construct_color_channel_hierarchy(
 
 #[derive(Default, Component)]
 pub(crate) struct ColorChannelCalculated {
-    pub(crate) color: Color,
-    pub(crate) pre_pulse_color: Color,
+    pub(crate) color: Vec4,
+    pub(crate) pre_pulse_color: Vec4,
     pub(crate) blending: bool,
     deferred: bool,
 }
@@ -244,9 +244,15 @@ pub(crate) fn update_color_channel_calculated(
             if should_update {
                 calculated.pre_pulse_color = color;
                 calculated.color = color;
-                for (progress, color_mod, _, _) in &pulses.pulses {
-                    color_mod.apply(&mut calculated.color, *progress);
-                }
+
+                ColorMod::apply_color_mods(
+                    pulses
+                        .pulses
+                        .iter()
+                        .map(|(progress, color_mod, _)| (*progress, *color_mod)),
+                    &mut calculated.color,
+                );
+
                 calculated.blending = blending;
                 calculated.deferred = false;
             }
@@ -271,7 +277,7 @@ pub(crate) fn update_color_channel_calculated(
 unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery>(
     mutex: &Mutex<(Commands, &mut GlobalColorChannels)>,
     children: &Children,
-    parent_color: Color,
+    parent_color: Vec4,
     children_query: &'w Query<'w, 's, Q, F>,
     should_update: bool,
 ) where
@@ -317,17 +323,22 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
             calculated.pre_pulse_color = parent_color;
 
             if !copy_opacity {
-                calculated.pre_pulse_color.set_a(opacity);
+                calculated.pre_pulse_color[3] = opacity;
             }
 
             if let Some(hsv) = hsv {
-                hsv.apply_rgb(&mut calculated.pre_pulse_color);
+                hsv.apply_rgba(&mut calculated.pre_pulse_color);
             }
 
             calculated.color = calculated.pre_pulse_color;
-            for (progress, color_mod, _, _) in &pulses.pulses {
-                color_mod.apply(&mut calculated.color, *progress);
-            }
+
+            ColorMod::apply_color_mods(
+                pulses
+                    .pulses
+                    .iter()
+                    .map(|(progress, color_mod, _)| (*progress, *color_mod)),
+                &mut calculated.color,
+            );
 
             calculated.blending = blending;
             calculated.deferred = false;
@@ -372,7 +383,7 @@ impl Default for ObjectColor {
 
 #[derive(Component)]
 pub(crate) struct ObjectColorCalculated {
-    pub(crate) color: Color,
+    pub(crate) color: Vec4,
     pub(crate) blending: bool,
     pub(crate) enabled: bool,
 }
@@ -380,7 +391,7 @@ pub(crate) struct ObjectColorCalculated {
 impl Default for ObjectColorCalculated {
     fn default() -> Self {
         Self {
-            color: Color::WHITE,
+            color: Vec4::ONE,
             blending: false,
             enabled: true,
         }
@@ -465,36 +476,39 @@ pub(crate) fn update_object_color(
                                     color_channel_calculated.blending,
                                 )
                             })
-                            .unwrap_or((Color::WHITE, false));
+                            .unwrap_or((Vec4::ONE, false));
 
                         let alpha =
-                            group_archetype.opacity * object_color.object_opacity * color.a();
+                            group_archetype.opacity * object_color.object_opacity * color[3];
 
                         let mut color = match object_color.object_color_kind {
-                            ObjectColorKind::None => Color::WHITE.with_a(alpha),
-                            ObjectColorKind::Black => Color::BLACK.with_a(alpha),
-                            _ => color.with_a(alpha),
+                            ObjectColorKind::None => Vec4::ONE,
+                            ObjectColorKind::Black => Vec4::ZERO,
+                            _ => color,
                         };
 
-                        for (progress, color_mod, target_kind, _) in &pulses.pulses {
-                            if object_color.object_color_kind == ObjectColorKind::Black {
-                                continue;
-                            }
-                            if *target_kind != ObjectColorKind::None
-                                && !(*target_kind == ObjectColorKind::Base
-                                    && object_color.object_color_kind == ObjectColorKind::None)
-                                && *target_kind != object_color.object_color_kind
-                            {
-                                continue;
-                            }
-                            color_mod.apply(&mut color, *progress);
-                        }
+                        color[3] = alpha;
+
+                        let iter = pulses
+                            .pulses
+                            .iter()
+                            .filter(|(_, _, target_kind)| {
+                                object_color.object_color_kind != ObjectColorKind::Black
+                                    && !(*target_kind != ObjectColorKind::None
+                                        && !(*target_kind == ObjectColorKind::Base
+                                            && object_color.object_color_kind
+                                                == ObjectColorKind::None)
+                                        && *target_kind != object_color.object_color_kind)
+                            })
+                            .map(|(progress, color_mod, _)| (*progress, *color_mod));
+
+                        ColorMod::apply_color_mods(iter, &mut color);
 
                         match object_color.object_color_kind {
                             ObjectColorKind::None | ObjectColorKind::Black => (),
                             _ => {
                                 if let Some(hsv) = object_color.hsv {
-                                    hsv.apply_rgb(&mut color);
+                                    hsv.apply_rgba(&mut color);
                                 }
                             }
                         }
@@ -519,35 +533,47 @@ pub(crate) enum ObjectColorKind {
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) enum ColorMod {
-    Color(Color),
+    Color(Vec3),
     Hsv(HsvMod),
 }
 
 impl Default for ColorMod {
     fn default() -> Self {
-        Self::Color(Color::WHITE)
+        Self::Color(Vec3::ONE)
     }
 }
 
 impl ColorMod {
-    pub(crate) fn apply(&self, color: &mut Color, progress: f32) {
-        match self {
-            ColorMod::Color(target_color) => {
-                if progress == 1. {
-                    *color = target_color.with_a(color.a());
-                    return;
+    fn apply_color_mods<I>(mods: I, color: &mut Vec4)
+    where
+        I: IntoIterator<Item = (f32, Self)>,
+    {
+        let mut transforming_color = *color;
+        for (progress, color_mod) in mods {
+            match color_mod {
+                ColorMod::Color(color) => {
+                    if progress == 1. {
+                        transforming_color = color.extend(1.);
+                        continue;
+                    }
+                    transforming_color = transforming_color.lerp(color.extend(1.), progress);
                 }
-                *color = lerp_color(color, &target_color.with_a(color.a()), progress);
-            }
-            ColorMod::Hsv(hsv) => {
-                if hsv.empty() {
-                    return;
+                ColorMod::Hsv(hsv_mod) => {
+                    let mut target_color = transforming_color;
+                    hsv_mod.apply_rgba(&mut target_color);
+
+                    if progress == 1. {
+                        transforming_color = target_color;
+                        continue;
+                    }
+
+                    transforming_color = transforming_color.lerp(target_color, progress);
                 }
-                let mut applied_color = *color;
-                hsv.apply_rgb(&mut applied_color);
-                *color = lerp_color(color, &applied_color, progress);
             }
         }
+
+        transforming_color[3] = color[3];
+        *color = transforming_color;
     }
 }
 
@@ -588,13 +614,13 @@ impl HsvMod {
             && ((self.v == 1. && !self.v_absolute) || (self.v == 0. && self.v_absolute))
     }
 
-    pub(crate) fn apply_rgb(&self, color: &mut Color) {
+    pub(crate) fn apply_rgba(&self, color: &mut Vec4) {
         if self.empty() {
             return;
         }
 
-        let (h, s, v) = rgb_to_hsv([color.r(), color.g(), color.b()]);
-        let [r, g, b] = hsv_to_rgb((
+        let [h, s, v] = rgb_to_hsv(color.xyz().to_array());
+        let rgb = hsv_to_rgb([
             h + self.h,
             if self.s_absolute {
                 s + self.s
@@ -606,10 +632,9 @@ impl HsvMod {
             } else {
                 v * self.v
             },
-        ));
-        color.set_r(r);
-        color.set_g(g);
-        color.set_b(b);
+        ]);
+
+        *color = Vec3::from(rgb).extend(color[3])
     }
 }
 

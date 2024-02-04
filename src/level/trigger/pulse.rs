@@ -1,7 +1,8 @@
 use std::any::Any;
 
 use bevy::ecs::system::SystemState;
-use bevy::prelude::{Color, Entity, Query, Res, World};
+use bevy::math::{Vec3, Vec4Swizzles};
+use bevy::prelude::{Entity, Query, Res, World};
 
 use crate::level::color::{
     ColorChannelCalculated, ColorMod, GlobalColorChannels, ObjectColorKind, Pulses,
@@ -34,7 +35,7 @@ impl TriggerFunction for PulseTrigger {
     fn execute(
         &self,
         world: &mut World,
-        entity: Entity,
+        _: Entity,
         system_state: &mut Box<dyn Any + Send + Sync>,
         _: f32,
         progress: f32,
@@ -82,14 +83,14 @@ impl TriggerFunction for PulseTrigger {
                             } else {
                                 calculated.color
                             };
-                            hsv.apply_rgb(&mut color);
-                            ColorMod::Color(color)
+                            hsv.apply_rgba(&mut color);
+                            ColorMod::Color(color.xyz())
                         }
                     } else {
                         self.color_mod
                     }
                 } else {
-                    ColorMod::Color(Color::WHITE)
+                    ColorMod::Color(Vec3::ONE)
                 }
             }
         };
@@ -105,18 +106,17 @@ impl TriggerFunction for PulseTrigger {
         if progress <= fade_in {
             target_pulses
                 .pulses
-                .push((progress / fade_in, final_mod, target_object_kind, entity))
+                .push((progress / fade_in, final_mod, target_object_kind))
         } else if progress <= fade_in + hold {
             target_pulses.pulses.clear();
             target_pulses
                 .pulses
-                .push((1., final_mod, target_object_kind, entity));
+                .push((1., final_mod, target_object_kind));
         } else if progress <= fade_in + hold + fade_out {
             target_pulses.pulses.push((
                 1. - (progress - fade_in - hold) / fade_out,
                 final_mod,
                 target_object_kind,
-                entity,
             ))
         }
     }

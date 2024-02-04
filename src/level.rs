@@ -8,7 +8,7 @@ use bevy::asset::{AssetServer, LoadState};
 use bevy::core::FrameCountPlugin;
 use bevy::input::Input;
 use bevy::log::{info, warn};
-use bevy::math::Vec2;
+use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{
     Camera, ClearColor, Commands, Gizmos, IntoSystemConfigs, KeyCode, Local, Mut,
     OrthographicProjection, Query, Res, ResMut, Resource, Time, Transform, With, World,
@@ -196,7 +196,7 @@ fn spawn_level_world(
             world
                 .spawn((
                     GlobalColorChannel::Base {
-                        color: Color::BLACK,
+                        color: Vec3::ZERO.extend(1.),
                         blending: false,
                     },
                     ColorChannelCalculated::default(),
@@ -484,7 +484,7 @@ fn update_level_world(
                 if let Some(entity) = global_color_channels.0.get(&1000) {
                     let mut query = world.query::<&ColorChannelCalculated>();
                     if let Ok(calculated) = query.get(world, *entity) {
-                        commands.insert_resource(ClearColor(calculated.color));
+                        commands.insert_resource(ClearColor(Color::from(calculated.color)));
                     }
                 }
             });

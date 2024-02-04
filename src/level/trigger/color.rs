@@ -1,20 +1,21 @@
 use std::any::Any;
 
 use bevy::ecs::system::SystemState;
-use bevy::prelude::{Color, Entity, Mut, Query, World};
+use bevy::math::Vec4;
+use bevy::prelude::{Entity, Mut, Query, World};
 
 use crate::level::color::{
     ColorChannelCalculated, GlobalColorChannel, GlobalColorChannels, HsvMod,
 };
 use crate::level::trigger::TriggerFunction;
-use crate::utils::{lerp_color, lerp_start_color};
+use crate::utils::lerp_start_vec4;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ColorTrigger {
     pub(crate) duration: f32,
     pub(crate) target_channel: u64,
     pub(crate) copied_channel: u64,
-    pub(crate) target_color: Color,
+    pub(crate) target_color: Vec4,
     pub(crate) copied_hsv: Option<HsvMod>,
     pub(crate) copy_opacity: bool,
     pub(crate) target_blending: bool,
@@ -97,7 +98,7 @@ impl TriggerFunction for ColorTrigger {
                 *color_channel = GlobalColorChannel::Copy {
                     copied_index: self.copied_channel,
                     copy_opacity: self.copy_opacity,
-                    opacity: self.target_color.a(),
+                    opacity: self.target_color[3],
                     blending: self.target_blending,
                     hsv: self.copied_hsv,
                 }
@@ -114,21 +115,18 @@ impl TriggerFunction for ColorTrigger {
         let target_color = if let Some((_, target_color)) = parent_data {
             let mut target_color = target_color;
             if let Some(hsv) = self.copied_hsv {
-                hsv.apply_rgb(&mut target_color);
+                hsv.apply_rgba(&mut target_color);
             }
             target_color
         } else {
             self.target_color
         };
 
-        let original_color = lerp_start_color(
-            &calculated.pre_pulse_color,
-            &target_color,
-            previous_progress,
-        );
+        let original_color =
+            lerp_start_vec4(calculated.pre_pulse_color, target_color, previous_progress);
 
         *color_channel = GlobalColorChannel::Base {
-            color: lerp_color(&original_color, &target_color, progress),
+            color: original_color.lerp(target_color, progress),
             blending: self.target_blending,
         };
     }

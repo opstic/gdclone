@@ -1,9 +1,8 @@
 use std::any::{Any, TypeId};
 
 use bevy::ecs::system::SystemState;
-use bevy::prelude::{
-    Color, Component, Entity, EntityWorldMut, Mut, Query, ResMut, Resource, With, World,
-};
+use bevy::math::Vec3;
+use bevy::prelude::{Component, Entity, EntityWorldMut, Mut, Query, ResMut, Resource, With, World};
 use bevy::utils::syncunsafecell::SyncUnsafeCell;
 use bevy::utils::{default, hashbrown, HashMap as AHashMap};
 use float_next_after::NextAfter;
@@ -395,24 +394,19 @@ pub(crate) fn insert_trigger_data(
                 trigger.target_channel = 1;
             }
             if let Some(r) = object_data.get(b"7".as_ref()) {
-                trigger
-                    .target_color
-                    .set_r(std::str::from_utf8(r)?.parse::<u8>()? as f32 / u8::MAX as f32);
+                trigger.target_color[0] =
+                    std::str::from_utf8(r)?.parse::<u8>()? as f32 / u8::MAX as f32;
             }
             if let Some(g) = object_data.get(b"8".as_ref()) {
-                trigger
-                    .target_color
-                    .set_g(std::str::from_utf8(g)?.parse::<u8>()? as f32 / u8::MAX as f32);
+                trigger.target_color[1] =
+                    std::str::from_utf8(g)?.parse::<u8>()? as f32 / u8::MAX as f32;
             }
             if let Some(b) = object_data.get(b"9".as_ref()) {
-                trigger
-                    .target_color
-                    .set_b(std::str::from_utf8(b)?.parse::<u8>()? as f32 / u8::MAX as f32);
+                trigger.target_color[2] =
+                    std::str::from_utf8(b)?.parse::<u8>()? as f32 / u8::MAX as f32;
             }
             if let Some(opacity) = object_data.get(b"35".as_ref()) {
-                trigger
-                    .target_color
-                    .set_a(std::str::from_utf8(opacity)?.parse()?);
+                trigger.target_color[3] = std::str::from_utf8(opacity)?.parse()?;
             }
             if let Some(blending) = object_data.get(b"17".as_ref()) {
                 trigger.target_blending = u8_to_bool(blending);
@@ -505,15 +499,15 @@ pub(crate) fn insert_trigger_data(
                 }
                 trigger.color_mod = ColorMod::Hsv(hsv);
             } else {
-                let mut color = Color::WHITE;
+                let mut color = Vec3::ONE;
                 if let Some(r) = object_data.get(b"7".as_ref()) {
-                    color.set_r(std::str::from_utf8(r)?.parse::<u8>()? as f32 / u8::MAX as f32);
+                    color[0] = std::str::from_utf8(r)?.parse::<u8>()? as f32 / u8::MAX as f32;
                 }
                 if let Some(g) = object_data.get(b"8".as_ref()) {
-                    color.set_g(std::str::from_utf8(g)?.parse::<u8>()? as f32 / u8::MAX as f32);
+                    color[1] = std::str::from_utf8(g)?.parse::<u8>()? as f32 / u8::MAX as f32;
                 }
                 if let Some(b) = object_data.get(b"9".as_ref()) {
-                    color.set_b(std::str::from_utf8(b)?.parse::<u8>()? as f32 / u8::MAX as f32);
+                    color[2] = std::str::from_utf8(b)?.parse::<u8>()? as f32 / u8::MAX as f32;
                 }
                 trigger.color_mod = ColorMod::Color(color);
             }

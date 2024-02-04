@@ -1,7 +1,7 @@
 use std::hash::BuildHasher;
 
 use bevy::log::{info, warn};
-use bevy::prelude::Color;
+use bevy::math::Vec4;
 use bevy::tasks::AsyncComputeTaskPool;
 use bevy::utils::EntityHasher;
 use libdeflater::Decompressor;
@@ -21,39 +21,24 @@ impl BuildHasher for U64Hash {
     }
 }
 
-#[inline(always)]
+#[inline]
 pub(crate) const fn u8_to_bool(byte: &[u8]) -> bool {
     matches!(byte, b"1")
 }
 
-#[inline(always)]
+#[inline]
 pub(crate) fn lerp(start: f32, end: f32, x: f32) -> f32 {
     start + (end - start) * x
 }
 
-#[inline(always)]
+#[inline]
 pub(crate) fn lerp_start(current: f32, end: f32, x: f32) -> f32 {
     (current - end * x) / (1. - x)
 }
 
-#[inline(always)]
-pub(crate) fn lerp_color(start: &Color, end: &Color, x: f32) -> Color {
-    Color::rgba(
-        lerp(start.r(), end.r(), x),
-        lerp(start.g(), end.g(), x),
-        lerp(start.b(), end.b(), x),
-        lerp(start.a(), end.a(), x),
-    )
-}
-
-#[inline(always)]
-pub(crate) fn lerp_start_color(current: &Color, end: &Color, x: f32) -> Color {
-    Color::rgba(
-        lerp_start(current.r(), end.r(), x),
-        lerp_start(current.g(), end.g(), x),
-        lerp_start(current.b(), end.b(), x),
-        lerp_start(current.a(), end.a(), x),
-    )
+#[inline]
+pub(crate) fn lerp_start_vec4(current: Vec4, end: Vec4, x: f32) -> Vec4 {
+    (current - end * x) / (1. - x)
 }
 
 #[inline(always)]
@@ -62,8 +47,8 @@ pub(crate) const fn fast_scale(val: u8, x: u8) -> u8 {
     (((r1 >> 8) + r1) >> 8) as u8
 }
 
-#[inline(always)]
-pub(crate) fn rgb_to_hsv([r, g, b]: [f32; 3]) -> (f32, f32, f32) {
+#[inline]
+pub(crate) fn rgb_to_hsv([r, g, b]: [f32; 3]) -> [f32; 3] {
     let min = r.min(g).min(b);
     let max = r.max(g).max(b);
 
@@ -82,11 +67,11 @@ pub(crate) fn rgb_to_hsv([r, g, b]: [f32; 3]) -> (f32, f32, f32) {
 
     h = h.rem_euclid(6.);
 
-    (h, if max == 0. { 0. } else { delta / max }, max)
+    [h, if max == 0. { 0. } else { delta / max }, max]
 }
 
-#[inline(always)]
-pub(crate) fn hsv_to_rgb((h, s, v): (f32, f32, f32)) -> [f32; 3] {
+#[inline]
+pub(crate) fn hsv_to_rgb([h, s, v]: [f32; 3]) -> [f32; 3] {
     if h.is_nan() {
         return [v, v, v];
     }

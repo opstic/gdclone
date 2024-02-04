@@ -14,8 +14,8 @@ use bevy::ecs::system::{
 use bevy::log::warn;
 use bevy::math::{Affine2, Rect, Vec2, Vec2Swizzles, Vec4};
 use bevy::prelude::{
-    Color, Commands, Component, Entity, FromWorld, Image, IntoSystemConfigs, Local, Msaa, Query,
-    Res, ResMut, Resource, Shader, World,
+    Commands, Component, Entity, FromWorld, Image, IntoSystemConfigs, Local, Msaa, Query, Res,
+    ResMut, Resource, Shader, World,
 };
 use bevy::render::{
     mesh::PrimitiveTopology,
@@ -220,9 +220,9 @@ bitflags::bitflags! {
     // MSAA uses the highest 3 bits for the MSAA log2(sample count) to support up to 128x MSAA.
     pub struct ObjectPipelineKey: u32 {
         const NONE                              = 0;
-        const SQUARE_TEXTURE_ALPHA              = (1 << 0);
-        const ADDITIVE_BLENDING                 = (1 << 1);
-        const NO_TEXTURE_ARRAY                  = (1 << 2);
+        const SQUARE_TEXTURE_ALPHA              = 1 << 0;
+        const ADDITIVE_BLENDING                 = 1 << 1;
+        const NO_TEXTURE_ARRAY                  = 1 << 2;
         const MSAA_RESERVED_BITS                = Self::MSAA_MASK_BITS << Self::MSAA_SHIFT_BITS;
     }
 }
@@ -322,7 +322,7 @@ impl SpecializedRenderPipeline for ObjectPipeline {
 #[derive(Copy, Clone)]
 pub struct ExtractedObject {
     transform: GlobalTransform2d,
-    color: Color,
+    color: Vec4,
     /// Select an area of the texture
     rect: Option<Rect>,
     /// Change the on-screen size of the sprite
@@ -345,7 +345,7 @@ impl LayerIndex {
         Self(unsafe { std::mem::transmute(value) })
     }
 
-    fn to_u32(&self) -> u32 {
+    fn to_u32(self) -> u32 {
         unsafe { std::mem::transmute(self.0) }
     }
 }
@@ -499,19 +499,14 @@ struct ObjectInstance {
 
 impl ObjectInstance {
     #[inline]
-    fn from(
-        transform: &Affine2,
-        color: [f32; 4],
-        uv_offset_scale: &Vec4,
-        texture_index: u32,
-    ) -> Self {
+    fn from(transform: &Affine2, color: Vec4, uv_offset_scale: &Vec4, texture_index: u32) -> Self {
         Self {
             i_model: [
                 transform.matrix2.x_axis,
                 transform.matrix2.y_axis,
                 transform.translation.xy(),
             ],
-            i_color: color,
+            i_color: color.to_array(),
             i_uv_offset_scale: uv_offset_scale.to_array(),
             i_texture_index: texture_index,
         }
@@ -803,7 +798,7 @@ pub(crate) fn prepare_objects(
                         // Store the vertex data and add the item to the render phase
                         *buffer_entry = ObjectInstance::from(
                             &transform,
-                            extracted_object.color.as_rgba_f32(),
+                            extracted_object.color,
                             &uv_offset_scale,
                             texture_index as u32,
                         );
