@@ -1,12 +1,13 @@
 use bevy::hierarchy::Parent;
 use bevy::math::{Vec2, Vec3Swizzles};
 use bevy::prelude::{
-    Changed, Component, DetectChangesMut, Entity, Query, Resource, Without, World,
+    Changed, Component, DetectChangesMut, Entity, Or, Query, Resource, Without, World,
 };
 use bevy::utils::default;
 use indexmap::IndexMap;
 use smallvec::SmallVec;
 
+use crate::level::color::Pulses;
 use crate::level::transform::Transform2d;
 use crate::level::trigger::Trigger;
 use crate::utils::U64Hash;
@@ -167,6 +168,7 @@ pub(crate) fn spawn_groups(
                     ..default()
                 },
                 GroupArchetypeCalculated::default(),
+                Pulses::default(),
             ))
             .id();
 
@@ -201,6 +203,7 @@ pub(crate) fn spawn_groups(
                     ..default()
                 },
                 GlobalGroupDeltas::default(),
+                Pulses::default(),
             ))
             .id();
 
@@ -217,13 +220,28 @@ pub(crate) fn spawn_groups(
 }
 
 pub(crate) fn update_group_archetype(
-    mut group_archetypes: Query<(&mut GroupArchetype, &mut GroupArchetypeCalculated)>,
-    groups: Query<&GlobalGroup, Changed<GlobalGroup>>,
+    mut group_archetypes: Query<(
+        &mut GroupArchetype,
+        &mut GroupArchetypeCalculated,
+        &mut Pulses,
+    )>,
+    groups: Query<
+        (&GlobalGroup, &Pulses),
+        (
+            Or<(Changed<GlobalGroup>, Changed<Pulses>)>,
+            Without<GroupArchetype>,
+        ),
+    >,
 ) {
-    for global_group in &groups {
+    for (global_group, group_pulses) in &groups {
         let mut iter = group_archetypes.iter_many_mut(&global_group.archetypes);
 
-        while let Some((mut group_archetype, mut group_archetype_calculated)) = iter.fetch_next() {
+        while let Some((
+            mut group_archetype,
+            mut group_archetype_calculated,
+            mut group_archetype_pulses,
+        )) = iter.fetch_next()
+        {
             let Some((_, group_opacity, group_enabled)) = group_archetype
                 .groups
                 .iter_mut()
@@ -239,6 +257,18 @@ pub(crate) fn update_group_archetype(
             } else {
                 group_archetype.want_to_enable = true;
             }
+
+            if group_pulses.pulses.is_empty() {
+                continue;
+            }
+
+            if group_pulses.pulses[0].0 == 1. {
+                group_archetype_pulses.pulses.clear();
+            }
+
+            group_archetype_pulses
+                .pulses
+                .extend_from_slice(&group_pulses.pulses)
         }
     }
 }

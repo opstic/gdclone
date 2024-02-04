@@ -1,7 +1,9 @@
 use std::any::{Any, TypeId};
 
 use bevy::ecs::system::SystemState;
-use bevy::prelude::{Component, Entity, EntityWorldMut, Mut, Query, ResMut, Resource, With, World};
+use bevy::prelude::{
+    Color, Component, Entity, EntityWorldMut, Mut, Query, ResMut, Resource, With, World,
+};
 use bevy::utils::syncunsafecell::SyncUnsafeCell;
 use bevy::utils::{default, hashbrown, HashMap as AHashMap};
 use float_next_after::NextAfter;
@@ -10,13 +12,13 @@ use nested_intervals::IntervalSetGeneric;
 use ordered_float::OrderedFloat;
 
 // use bevy::log::info_span;
-use crate::level::color::{HsvMod, ObjectColorCalculated};
+use crate::level::color::{ColorMod, HsvMod, ObjectColorCalculated};
 use crate::level::easing::Easing;
 use crate::level::player::Player;
 use crate::level::transform::Transform2d;
 use crate::level::trigger::alpha::AlphaTrigger;
 use crate::level::trigger::color::ColorTrigger;
-use crate::level::trigger::empty::EmptyTrigger;
+use crate::level::trigger::pulse::PulseTrigger;
 use crate::level::trigger::r#move::MoveTrigger;
 use crate::level::trigger::rotate::RotateTrigger;
 use crate::level::trigger::toggle::ToggleTrigger;
@@ -26,6 +28,7 @@ mod alpha;
 mod color;
 mod empty;
 mod r#move;
+mod pulse;
 mod rotate;
 mod toggle;
 
@@ -459,6 +462,63 @@ pub(crate) fn insert_trigger_data(
             }
             entity_world_mut.insert(Trigger(Box::new(trigger)));
         }
+        1006 => {
+            let mut trigger = PulseTrigger::default();
+            if let Some(fade_in_duration) = object_data.get(b"45".as_ref()) {
+                trigger.fade_in_duration = std::str::from_utf8(fade_in_duration)?.parse()?;
+            }
+            if let Some(hold_duration) = object_data.get(b"46".as_ref()) {
+                trigger.hold_duration = std::str::from_utf8(hold_duration)?.parse()?;
+            }
+            if let Some(fade_out_duration) = object_data.get(b"47".as_ref()) {
+                trigger.fade_out_duration = std::str::from_utf8(fade_out_duration)?.parse()?;
+            }
+            if let Some(target_id) = object_data.get(b"51".as_ref()) {
+                trigger.target_id = std::str::from_utf8(target_id)?.parse()?;
+            }
+            if let Some(target_group) = object_data.get(b"52".as_ref()) {
+                trigger.target_is_group = u8_to_bool(target_group);
+            }
+            let mut mod_mode = false;
+            if let Some(hsv_mode) = object_data.get(b"48".as_ref()) {
+                mod_mode = u8_to_bool(hsv_mode);
+            }
+            if mod_mode {
+                let mut hsv = HsvMod::default();
+                if let Some(targer_hsv) = object_data.get(b"49".as_ref()) {
+                    hsv = HsvMod::parse(targer_hsv)?;
+                }
+                if let Some(color_id) = object_data.get(b"50".as_ref()) {
+                    trigger.copied_color_id = std::str::from_utf8(color_id)?.parse()?;
+                }
+                if !trigger.target_is_group && trigger.copied_color_id == 0 {
+                    trigger.copied_color_id = trigger.target_id;
+                }
+                trigger.color_mod = ColorMod::Hsv(hsv);
+            } else {
+                let mut color = Color::WHITE;
+                if let Some(r) = object_data.get(b"7".as_ref()) {
+                    color.set_r(std::str::from_utf8(r)?.parse::<u8>()? as f32 / u8::MAX as f32);
+                }
+                if let Some(g) = object_data.get(b"8".as_ref()) {
+                    color.set_g(std::str::from_utf8(g)?.parse::<u8>()? as f32 / u8::MAX as f32);
+                }
+                if let Some(b) = object_data.get(b"9".as_ref()) {
+                    color.set_b(std::str::from_utf8(b)?.parse::<u8>()? as f32 / u8::MAX as f32);
+                }
+                trigger.color_mod = ColorMod::Color(color);
+            }
+            if let Some(base_only) = object_data.get(b"65".as_ref()) {
+                trigger.base_only = u8_to_bool(base_only);
+            }
+            if let Some(detail_only) = object_data.get(b"66".as_ref()) {
+                trigger.detail_only = u8_to_bool(detail_only);
+            }
+            if let Some(exclusive) = object_data.get(b"86".as_ref()) {
+                trigger.exclusive = u8_to_bool(exclusive);
+            }
+            entity_world_mut.insert(Trigger(Box::new(trigger)));
+        }
         1007 => {
             let mut trigger = AlphaTrigger::default();
             if let Some(duration) = object_data.get(b"10".as_ref()) {
@@ -518,13 +578,6 @@ pub(crate) fn insert_trigger_data(
                 trigger.lock_rotation = u8_to_bool(lock_rotation);
             }
             entity_world_mut.insert(Trigger(Box::new(trigger)));
-        }
-        29 | 30 | 31 | 32 | 33 | 34 | 104 | 105 | 221 | 717 | 718 | 743 | 744 | 900 | 915
-        | 1006 | 1268 | 1347 | 1520 | 1585 | 1595 | 1611 | 1612 | 1613 | 1616 | 1811 | 1812
-        | 1814 | 1815 | 1817 | 1818 | 1819 | 22 | 24 | 23 | 25 | 26 | 27 | 28 | 55 | 56 | 57
-        | 58 | 59 | 1912 | 1913 | 1914 | 1916 | 1917 | 1931 | 1932 | 1934 | 1935 | 2015 | 2016
-        | 2062 | 2067 | 2068 | 2701 | 2702 | 1586 | 1700 | 1755 | 1813 | 1829 | 1859 => {
-            entity_world_mut.insert(Trigger(Box::<EmptyTrigger>::default()));
         }
         _ => return Ok(()),
     }

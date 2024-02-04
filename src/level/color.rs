@@ -1,13 +1,11 @@
 use std::sync::Mutex;
 
-use bevy::ecs::{
-    component::Tick,
-    query::{ReadOnlyWorldQuery, WorldQuery},
-};
+use bevy::ecs::query::{ReadOnlyWorldQuery, WorldQuery};
+use bevy::ecs::system::Command;
 use bevy::hierarchy::{BuildChildren, BuildWorldChildren, Children, Parent};
 use bevy::prelude::{
-    Color, Commands, Component, DetectChanges, DetectChangesMut, Entity, Mut, Query, Ref, Res,
-    ResMut, Resource, With, Without, World,
+    Color, Commands, Component, DetectChanges, Entity, Mut, Query, Ref, Res, ResMut, Resource,
+    With, Without, World,
 };
 use bevy::reflect::Reflect;
 use bevy::tasks::ComputeTaskPool;
@@ -17,7 +15,7 @@ use serde::Deserialize;
 
 use crate::level::group::{GroupArchetypeCalculated, ObjectGroups};
 use crate::level::{de, section::GlobalSections};
-use crate::utils::{hsv_to_rgb, rgb_to_hsv, u8_to_bool, U64Hash};
+use crate::utils::{hsv_to_rgb, lerp_color, rgb_to_hsv, u8_to_bool, U64Hash};
 
 #[derive(Default, Resource)]
 pub(crate) struct GlobalColorChannels(pub(crate) DashMap<u64, Entity, U64Hash>);
@@ -116,6 +114,19 @@ impl Default for GlobalColorChannel {
     }
 }
 
+#[derive(Component, Default)]
+pub(crate) struct Pulses {
+    pub(crate) pulses: Vec<(f32, ColorMod, ObjectColorKind, Entity)>,
+}
+
+pub(crate) fn clear_pulses(mut pulses: Query<&mut Pulses>) {
+    for mut pulses in &mut pulses {
+        if !pulses.pulses.is_empty() {
+            pulses.pulses.clear();
+        }
+    }
+}
+
 pub(crate) fn construct_color_channel_hierarchy(
     world: &mut World,
     global_color_channels: &mut GlobalColorChannels,
@@ -151,6 +162,7 @@ pub(crate) fn construct_color_channel_hierarchy(
         let mut blank_color_channel_entity = world.spawn((
             GlobalColorChannel::default(),
             ColorChannelCalculated::default(),
+            Pulses::default(),
         ));
         for entity in dependent_entities {
             blank_color_channel_entity.add_child(entity);
@@ -164,6 +176,7 @@ pub(crate) fn construct_color_channel_hierarchy(
 #[derive(Default, Component)]
 pub(crate) struct ColorChannelCalculated {
     pub(crate) color: Color,
+    pub(crate) pre_pulse_color: Color,
     pub(crate) blending: bool,
     deferred: bool,
 }
@@ -175,6 +188,7 @@ pub(crate) fn update_color_channel_calculated(
         (
             Entity,
             Ref<GlobalColorChannel>,
+            Ref<Pulses>,
             &mut ColorChannelCalculated,
             Option<&Children>,
         ),
@@ -184,6 +198,7 @@ pub(crate) fn update_color_channel_calculated(
         (
             Entity,
             Ref<GlobalColorChannel>,
+            Ref<Pulses>,
             &mut ColorChannelCalculated,
             Option<&Children>,
         ),
@@ -193,8 +208,9 @@ pub(crate) fn update_color_channel_calculated(
     let mutex = Mutex::new((commands, &mut *global_color_channels));
 
     root_color_channels.par_iter_mut().for_each(
-        |(entity, color_channel, mut calculated, children)| {
-            let should_update = color_channel.is_changed() || calculated.deferred;
+        |(entity, color_channel, pulses, mut calculated, children)| {
+            let should_update =
+                color_channel.is_changed() || calculated.deferred || pulses.is_changed();
 
             let (color, blending) = match *color_channel {
                 GlobalColorChannel::Base { color, blending } => (color, blending),
@@ -226,7 +242,11 @@ pub(crate) fn update_color_channel_calculated(
             };
 
             if should_update {
+                calculated.pre_pulse_color = color;
                 calculated.color = color;
+                for (progress, color_mod, _, _) in &pulses.pulses {
+                    color_mod.apply(&mut calculated.color, *progress);
+                }
                 calculated.blending = blending;
                 calculated.deferred = false;
             }
@@ -259,19 +279,23 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
         Item<'w> = (
             Entity,
             Ref<'w, GlobalColorChannel>,
+            Ref<'w, Pulses>,
             Mut<'w, ColorChannelCalculated>,
             Option<&'w Children>,
         ),
     >,
 {
     for child in children {
-        let Ok((entity, color_channel, mut calculated, children)) =
+        let Ok((entity, color_channel, pulses, mut calculated, children)) =
             children_query.get_unchecked(*child)
         else {
             continue;
         };
 
-        let should_update = should_update || color_channel.is_changed() || calculated.deferred;
+        let should_update = should_update
+            || color_channel.is_changed()
+            || calculated.deferred
+            || pulses.is_changed();
 
         let GlobalColorChannel::Copy {
             copy_opacity,
@@ -290,16 +314,21 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
         };
 
         if should_update {
-            let mut temp_color = parent_color;
+            calculated.pre_pulse_color = parent_color;
+
             if !copy_opacity {
-                temp_color.set_a(opacity);
+                calculated.pre_pulse_color.set_a(opacity);
             }
 
             if let Some(hsv) = hsv {
-                hsv.apply_rgb(&mut temp_color);
+                hsv.apply_rgb(&mut calculated.pre_pulse_color);
             }
 
-            calculated.color = temp_color;
+            calculated.color = calculated.pre_pulse_color;
+            for (progress, color_mod, _, _) in &pulses.pulses {
+                color_mod.apply(&mut calculated.color, *progress);
+            }
+
             calculated.blending = blending;
             calculated.deferred = false;
         }
@@ -360,8 +389,7 @@ impl Default for ObjectColorCalculated {
 
 pub(crate) fn update_object_color(
     global_sections: Res<GlobalSections>,
-    global_color_channels: Res<GlobalColorChannels>,
-    group_archetypes: Query<Ref<GroupArchetypeCalculated>>,
+    group_archetypes: Query<(Ref<GroupArchetypeCalculated>, &Pulses)>,
     objects: Query<(&ObjectGroups, &mut ObjectColor, &mut ObjectColorCalculated)>,
     color_channels: Query<Ref<ColorChannelCalculated>>,
 ) {
@@ -373,7 +401,6 @@ pub(crate) fn update_object_color(
 
     let objects = &objects;
     let color_channels = &color_channels;
-    let global_color_channels = &global_color_channels;
     let group_archetypes = &group_archetypes;
 
     compute_task_pool.scope(|scope| {
@@ -381,67 +408,96 @@ pub(crate) fn update_object_color(
             scope.spawn(async move {
                 for section in thread_chunk {
                     let mut iter = unsafe { objects.iter_many_unsafe(section) };
-                    while let Some((object_groups, mut object_color, mut calculated)) =
+                    while let Some((object_groups, object_color, mut calculated)) =
                         iter.fetch_next()
                     {
-                        let group_archetype = group_archetypes
+                        let (group_archetype, pulses) = group_archetypes
                             .get(object_groups.archetype_entity)
                             .unwrap();
 
-                        if !group_archetype.enabled {
-                            calculated.bypass_change_detection().enabled = false;
-                            continue;
-                        }
-                        calculated.bypass_change_detection().enabled = true;
+                        // if !group_archetype.enabled {
+                        //     calculated.bypass_change_detection().enabled = false;
+                        //     continue;
+                        // }
+                        // calculated.bypass_change_detection().enabled = true;
 
-                        let (mut color_channel_color, blending, color_channel_tick) =
-                            if let Ok(color_channel_calculated) =
-                                color_channels.get(object_color.channel_entity)
-                            {
+                        // let (mut color_channel_color, blending, color_channel_tick) =
+                        //     if let Ok(color_channel_calculated) =
+                        //         color_channels.get(object_color.channel_entity)
+                        //     {
+                        //         (
+                        //             color_channel_calculated.color,
+                        //             color_channel_calculated.blending,
+                        //             color_channel_calculated.last_changed(),
+                        //         )
+                        //     } else if let Some(entity) =
+                        //         global_color_channels.0.get(&object_color.channel_id)
+                        //     {
+                        //         object_color.channel_entity = *entity;
+                        //         if let Ok(color_channel_calculated) = color_channels.get(*entity) {
+                        //             (
+                        //                 color_channel_calculated.color,
+                        //                 color_channel_calculated.blending,
+                        //                 color_channel_calculated.last_changed(),
+                        //             )
+                        //         } else {
+                        //             (Color::WHITE, false, Tick::new(0))
+                        //         }
+                        //     } else {
+                        //         (Color::WHITE, false, Tick::new(0))
+                        //     };
+                        //
+                        // // TODO: This will only work for one hour until overflow messes it up
+                        // let most_recent_change = color_channel_tick
+                        //     .get()
+                        //     .max(group_archetype.last_changed().get());
+                        // if most_recent_change < calculated.last_changed().get() {
+                        //     continue;
+                        // }
+
+                        calculated.enabled = group_archetype.enabled;
+
+                        let (color, blending) = color_channels
+                            .get(object_color.channel_entity)
+                            .map(|color_channel_calculated| {
                                 (
                                     color_channel_calculated.color,
                                     color_channel_calculated.blending,
-                                    color_channel_calculated.last_changed(),
                                 )
-                            } else if let Some(entity) =
-                                global_color_channels.0.get(&object_color.channel_id)
-                            {
-                                object_color.channel_entity = *entity;
-                                if let Ok(color_channel_calculated) = color_channels.get(*entity) {
-                                    (
-                                        color_channel_calculated.color,
-                                        color_channel_calculated.blending,
-                                        color_channel_calculated.last_changed(),
-                                    )
-                                } else {
-                                    (Color::WHITE, false, Tick::new(0))
-                                }
-                            } else {
-                                (Color::WHITE, false, Tick::new(0))
-                            };
+                            })
+                            .unwrap_or((Color::WHITE, false));
 
-                        // TODO: This will only work for one hour until overflow messes it up
-                        let most_recent_change = color_channel_tick
-                            .get()
-                            .max(group_archetype.last_changed().get());
-                        if most_recent_change < calculated.last_changed().get() {
-                            continue;
-                        }
+                        let alpha =
+                            group_archetype.opacity * object_color.object_opacity * color.a();
 
-                        let alpha = group_archetype.opacity
-                            * object_color.object_opacity
-                            * color_channel_color.a();
-
-                        let color = match object_color.object_color_kind {
+                        let mut color = match object_color.object_color_kind {
                             ObjectColorKind::None => Color::WHITE.with_a(alpha),
                             ObjectColorKind::Black => Color::BLACK.with_a(alpha),
+                            _ => color.with_a(alpha),
+                        };
+
+                        for (progress, color_mod, target_kind, _) in &pulses.pulses {
+                            if object_color.object_color_kind == ObjectColorKind::Black {
+                                continue;
+                            }
+                            if *target_kind != ObjectColorKind::None
+                                && !(*target_kind == ObjectColorKind::Base
+                                    && object_color.object_color_kind == ObjectColorKind::None)
+                                && *target_kind != object_color.object_color_kind
+                            {
+                                continue;
+                            }
+                            color_mod.apply(&mut color, *progress);
+                        }
+
+                        match object_color.object_color_kind {
+                            ObjectColorKind::None | ObjectColorKind::Black => (),
                             _ => {
                                 if let Some(hsv) = object_color.hsv {
-                                    hsv.apply_rgb(&mut color_channel_color);
+                                    hsv.apply_rgb(&mut color);
                                 }
-                                color_channel_color.with_a(alpha)
                             }
-                        };
+                        }
 
                         calculated.color = color;
                         calculated.blending = blending;
@@ -452,13 +508,47 @@ pub(crate) fn update_object_color(
     });
 }
 
-#[derive(Default, Copy, Clone, Component, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub(crate) enum ObjectColorKind {
     Base,
     Detail,
     Black,
     #[default]
     None,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub(crate) enum ColorMod {
+    Color(Color),
+    Hsv(HsvMod),
+}
+
+impl Default for ColorMod {
+    fn default() -> Self {
+        Self::Color(Color::WHITE)
+    }
+}
+
+impl ColorMod {
+    pub(crate) fn apply(&self, color: &mut Color, progress: f32) {
+        match self {
+            ColorMod::Color(target_color) => {
+                if progress == 1. {
+                    *color = target_color.with_a(color.a());
+                    return;
+                }
+                *color = lerp_color(color, &target_color.with_a(color.a()), progress);
+            }
+            ColorMod::Hsv(hsv) => {
+                if hsv.empty() {
+                    return;
+                }
+                let mut applied_color = *color;
+                hsv.apply_rgb(&mut applied_color);
+                *color = lerp_color(color, &applied_color, progress);
+            }
+        }
+    }
 }
 
 #[derive(Component, Debug, Deserialize, Copy, Clone, Reflect)]
@@ -479,17 +569,9 @@ impl HsvMod {
         let s_absolute = u8_to_bool(hsv_data[3]);
         let v_absolute = u8_to_bool(hsv_data[4]);
 
-        Ok(HsvMod {
-            h: h * (1. / 60.),
-            s,
-            v,
-            s_absolute,
-            v_absolute,
-        })
+        Ok(HsvMod::new(h * (1. / 60.), s, v, s_absolute, v_absolute))
     }
-}
 
-impl HsvMod {
     pub(crate) fn new(h: f32, s: f32, v: f32, s_absolute: bool, v_absolute: bool) -> Self {
         Self {
             h,
@@ -500,7 +582,17 @@ impl HsvMod {
         }
     }
 
+    pub(crate) fn empty(&self) -> bool {
+        self.h == 0.
+            && ((self.s == 1. && !self.s_absolute) || (self.s == 0. && self.s_absolute))
+            && ((self.v == 1. && !self.v_absolute) || (self.v == 0. && self.v_absolute))
+    }
+
     pub(crate) fn apply_rgb(&self, color: &mut Color) {
+        if self.empty() {
+            return;
+        }
+
         let (h, s, v) = rgb_to_hsv([color.r(), color.g(), color.b()]);
         let [r, g, b] = hsv_to_rgb((
             h + self.h,
@@ -523,12 +615,6 @@ impl HsvMod {
 
 impl Default for HsvMod {
     fn default() -> Self {
-        HsvMod {
-            h: 0.,
-            s: 1.,
-            v: 1.,
-            s_absolute: false,
-            v_absolute: false,
-        }
+        HsvMod::new(0., 1., 1., false, false)
     }
 }

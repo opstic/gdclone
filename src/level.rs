@@ -24,13 +24,13 @@ use serde::{Deserialize, Deserializer};
 
 use crate::asset::cocos2d_atlas::Cocos2dFrames;
 use crate::asset::TestAssets;
-use crate::level::color::HsvMod;
+use crate::level::color::{HsvMod, Pulses};
 use crate::level::player::{update_player_pos, Player};
 use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::{process_triggers, SpeedChange, TriggerActivator, TriggerData};
 use crate::level::{
     color::{
-        update_color_channel_calculated, update_object_color, ColorChannelCalculated,
+        clear_pulses, update_color_channel_calculated, update_object_color, ColorChannelCalculated,
         GlobalColorChannel, GlobalColorChannels,
     },
     group::{
@@ -102,7 +102,7 @@ fn spawn_level_world(
 
         sub_app.add_plugins((TimePlugin, FrameCountPlugin));
 
-        sub_app.add_systems(PreUpdate, clear_group_delta);
+        sub_app.add_systems(PreUpdate, (clear_group_delta, clear_pulses));
 
         sub_app.add_systems(
             Update,
@@ -159,7 +159,11 @@ fn spawn_level_world(
                     }
                 };
                 let color_channel_entity = world
-                    .spawn((color_channel, ColorChannelCalculated::default()))
+                    .spawn((
+                        color_channel,
+                        ColorChannelCalculated::default(),
+                        Pulses::default(),
+                    ))
                     .id();
 
                 global_color_channels.0.insert(index, color_channel_entity);
@@ -182,6 +186,7 @@ fn spawn_level_world(
                         }),
                     },
                     ColorChannelCalculated::default(),
+                    Pulses::default(),
                 ))
                 .id(),
         );
@@ -195,9 +200,27 @@ fn spawn_level_world(
                         blending: false,
                     },
                     ColorChannelCalculated::default(),
+                    Pulses::default(),
                 ))
                 .id(),
         );
+
+        for i in 0..1050 {
+            if global_color_channels.0.contains_key(&i) {
+                continue;
+            }
+
+            global_color_channels.0.insert(
+                i,
+                world
+                    .spawn((
+                        GlobalColorChannel::default(),
+                        ColorChannelCalculated::default(),
+                        Pulses::default(),
+                    ))
+                    .id(),
+            );
+        }
 
         color::construct_color_channel_hierarchy(&mut world, &mut global_color_channels);
         info!("Color channel parsing took {:?}", start.elapsed());
