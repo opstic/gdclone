@@ -12,6 +12,7 @@ impl TriggerFunction for EmptyTrigger {
         &self,
         _: &mut World,
         _: Entity,
+        _: u32,
         _: &mut Box<dyn Any + Send + Sync>,
         _: f32,
         _: f32,

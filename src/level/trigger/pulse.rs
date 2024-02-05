@@ -36,6 +36,7 @@ impl TriggerFunction for PulseTrigger {
         &self,
         world: &mut World,
         _: Entity,
+        _: u32,
         system_state: &mut Box<dyn Any + Send + Sync>,
         _: f32,
         progress: f32,

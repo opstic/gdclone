@@ -2,7 +2,7 @@ use std::any::{Any, TypeId};
 
 use bevy::ecs::system::SystemState;
 use bevy::math::Vec3;
-use bevy::prelude::{Component, Entity, EntityWorldMut, Mut, Query, ResMut, Resource, With, World};
+use bevy::prelude::{Component, Entity, EntityWorldMut, Query, ResMut, Resource, With, World};
 use bevy::utils::syncunsafecell::SyncUnsafeCell;
 use bevy::utils::{default, hashbrown, HashMap as AHashMap};
 use float_next_after::NextAfter;
@@ -13,6 +13,7 @@ use ordered_float::OrderedFloat;
 // use bevy::log::info_span;
 use crate::level::color::{ColorMod, HsvMod, ObjectColorCalculated};
 use crate::level::easing::Easing;
+use crate::level::group::ObjectGroups;
 use crate::level::player::Player;
 use crate::level::transform::Transform2d;
 use crate::level::trigger::alpha::AlphaTrigger;
@@ -20,6 +21,7 @@ use crate::level::trigger::color::ColorTrigger;
 use crate::level::trigger::pulse::PulseTrigger;
 use crate::level::trigger::r#move::MoveTrigger;
 use crate::level::trigger::rotate::RotateTrigger;
+use crate::level::trigger::stop::StopTrigger;
 use crate::level::trigger::toggle::ToggleTrigger;
 use crate::utils::{u8_to_bool, U64Hash};
 
@@ -29,6 +31,7 @@ mod empty;
 mod r#move;
 mod pulse;
 mod rotate;
+mod stop;
 mod toggle;
 
 #[derive(Default, Resource)]
@@ -153,6 +156,7 @@ pub(crate) trait TriggerFunction: Send + Sync + 'static {
         &self,
         world: &mut World,
         entity: Entity,
+        trigger_index: u32,
         system_state: &mut Box<dyn Any + Send + Sync>,
         previous_progress: f32,
         progress: f32,
@@ -173,6 +177,7 @@ pub(crate) trait TriggerFunction: Send + Sync + 'static {
 
 #[derive(Default, Resource)]
 pub(crate) struct TriggerData {
+    stopped: IndexMap<u64, u32, U64Hash>,
     data: AHashMap<
         TypeId,
         (
@@ -183,150 +188,164 @@ pub(crate) struct TriggerData {
 }
 
 pub(crate) fn process_triggers(world: &mut World) {
-    world.resource_scope(|world, mut trigger_data: Mut<TriggerData>| {
-        let world_cell = world.as_unsafe_world_cell();
+    let world_cell = world.as_unsafe_world_cell();
 
-        let system_state: &mut SystemState<(
+    let mut trigger_data = unsafe { world_cell.world_mut() }.resource_mut::<TriggerData>();
+
+    let system_state: &mut SystemState<(
+        ResMut<GlobalTriggers>,
+        Query<(&Player, &Transform2d, &TriggerActivator)>,
+        Query<(&Trigger, &ObjectGroups, &ObjectColorCalculated)>,
+    )> = if let Some((_, cell)) = trigger_data.data.get(&TypeId::of::<World>()) {
+        unsafe { &mut *cell.get() }
+    } else {
+        let system_state: SystemState<(
             ResMut<GlobalTriggers>,
             Query<(&Player, &Transform2d, &TriggerActivator)>,
-            Query<(&Trigger, &ObjectColorCalculated)>,
-        )> = if let Some((_, cell)) = trigger_data.data.get(&TypeId::of::<World>()) {
-            unsafe { &mut *cell.get() }
-        } else {
-            let system_state: SystemState<(
-                ResMut<GlobalTriggers>,
-                Query<(&Player, &Transform2d, &TriggerActivator)>,
-                Query<(&Trigger, &ObjectColorCalculated)>,
-            )> = SystemState::new(unsafe { world_cell.world_mut() });
+            Query<(&Trigger, &ObjectGroups, &ObjectColorCalculated)>,
+        )> = SystemState::new(unsafe { world_cell.world_mut() });
 
-            trigger_data.data.insert(
-                TypeId::of::<World>(),
-                (
-                    hashbrown::HashMap::with_hasher(U64Hash),
-                    SyncUnsafeCell::new(Box::new(system_state)),
-                ),
-            );
+        trigger_data.data.insert(
+            TypeId::of::<World>(),
+            (
+                hashbrown::HashMap::with_hasher(U64Hash),
+                SyncUnsafeCell::new(Box::new(system_state)),
+            ),
+        );
 
-            let (_, cell) = trigger_data.data.get(&TypeId::of::<World>()).unwrap();
+        let (_, cell) = trigger_data.data.get(&TypeId::of::<World>()).unwrap();
 
-            unsafe { &mut *cell.get() }
+        unsafe { &mut *cell.get() }
+    }
+    .downcast_mut()
+    .unwrap();
+
+    let (mut global_triggers, players, triggers) =
+        system_state.get_mut(unsafe { world_cell.world_mut() });
+
+    for (player, transform, trigger_activator) in &players {
+        let Some(global_trigger_channel) = global_triggers
+            .pos_triggers
+            .get_mut(&trigger_activator.channel)
+        else {
+            continue;
+        };
+
+        let mut last_translation = player.last_translation;
+
+        if transform.translation.x == 0. {
+            last_translation.x = f32::NEG_INFINITY;
         }
-        .downcast_mut()
-        .unwrap();
 
-        let (mut global_triggers, players, triggers) =
-            system_state.get_mut(unsafe { world_cell.world_mut() });
+        let activate_range =
+            OrderedFloat(last_translation.x)..OrderedFloat(transform.translation.x);
 
-        for (player, transform, trigger_activator) in &players {
-            let Some(global_trigger_channel) = global_triggers
-                .pos_triggers
-                .get_mut(&trigger_activator.channel)
-            else {
-                continue;
-            };
+        // let span_a = info_span!("interval lookup");
+        // let span_b = info_span!("trigger");
+        //
+        // let query = span_a.in_scope(|| {
+        //     global_trigger_channel
+        //         .x
+        //         .0
+        //         .query_overlapping(&activate_range)
+        // });
 
-            let mut last_translation = player.last_translation;
+        let query = global_trigger_channel
+            .x
+            .0
+            .query_overlapping(&activate_range);
 
-            if transform.translation.x == 0. {
-                last_translation.x = f32::NEG_INFINITY;
-            }
+        for (trigger_range, entity_indices) in query.iter() {
+            let trigger_range_length = trigger_range.end.0 - trigger_range.start.0;
+            let previous_progress =
+                ((last_translation.x - trigger_range.start.0) / trigger_range_length).clamp(0., 1.);
+            let current_progress = ((transform.translation.x - trigger_range.start.0)
+                / trigger_range_length)
+                .clamp(0., 1.);
 
-            let activate_range =
-                OrderedFloat(last_translation.x)..OrderedFloat(transform.translation.x);
+            'trigger_loop: for entity_index in entity_indices {
+                let trigger_entity = global_trigger_channel.x.1[*entity_index as usize];
 
-            // let span_a = info_span!("interval lookup");
-            // let span_b = info_span!("trigger");
-            //
-            // let query = span_a.in_scope(|| {
-            //     global_trigger_channel
-            //         .x
-            //         .0
-            //         .query_overlapping(&activate_range)
-            // });
+                let Ok((trigger, object_groups, object_color_calculated)) =
+                    triggers.get(trigger_entity)
+                else {
+                    continue;
+                };
 
-            let query = global_trigger_channel
-                .x
-                .0
-                .query_overlapping(&activate_range);
+                if !object_color_calculated.enabled {
+                    continue;
+                }
 
-            for (trigger_range, entity_indices) in query.iter() {
-                let trigger_range_length = trigger_range.end.0 - trigger_range.start.0;
-                let previous_progress = ((last_translation.x - trigger_range.start.0)
-                    / trigger_range_length)
-                    .clamp(0., 1.);
-                let current_progress = ((transform.translation.x - trigger_range.start.0)
-                    / trigger_range_length)
-                    .clamp(0., 1.);
-
-                for entity_index in entity_indices {
-                    let trigger_entity = global_trigger_channel.x.1[*entity_index as usize];
-
-                    let Ok((trigger, object_color_calculated)) = triggers.get(trigger_entity)
-                    else {
-                        continue;
-                    };
-
-                    if !object_color_calculated.enabled {
-                        continue;
-                    }
-
-                    // Very unsafe but works for now
-                    let world_mut = unsafe { world_cell.world_mut() };
-
-                    let trigger_system_state = if let Some((exclusive_data, system_state)) =
-                        trigger_data.data.get_mut(&trigger.0.concrete_type_id())
+                for (stopped_group, stop_index) in &trigger_data.stopped {
+                    if object_groups
+                        .groups
+                        .iter()
+                        .find(|group_id| *group_id == stopped_group)
+                        .is_some()
                     {
-                        if let Some(last_index) = exclusive_data.get_mut(&trigger.0.target_id()) {
-                            if entity_index < last_index {
-                                continue;
-                            }
-                            if trigger.0.exclusive() {
-                                *last_index = *entity_index;
-                            }
-                        } else if trigger.0.exclusive() {
-                            exclusive_data.insert(trigger.0.target_id(), *entity_index);
+                        if entity_index < stop_index {
+                            continue 'trigger_loop;
                         }
-                        system_state
-                    } else {
-                        let mut exclusive_data = hashbrown::HashMap::with_hasher(U64Hash);
+                    }
+                }
+
+                // Very unsafe but works for now
+                let world_mut = unsafe { world_cell.world_mut() };
+
+                let trigger_system_state = if let Some((exclusive_data, system_state)) =
+                    trigger_data.data.get_mut(&trigger.0.concrete_type_id())
+                {
+                    if let Some(last_index) = exclusive_data.get_mut(&trigger.0.target_id()) {
+                        if entity_index < last_index {
+                            continue;
+                        }
                         if trigger.0.exclusive() {
-                            exclusive_data.insert(trigger.0.target_id(), *entity_index);
+                            *last_index = *entity_index;
                         }
-                        trigger_data.data.insert(
-                            trigger.0.concrete_type_id(),
-                            (
-                                exclusive_data,
-                                SyncUnsafeCell::new(trigger.0.create_system_state(world_mut)),
-                            ),
-                        );
-
-                        &mut trigger_data
-                            .data
-                            .get_mut(&trigger.0.concrete_type_id())
-                            .unwrap()
-                            .1
-                    };
-
-                    trigger.0.execute(
-                        world_mut,
-                        trigger_entity,
-                        trigger_system_state.get_mut(),
-                        previous_progress,
-                        current_progress,
+                    } else if trigger.0.exclusive() {
+                        exclusive_data.insert(trigger.0.target_id(), *entity_index);
+                    }
+                    system_state
+                } else {
+                    let mut exclusive_data = hashbrown::HashMap::with_hasher(U64Hash);
+                    if trigger.0.exclusive() {
+                        exclusive_data.insert(trigger.0.target_id(), *entity_index);
+                    }
+                    trigger_data.data.insert(
+                        trigger.0.concrete_type_id(),
+                        (
+                            exclusive_data,
+                            SyncUnsafeCell::new(trigger.0.create_system_state(world_mut)),
+                        ),
                     );
 
-                    // span_b.in_scope(|| {
-                    //     trigger.0.execute(
-                    //         world_mut,
-                    //         trigger_system_state.get_mut(),
-                    //         previous_progress,
-                    //         current_progress,
-                    //     );
-                    // });
-                }
+                    &mut trigger_data
+                        .data
+                        .get_mut(&trigger.0.concrete_type_id())
+                        .unwrap()
+                        .1
+                };
+
+                trigger.0.execute(
+                    world_mut,
+                    trigger_entity,
+                    *entity_index,
+                    trigger_system_state.get_mut(),
+                    previous_progress,
+                    current_progress,
+                );
+
+                // span_b.in_scope(|| {
+                //     trigger.0.execute(
+                //         world_mut,
+                //         trigger_system_state.get_mut(),
+                //         previous_progress,
+                //         current_progress,
+                //     );
+                // });
             }
         }
-    });
+    }
 }
 
 pub(crate) fn insert_trigger_data(
@@ -579,6 +598,13 @@ pub(crate) fn insert_trigger_data(
             }
             if let Some(lock_rotation) = object_data.get(b"70".as_ref()) {
                 trigger.lock_rotation = u8_to_bool(lock_rotation);
+            }
+            entity_world_mut.insert(Trigger(Box::new(trigger)));
+        }
+        1616 => {
+            let mut trigger = StopTrigger::default();
+            if let Some(target_group) = object_data.get(b"51".as_ref()) {
+                trigger.target_group = std::str::from_utf8(target_group)?.parse()?;
             }
             entity_world_mut.insert(Trigger(Box::new(trigger)));
         }
