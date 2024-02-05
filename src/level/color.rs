@@ -265,7 +265,7 @@ pub(crate) fn update_color_channel_calculated(
                 recursive_propagate_color(
                     &mutex,
                     children,
-                    color,
+                    calculated.color,
                     &child_color_channels,
                     should_update,
                 )
