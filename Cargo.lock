@@ -239,7 +239,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ca33f4bc4ed1babef42cad36cc1f51fa88be00420404e5b1e80ab1b18f7678c"
 dependencies = [
  "concurrent-queue",
-    "event-listener 4.0.3",
+ "event-listener 4.0.3",
  "event-listener-strategy",
  "futures-core",
  "pin-project-lite",
@@ -251,11 +251,11 @@ version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "17ae5ebefcc48e7452b4987947920dac9450be1110cadf34d1b8c116bdbaf97c"
 dependencies = [
-    "async-lock 3.3.0",
+ "async-lock 3.3.0",
  "async-task",
  "concurrent-queue",
  "fastrand 2.0.1",
-    "futures-lite 2.2.0",
+ "futures-lite 2.2.0",
  "slab",
 ]
 
@@ -286,7 +286,7 @@ version = "3.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d034b430882f8381900d3fe6f0aaa3ad94f2cb4ac519b429692a1bc2dda4ae7b"
 dependencies = [
-    "event-listener 4.0.3",
+ "event-listener 4.0.3",
  "event-listener-strategy",
  "pin-project-lite",
 ]
@@ -424,7 +424,7 @@ dependencies = [
  "bevy_macro_utils",
  "proc-macro2",
  "quote",
-    "syn 2.0.48",
+ "syn 2.0.48",
 ]
 
 [[package]]
@@ -477,7 +477,7 @@ dependencies = [
  "bevy_render",
  "bevy_transform",
  "bevy_utils",
-    "bitflags 2.4.2",
+ "bitflags 2.4.2",
  "radsort",
  "serde",
 ]
@@ -490,7 +490,7 @@ checksum = "f484318350462c58ba3942a45a656c1fd6b6e484a6b6b7abc3a787ad1a51e500"
 dependencies = [
  "bevy_macro_utils",
  "quote",
-    "syn 2.0.48",
+ "syn 2.0.48",
 ]
 
 [[package]]
@@ -538,7 +538,7 @@ dependencies = [
  "bevy_macro_utils",
  "proc-macro2",
  "quote",
-    "syn 2.0.48",
+ "syn 2.0.48",
 ]
 
 [[package]]
@@ -660,7 +660,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustc-hash",
-    "syn 2.0.48",
+ "syn 2.0.48",
  "toml_edit 0.20.7",
 ]
 
@@ -700,7 +700,7 @@ dependencies = [
  "bevy_transform",
  "bevy_utils",
  "bevy_window",
-    "bitflags 2.4.2",
+ "bitflags 2.4.2",
  "bytemuck",
  "fixedbitset",
  "naga_oil",
@@ -743,7 +743,7 @@ dependencies = [
  "bevy_macro_utils",
  "proc-macro2",
  "quote",
-    "syn 2.0.48",
+ "syn 2.0.48",
  "uuid",
 ]
 
@@ -771,7 +771,7 @@ dependencies = [
  "bevy_transform",
  "bevy_utils",
  "bevy_window",
-    "bitflags 2.4.2",
+ "bitflags 2.4.2",
  "bytemuck",
  "codespan-reporting",
  "downcast-rs",
@@ -800,7 +800,7 @@ dependencies = [
  "bevy_macro_utils",
  "proc-macro2",
  "quote",
-    "syn 2.0.48",
+ "syn 2.0.48",
 ]
 
 [[package]]
@@ -841,7 +841,7 @@ dependencies = [
  "bevy_render",
  "bevy_transform",
  "bevy_utils",
-    "bitflags 2.4.2",
+ "bitflags 2.4.2",
  "bytemuck",
  "fixedbitset",
  "guillotiere",
@@ -970,7 +970,7 @@ checksum = "7aafecc952b6b8eb1a93c12590bd867d25df2f4ae1033a01dfdfc3c35ebccfff"
 dependencies = [
  "proc-macro2",
  "quote",
-    "syn 2.0.48",
+ "syn 2.0.48",
 ]
 
 [[package]]
@@ -1020,7 +1020,7 @@ version = "0.69.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4c69fae65a523209d34240b60abe0c42d33d1045d445c0839d8a4894a736e2d"
 dependencies = [
-    "bitflags 2.4.2",
+ "bitflags 2.4.2",
  "cexpr",
  "clang-sys",
  "lazy_static",
@@ -1031,7 +1031,7 @@ dependencies = [
  "regex",
  "rustc-hash",
  "shlex",
-    "syn 2.0.48",
+ "syn 2.0.48",
 ]
 
 [[package]]
@@ -1109,11 +1109,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a37913e8dc4ddcc604f0c6d3bf2887c995153af3611de9e23c352b44c1b9118"
 dependencies = [
  "async-channel 2.1.1",
-    "async-lock 3.3.0",
+ "async-lock 3.3.0",
  "async-task",
  "fastrand 2.0.1",
  "futures-io",
-    "futures-lite 2.2.0",
+ "futures-lite 2.2.0",
  "piper",
  "tracing",
 ]
@@ -1141,7 +1141,7 @@ checksum = "965ab7eb5f8f97d2a083c799f3a1b994fc397b2fe2da5d1da1626ce15a39f2b1"
 dependencies = [
  "proc-macro2",
  "quote",
-    "syn 2.0.48",
+ "syn 2.0.48",
 ]
 
 [[package]]
@@ -1397,7 +1397,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e16e44ab292b1dddfdaf7be62cfd8877df52f2f3fde5858d95bab606be259f20"
 dependencies = [
-    "bitflags 2.4.2",
+ "bitflags 2.4.2",
  "libloading 0.8.1",
  "winapi",
 ]
@@ -1483,7 +1483,7 @@ checksum = "3fe2568f851fd6144a45fa91cfed8fe5ca8fc0b56ba6797bfc1ed2771b90e37c"
 dependencies = [
  "proc-macro2",
  "quote",
-    "syn 2.0.48",
+ "syn 2.0.48",
 ]
 
 [[package]]
@@ -1542,7 +1542,7 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "958e4d70b6d5e81971bebec42271ec641e7ff4e170a6fa605f2b8a8b65cb97d3"
 dependencies = [
-    "event-listener 4.0.3",
+ "event-listener 4.0.3",
  "pin-project-lite",
 ]
 
@@ -1619,7 +1619,7 @@ checksum = "1a5c6c585bc94aaf2c7b51dd4c2ba22680844aba4c687be581871a6f518c5742"
 dependencies = [
  "proc-macro2",
  "quote",
-    "syn 2.0.48",
+ "syn 2.0.48",
 ]
 
 [[package]]
@@ -1681,11 +1681,11 @@ dependencies = [
  "anyhow",
  "base64-simd",
  "bevy",
-    "bitflags 2.4.2",
+ "bitflags 2.4.2",
  "bytemuck",
  "dashmap",
  "float_next_after",
-    "futures-lite 2.2.0",
+ "futures-lite 2.2.0",
  "indexmap 2.1.0",
  "libdeflater",
  "memchr",
@@ -1698,6 +1698,7 @@ dependencies = [
  "radsort",
  "serde",
  "serde_json",
+ "simdutf8",
  "smallvec",
  "zstd",
 ]
@@ -1766,7 +1767,7 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fbcd2dba93594b227a1f57ee09b8b9da8892c34d55aa332e034a228d0fe6a171"
 dependencies = [
-    "bitflags 2.4.2",
+ "bitflags 2.4.2",
  "gpu-alloc-types",
 ]
 
@@ -1776,7 +1777,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98ff03b468aa837d70984d55f5d3f846f6ec31fe34bbb97c4f85219caeee1ca4"
 dependencies = [
-    "bitflags 2.4.2",
+ "bitflags 2.4.2",
 ]
 
 [[package]]
@@ -1798,7 +1799,7 @@ version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cc11df1ace8e7e564511f53af41f3e42ddc95b56fd07b3f4445d2a6048bc682c"
 dependencies = [
-    "bitflags 2.4.2",
+ "bitflags 2.4.2",
  "gpu-descriptor-types",
  "hashbrown 0.14.3",
 ]
@@ -1809,7 +1810,7 @@ version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6bf0b36e6f090b7e1d8a4b49c0cb81c1f8376f72198c65dd3ad9ff3556b8b78c"
 dependencies = [
-    "bitflags 2.4.2",
+ "bitflags 2.4.2",
 ]
 
 [[package]]
@@ -2061,7 +2062,7 @@ version = "0.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3af92c55d7d839293953fcd0fda5ecfe93297cfde6ffbdec13b41d99c0ba6607"
 dependencies = [
-    "bitflags 2.4.2",
+ "bitflags 2.4.2",
  "libc",
  "redox_syscall 0.4.1",
 ]
@@ -2130,7 +2131,7 @@ version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "623b5e6cefd76e58f774bd3cc0c6f5c7615c58c03a97815245a25c3c9bdee318"
 dependencies = [
-    "bitflags 2.4.2",
+ "bitflags 2.4.2",
  "block",
  "core-graphics-types",
  "foreign-types 0.5.0",
@@ -2174,7 +2175,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1ceaaa4eedaece7e4ec08c55c640ba03dbb73fb812a6570a59bcf1930d0f70e"
 dependencies = [
  "bit-set",
-    "bitflags 2.4.2",
+ "bitflags 2.4.2",
  "codespan-reporting",
  "hexf-parse",
  "indexmap 1.9.3",
@@ -2419,7 +2420,7 @@ dependencies = [
  "proc-macro-crate",
  "proc-macro2",
  "quote",
-    "syn 2.0.48",
+ "syn 2.0.48",
 ]
 
 [[package]]
@@ -2821,7 +2822,7 @@ checksum = "b62dbe01f0b06f9d8dc7d49e05a0785f153b00b2c227856282f671e0318c9b15"
 dependencies = [
  "aho-corasick",
  "memchr",
-    "regex-automata 0.4.5",
+ "regex-automata 0.4.5",
  "regex-syntax 0.8.2",
 ]
 
@@ -2885,8 +2886,8 @@ version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b91f7eff05f748767f183df4320a63d6936e9c6107d97c9e6bdd9784f4289c94"
 dependencies = [
-    "base64 0.21.7",
-    "bitflags 2.4.2",
+ "base64 0.21.7",
+ "bitflags 2.4.2",
  "serde",
  "serde_derive",
 ]
@@ -2947,7 +2948,7 @@ checksum = "33c85360c95e7d137454dc81d9a4ed2b8efd8fbe19cee57357b32b9771fccb67"
 dependencies = [
  "proc-macro2",
  "quote",
-    "syn 2.0.48",
+ "syn 2.0.48",
 ]
 
 [[package]]
@@ -2981,6 +2982,12 @@ name = "simd-adler32"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d66dc143e6b11c1eddc06d5c423cfc97062865baf299914ab64caa38182078fe"
+
+[[package]]
+name = "simdutf8"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f27f6278552951f1f2b8cf9da965d10969b2efdea95a6ec47987ab46edfe263a"
 
 [[package]]
 name = "siphasher"
@@ -3176,7 +3183,7 @@ checksum = "fa0faa943b50f3db30a20aa7e265dbc66076993efed8463e8de414e5d06d3471"
 dependencies = [
  "proc-macro2",
  "quote",
-    "syn 2.0.48",
+ "syn 2.0.48",
 ]
 
 [[package]]
@@ -3265,7 +3272,7 @@ checksum = "34704c8d6ebcbc939824180af020566b01a7c01f80641264eba0999f6c2b6be7"
 dependencies = [
  "proc-macro2",
  "quote",
-    "syn 2.0.48",
+ "syn 2.0.48",
 ]
 
 [[package]]
@@ -3424,7 +3431,7 @@ dependencies = [
  "once_cell",
  "proc-macro2",
  "quote",
-    "syn 2.0.48",
+ "syn 2.0.48",
  "wasm-bindgen-shared",
 ]
 
@@ -3458,7 +3465,7 @@ checksum = "bae1abb6806dc1ad9e560ed242107c0f6c84335f1749dd4e8ddb012ebd5e25a7"
 dependencies = [
  "proc-macro2",
  "quote",
-    "syn 2.0.48",
+ "syn 2.0.48",
  "wasm-bindgen-backend",
  "wasm-bindgen-shared",
 ]
@@ -3522,7 +3529,7 @@ checksum = "0f8a44dd301a30ceeed3c27d8c0090433d3da04d7b2a4042738095a424d12ae7"
 dependencies = [
  "arrayvec",
  "bit-vec",
-    "bitflags 2.4.2",
+ "bitflags 2.4.2",
  "codespan-reporting",
  "log",
  "naga",
@@ -3547,7 +3554,7 @@ dependencies = [
  "arrayvec",
  "ash",
  "bit-set",
-    "bitflags 2.4.2",
+ "bitflags 2.4.2",
  "block",
  "core-graphics-types",
  "d3d12",
@@ -3584,7 +3591,7 @@ version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee64d7398d0c2f9ca48922c902ef69c42d000c759f3db41e355f4a570b052b67"
 dependencies = [
-    "bitflags 2.4.2",
+ "bitflags 2.4.2",
  "js-sys",
  "web-sys",
 ]
@@ -3888,7 +3895,7 @@ checksum = "9ce1b18ccd8e73a9321186f97e46f9f04b778851177567b1975109d26a08d2a6"
 dependencies = [
  "proc-macro2",
  "quote",
-    "syn 2.0.48",
+ "syn 2.0.48",
 ]
 
 [[package]]

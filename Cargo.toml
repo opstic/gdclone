@@ -46,6 +46,7 @@ quick-xml = { version = "0.31", features = ["serialize"] }
 radsort = "0.1"
 serde = { version = "1.0", features = ['derive'] }
 serde_json = "1.0"
+simdutf8 = "0.1"
 smallvec = "1.11"
 zstd = "0.13"
 

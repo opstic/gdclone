@@ -136,7 +136,11 @@ fn spawn_level_world(
         let mut start = Instant::now();
         let decompressed = decompress(&decrypted).unwrap();
         info!("Decompressing took {:?}", start.elapsed());
-        let decom_inner_level = DecompressedInnerLevel(decompressed);
+        start = Instant::now();
+        simdutf8::basic::from_utf8(&decompressed).unwrap();
+        info!("UTF8 validation took {:?}", start.elapsed());
+        let decom_inner_level =
+            DecompressedInnerLevel(unsafe { String::from_utf8_unchecked(decompressed) });
         start = Instant::now();
         let parsed = decom_inner_level.parse().unwrap();
         info!("Parsing took {:?}", start.elapsed());
@@ -144,8 +148,8 @@ fn spawn_level_world(
         let mut global_color_channels = GlobalColorChannels::default();
 
         start = Instant::now();
-        if let Some(colors_string) = parsed.start_object.get(b"kS38".as_ref()) {
-            let parsed_colors: Vec<&[u8]> = de::from_slice(colors_string, b'|').unwrap();
+        if let Some(colors_string) = parsed.start_object.get("kS38") {
+            let parsed_colors: Vec<&str> = de::from_str(colors_string, '|').unwrap();
             global_color_channels
                 .0
                 .try_reserve(parsed_colors.len())
@@ -235,7 +239,10 @@ fn spawn_level_world(
         let mut temp_objects = Vec::with_capacity(parsed.objects.len());
         for (index, object_data) in parsed.objects.iter().enumerate() {
             let object_position = object::get_object_pos(object_data).unwrap();
-            temp_objects.push((object_position.x, index as u32));
+            temp_objects.push((
+                (object_position.x, object_position.y, object_position.z),
+                index as u32,
+            ));
         }
 
         radsort::sort_by_key(&mut temp_objects, |temp| temp.0);
@@ -290,8 +297,8 @@ fn spawn_level_world(
         group::spawn_groups(&mut world, global_groups, group_archetypes);
         info!("Initializing groups took {:?}", start.elapsed());
 
-        let default_speed = if let Some(speed) = parsed.start_object.get(b"kA4".as_ref()) {
-            match std::str::from_utf8(speed).unwrap().parse().unwrap() {
+        let default_speed = if let Some(speed) = parsed.start_object.get("kA4") {
+            match speed.parse().unwrap() {
                 0 => (5.77 * 60., 0.9),
                 1 => (5.98 * 60., 0.7),
                 2 => (5.87 * 60., 1.1),
@@ -526,17 +533,22 @@ impl Level {
     pub(crate) fn decompress_inner_level(
         &self,
     ) -> Option<Result<DecompressedInnerLevel, anyhow::Error>> {
-        self.inner_level
-            .as_ref()
-            .map(|compressed| Ok(DecompressedInnerLevel(decompress(compressed)?)))
+        self.inner_level.as_ref().map(|compressed| {
+            let decompressed = decompress(compressed)?;
+            // Validate the data
+            simdutf8::basic::from_utf8(&decompressed)?;
+            Ok(DecompressedInnerLevel(unsafe {
+                String::from_utf8_unchecked(decompressed)
+            }))
+        })
     }
 }
 
-pub(crate) struct DecompressedInnerLevel(pub(crate) Vec<u8>);
+pub(crate) struct DecompressedInnerLevel(pub(crate) String);
 
 impl DecompressedInnerLevel {
     pub(crate) fn parse(&self) -> Result<ParsedInnerLevel, anyhow::Error> {
-        let object_strings: Vec<&[u8]> = de::from_slice(&self.0, b';')?;
+        let object_strings: Vec<&str> = de::from_str(&self.0, ';')?;
 
         if object_strings.is_empty() {
             return Ok(ParsedInnerLevel {
@@ -546,7 +558,7 @@ impl DecompressedInnerLevel {
             });
         }
 
-        let start_object: HashMap<&[u8], &[u8]> = de::from_slice(object_strings[0], b',')?;
+        let start_object: HashMap<&str, &str> = de::from_str(object_strings[0], ',')?;
 
         let mut objects = vec![HashMap::new(); object_strings.len() - 1];
 
@@ -563,14 +575,11 @@ impl DecompressedInnerLevel {
                     for (object_string, parsed_object) in
                         object_strings_chunk.iter().zip(parsed_object_chunk)
                     {
-                        match de::from_slice(object_string, b',') {
+                        match de::from_str(object_string, ',') {
                             Ok(parsed) => *parsed_object = parsed,
                             Err(error) => {
                                 warn!("Failed to parse object: {:?}", error);
-                                warn!(
-                                    "Failed object string: {}",
-                                    std::str::from_utf8(object_string).unwrap()
-                                );
+                                warn!("Failed object string: {}", object_string);
                             }
                         }
                     }
@@ -588,7 +597,7 @@ impl DecompressedInnerLevel {
 
 #[derive(Debug)]
 pub(crate) struct ParsedInnerLevel<'a> {
-    start_object: HashMap<&'a [u8], &'a [u8]>,
-    objects: Vec<HashMap<&'a [u8], &'a [u8]>>,
+    start_object: HashMap<&'a str, &'a str>,
+    objects: Vec<HashMap<&'a str, &'a str>>,
     phantom: PhantomData<&'a DecompressedInnerLevel>,
 }

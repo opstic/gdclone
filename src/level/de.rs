@@ -75,29 +75,31 @@ impl serde::de::Error for DeError {
 }
 
 trait Reader<'a> {
-    fn read_until_byte(&mut self, byte: u8) -> Option<&'a [u8]>;
+    fn read_until_char(&mut self, sep: char) -> Option<&'a str>;
 
     fn len(&self) -> Option<usize>;
 }
 
-struct SliceReader<'a> {
-    source: &'a [u8],
+struct StrReader<'a> {
+    source: &'a str,
 }
 
-impl<'a> Reader<'a> for SliceReader<'a> {
-    fn read_until_byte(&mut self, byte: u8) -> Option<&'a [u8]> {
+impl<'a> Reader<'a> for StrReader<'a> {
+    fn read_until_char(&mut self, sep: char) -> Option<&'a str> {
         if self.source.is_empty() {
             return None;
         }
-        Some(if let Some(i) = memchr::memchr(byte, self.source) {
-            let bytes = &self.source[..i];
-            self.source = &self.source[i + 1..];
-            bytes
-        } else {
-            let bytes = self.source;
-            self.source = &[];
-            bytes
-        })
+        Some(
+            if let Some(i) = memchr::memchr(sep as u8, self.source.as_bytes()) {
+                let string = &self.source[..i];
+                self.source = &self.source[i + 1..];
+                string
+            } else {
+                let string = self.source;
+                self.source = "";
+                string
+            },
+        )
     }
 
     fn len(&self) -> Option<usize> {
@@ -105,11 +107,11 @@ impl<'a> Reader<'a> for SliceReader<'a> {
     }
 }
 
-pub(crate) fn from_slice<'de, T>(b: &'de [u8], sep: u8) -> Result<T, DeError>
+pub(crate) fn from_str<'de, T>(source: &'de str, sep: char) -> Result<T, DeError>
 where
     T: Deserialize<'de>,
 {
-    let mut de = SeparatorDeserializer::from_slice(b, sep);
+    let mut de = SeparatorDeserializer::from_str(source, sep);
     T::deserialize(&mut de)
 }
 
@@ -118,16 +120,16 @@ where
     R: Reader<'de>,
 {
     reader: R,
-    separator: u8,
-    peek: Option<&'de [u8]>,
+    separator: char,
+    peek: Option<&'de str>,
     initial: bool,
-    seen: Vec<&'de [u8]>,
+    seen: Vec<&'de str>,
 }
 
-impl<'de> SeparatorDeserializer<'de, SliceReader<'de>> {
+impl<'de> SeparatorDeserializer<'de, StrReader<'de>> {
     /// Create new deserializer that will borrow data from the specified string
-    pub fn from_slice(b: &'de [u8], sep: u8) -> Self {
-        Self::new(SliceReader { source: b }, sep)
+    pub fn from_str(source: &'de str, sep: char) -> Self {
+        Self::new(StrReader { source }, sep)
     }
 }
 
@@ -135,10 +137,10 @@ impl<'de, R> SeparatorDeserializer<'de, R>
 where
     R: Reader<'de>,
 {
-    fn new(reader: R, sep: u8) -> Self {
+    fn new(reader: R, separator: char) -> Self {
         SeparatorDeserializer {
             reader,
-            separator: sep,
+            separator,
             peek: None,
             initial: false,
             seen: Vec::new(),
@@ -147,23 +149,23 @@ where
 
     fn read_string(&mut self) -> Result<Cow<'de, str>, DeError> {
         match self.next() {
-            Some(bytes) => Ok(Cow::Borrowed(str::from_utf8(bytes)?)),
+            Some(bytes) => Ok(Cow::Borrowed(bytes)),
             None => Ok("".into()),
         }
     }
 
-    fn peek(&mut self) -> Option<&'de [u8]> {
+    fn peek(&mut self) -> Option<&'de str> {
         if self.peek.is_none() {
-            self.peek = self.reader.read_until_byte(self.separator);
+            self.peek = self.reader.read_until_char(self.separator);
         }
         self.peek
     }
 
-    fn next(&mut self) -> Option<&'de [u8]> {
+    fn next(&mut self) -> Option<&'de str> {
         if let Some(b) = self.peek.take() {
             return Some(b);
         }
-        self.reader.read_until_byte(self.separator)
+        self.reader.read_until_char(self.separator)
     }
 }
 
@@ -273,7 +275,7 @@ where
     where
         V: Visitor<'de>,
     {
-        visitor.visit_bool(matches!(self.next().unwrap(), b"1"))
+        visitor.visit_bool(matches!(self.next().unwrap(), "1"))
     }
 
     fn deserialize_char<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -304,7 +306,7 @@ where
     where
         V: Visitor<'de>,
     {
-        visitor.visit_borrowed_bytes(self.next().unwrap_or_default())
+        visitor.visit_borrowed_bytes(self.next().unwrap_or_default().as_bytes())
     }
 
     fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Self::Error>

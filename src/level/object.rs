@@ -13,7 +13,7 @@ use crate::level::de;
 use crate::level::section::{GlobalSections, Section};
 use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::insert_trigger_data;
-use crate::utils::{section_index_from_x, u8_to_bool, U64Hash};
+use crate::utils::{section_index_from_x, str_to_bool, U64Hash};
 
 struct ObjectDefaultData {
     texture: &'static str,
@@ -97,20 +97,23 @@ pub(crate) struct Object {
     pub(crate) z_layer: i32,
 }
 
-pub(crate) fn get_object_pos(object_data: &HashMap<&[u8], &[u8]>) -> Result<Vec2, anyhow::Error> {
-    let mut translation = Vec2::ZERO;
-    if let Some(x) = object_data.get(b"2".as_ref()) {
-        translation.x = std::str::from_utf8(x)?.parse()?;
+pub(crate) fn get_object_pos(object_data: &HashMap<&str, &str>) -> Result<Vec3, anyhow::Error> {
+    let mut translation = Vec3::ZERO;
+    if let Some(x) = object_data.get("2") {
+        translation.x = x.parse()?;
     }
-    if let Some(y) = object_data.get(b"3".as_ref()) {
-        translation.y = std::str::from_utf8(y)?.parse()?;
+    if let Some(y) = object_data.get("3") {
+        translation.y = y.parse()?;
+    }
+    if let Some(z_order) = object_data.get("25") {
+        translation.z = z_order.parse()?;
     }
     Ok(translation)
 }
 
 pub(crate) fn spawn_object(
     world: &mut World,
-    object_data: &HashMap<&[u8], &[u8]>,
+    object_data: &HashMap<&str, &str>,
     global_sections: &mut GlobalSections,
     global_groups: &mut IndexMap<u64, Vec<Entity>, U64Hash>,
     group_archetypes: &mut IndexMap<Vec<u64>, Vec<Entity>>,
@@ -121,8 +124,8 @@ pub(crate) fn spawn_object(
     let mut object_color = ObjectColor::default();
     let mut transform = Transform2d::default();
 
-    if let Some(id) = object_data.get(b"1".as_ref()) {
-        object.id = std::str::from_utf8(id)?.parse()?;
+    if let Some(id) = object_data.get("1") {
+        object.id = id.parse()?;
     }
 
     let object_default_data = OBJECT_DEFAULT_DATA
@@ -132,54 +135,53 @@ pub(crate) fn spawn_object(
     object_color.object_opacity = object_default_data.opacity;
     object_color.object_color_kind = object_default_data.color_kind;
 
-    if let Some(x) = object_data.get(b"2".as_ref()) {
-        transform.translation.x = std::str::from_utf8(x)?.parse()?;
+    if let Some(x) = object_data.get("2") {
+        transform.translation.x = x.parse()?;
     }
-    if let Some(y) = object_data.get(b"3".as_ref()) {
-        transform.translation.y = std::str::from_utf8(y)?.parse()?;
+    if let Some(y) = object_data.get("3") {
+        transform.translation.y = y.parse()?;
     }
-    if let Some(rotation) = object_data.get(b"6".as_ref()) {
-        transform.angle = -std::str::from_utf8(rotation)?.parse::<f32>()?.to_radians();
+    if let Some(rotation) = object_data.get("6") {
+        transform.angle = -rotation.parse::<f32>()?.to_radians();
     }
-    if let Some(z_layer) = object_data.get(b"24".as_ref()) {
-        object.z_layer = std::str::from_utf8(z_layer)?.parse()?;
+    if let Some(z_layer) = object_data.get("24") {
+        object.z_layer = z_layer.parse()?;
     } else {
         object.z_layer = object_default_data.default_z_layer;
     }
-    if let Some(z_order) = object_data.get(b"25".as_ref()) {
-        transform.translation.z = std::str::from_utf8(z_order)?.parse()?;
+    if let Some(z_order) = object_data.get("25") {
+        transform.translation.z = z_order.parse()?;
     } else {
         transform.translation.z = object_default_data.default_z_order as f32;
     }
-    if let Some(scale) = object_data.get(b"32".as_ref()) {
-        transform.scale = Vec2::splat(std::str::from_utf8(scale)?.parse()?);
+    if let Some(scale) = object_data.get("32") {
+        transform.scale = Vec2::splat(scale.parse()?);
     }
-    if let Some(flip_x) = object_data.get(b"4".as_ref()) {
-        transform.scale.x *= if u8_to_bool(flip_x) { -1. } else { 1. };
+    if let Some(flip_x) = object_data.get("4") {
+        transform.scale.x *= if str_to_bool(flip_x) { -1. } else { 1. };
     }
-    if let Some(flip_y) = object_data.get(b"5".as_ref()) {
-        transform.scale.y *= if u8_to_bool(flip_y) { -1. } else { 1. };
+    if let Some(flip_y) = object_data.get("5") {
+        transform.scale.y *= if str_to_bool(flip_y) { -1. } else { 1. };
     }
 
-    let mut base_color_channel = if let Some(base_color_channel) = object_data.get(b"21".as_ref()) {
-        std::str::from_utf8(base_color_channel)?.parse()?
+    let mut base_color_channel = if let Some(base_color_channel) = object_data.get("21") {
+        base_color_channel.parse()?
     } else {
         object_default_data.default_base_color_channel
     };
-    let mut detail_color_channel =
-        if let Some(detail_color_channel) = object_data.get(b"22".as_ref()) {
-            std::str::from_utf8(detail_color_channel)?.parse()?
-        } else {
-            object_default_data.default_detail_color_channel
-        };
+    let mut detail_color_channel = if let Some(detail_color_channel) = object_data.get("22") {
+        detail_color_channel.parse()?
+    } else {
+        object_default_data.default_detail_color_channel
+    };
 
-    let mut base_hsv = if let Some(base_hsv) = object_data.get(b"43".as_ref()) {
+    let mut base_hsv = if let Some(base_hsv) = object_data.get("43") {
         Some(HsvMod::parse(base_hsv)?)
     } else {
         None
     };
 
-    let mut detail_hsv = if let Some(detail_hsv) = object_data.get(b"44".as_ref()) {
+    let mut detail_hsv = if let Some(detail_hsv) = object_data.get("44") {
         Some(HsvMod::parse(detail_hsv)?)
     } else {
         None
@@ -258,8 +260,8 @@ pub(crate) fn spawn_object(
 
     global_section.insert(entity);
 
-    let mut groups: Vec<u64> = if let Some(group_string) = object_data.get(b"57".as_ref()) {
-        de::from_slice(group_string, b'.')?
+    let mut groups: Vec<u64> = if let Some(group_string) = object_data.get("57") {
+        de::from_str(group_string, '.')?
     } else {
         Vec::new()
     };

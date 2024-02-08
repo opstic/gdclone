@@ -22,8 +22,8 @@ impl BuildHasher for U64Hash {
 }
 
 #[inline]
-pub(crate) const fn u8_to_bool(byte: &[u8]) -> bool {
-    matches!(byte, b"1")
+pub(crate) fn str_to_bool(string: &str) -> bool {
+    string == "1"
 }
 
 #[inline]

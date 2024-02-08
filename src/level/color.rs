@@ -15,7 +15,7 @@ use serde::Deserialize;
 
 use crate::level::group::{GroupArchetypeCalculated, ObjectGroups};
 use crate::level::{de, section::GlobalSections};
-use crate::utils::{hsv_to_rgb, rgb_to_hsv, u8_to_bool, U64Hash};
+use crate::utils::{hsv_to_rgb, rgb_to_hsv, str_to_bool, U64Hash};
 
 #[derive(Default, Resource)]
 pub(crate) struct GlobalColorChannels(pub(crate) DashMap<u64, Entity, U64Hash>);
@@ -36,36 +36,34 @@ pub(crate) enum GlobalColorChannel {
 }
 
 impl GlobalColorChannel {
-    pub(crate) fn parse(color_string: &[u8]) -> Result<(u64, GlobalColorChannel), anyhow::Error> {
-        let color_data: AHashMap<&[u8], &[u8]> = de::from_slice(color_string, b'_')?;
-        let index = std::str::from_utf8(
-            color_data
-                .get(b"6".as_ref())
-                .ok_or(anyhow::Error::msg("No index in color???"))?,
-        )?
-        .parse()?;
-        let color = if color_data.contains_key(b"9".as_ref()) {
-            let copied_index = if let Some(copied_index) = color_data.get(b"9".as_ref()) {
-                std::str::from_utf8(copied_index)?.parse()?
+    pub(crate) fn parse(color_string: &str) -> Result<(u64, GlobalColorChannel), anyhow::Error> {
+        let color_data: AHashMap<&str, &str> = de::from_str(color_string, '_')?;
+        let index = color_data
+            .get("6")
+            .ok_or(anyhow::Error::msg("No index in color???"))?
+            .parse()?;
+        let color = if color_data.contains_key("9") {
+            let copied_index = if let Some(copied_index) = color_data.get("9") {
+                copied_index.parse()?
             } else {
                 u64::MAX
             };
-            let copy_opacity = if let Some(copy_opacity) = color_data.get(b"17".as_ref()) {
-                u8_to_bool(copy_opacity)
+            let copy_opacity = if let Some(copy_opacity) = color_data.get("17") {
+                str_to_bool(copy_opacity)
             } else {
                 false
             };
-            let opacity = if let Some(opacity) = color_data.get(b"7".as_ref()) {
-                std::str::from_utf8(opacity)?.parse()?
+            let opacity = if let Some(opacity) = color_data.get("7") {
+                opacity.parse()?
             } else {
                 1.
             };
-            let blending = if let Some(blending) = color_data.get(b"5".as_ref()) {
-                u8_to_bool(blending)
+            let blending = if let Some(blending) = color_data.get("5") {
+                str_to_bool(blending)
             } else {
                 false
             };
-            let hsv = if let Some(hsv) = color_data.get(b"10".as_ref()) {
+            let hsv = if let Some(hsv) = color_data.get("10") {
                 Some(HsvMod::parse(hsv)?)
             } else {
                 None
@@ -79,20 +77,20 @@ impl GlobalColorChannel {
             }
         } else {
             let mut temp_color = Vec4::ONE;
-            if let Some(r) = color_data.get(b"1".as_ref()) {
-                temp_color[0] = std::str::from_utf8(r)?.parse::<u8>()? as f32 / u8::MAX as f32;
+            if let Some(r) = color_data.get("1") {
+                temp_color[0] = r.parse::<u8>()? as f32 / u8::MAX as f32;
             }
-            if let Some(g) = color_data.get(b"2".as_ref()) {
-                temp_color[1] = std::str::from_utf8(g)?.parse::<u8>()? as f32 / u8::MAX as f32;
+            if let Some(g) = color_data.get("2") {
+                temp_color[1] = g.parse::<u8>()? as f32 / u8::MAX as f32;
             }
-            if let Some(b) = color_data.get(b"3".as_ref()) {
-                temp_color[2] = std::str::from_utf8(b)?.parse::<u8>()? as f32 / u8::MAX as f32;
+            if let Some(b) = color_data.get("3") {
+                temp_color[2] = b.parse::<u8>()? as f32 / u8::MAX as f32;
             }
-            if let Some(opacity) = color_data.get(b"7".as_ref()) {
-                temp_color[3] = std::str::from_utf8(opacity)?.parse()?;
+            if let Some(opacity) = color_data.get("7") {
+                temp_color[3] = opacity.parse()?;
             }
-            let blending = if let Some(blending) = color_data.get(b"5".as_ref()) {
-                u8_to_bool(blending)
+            let blending = if let Some(blending) = color_data.get("5") {
+                str_to_bool(blending)
             } else {
                 false
             };
@@ -587,13 +585,13 @@ pub(crate) struct HsvMod {
 }
 
 impl HsvMod {
-    pub(crate) fn parse(hsv_string: &[u8]) -> Result<HsvMod, anyhow::Error> {
-        let hsv_data: [&[u8]; 5] = de::from_slice(hsv_string, b'a')?;
-        let h: f32 = std::str::from_utf8(hsv_data[0])?.parse()?;
-        let s = std::str::from_utf8(hsv_data[1])?.parse()?;
-        let v = std::str::from_utf8(hsv_data[2])?.parse()?;
-        let s_absolute = u8_to_bool(hsv_data[3]);
-        let v_absolute = u8_to_bool(hsv_data[4]);
+    pub(crate) fn parse(hsv_string: &str) -> Result<HsvMod, anyhow::Error> {
+        let hsv_data: [&str; 5] = de::from_str(hsv_string, 'a')?;
+        let h: f32 = hsv_data[0].parse()?;
+        let s = hsv_data[1].parse()?;
+        let v = hsv_data[2].parse()?;
+        let s_absolute = str_to_bool(hsv_data[3]);
+        let v_absolute = str_to_bool(hsv_data[4]);
 
         Ok(HsvMod::new(h * (1. / 60.), s, v, s_absolute, v_absolute))
     }
