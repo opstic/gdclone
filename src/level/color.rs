@@ -615,7 +615,7 @@ impl HsvMod {
         let s_absolute = str_to_bool(hsv_data[3]);
         let v_absolute = str_to_bool(hsv_data[4]);
 
-        Ok(HsvMod::new(h * (1. / 60.), s, v, s_absolute, v_absolute))
+        Ok(HsvMod::new(h * (1. / 360.), s, v, s_absolute, v_absolute))
     }
 
     pub(crate) fn new(h: f32, s: f32, v: f32, s_absolute: bool, v_absolute: bool) -> Self {

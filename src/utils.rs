@@ -47,27 +47,29 @@ pub(crate) const fn fast_scale(val: u8, x: u8) -> u8 {
     (((r1 >> 8) + r1) >> 8) as u8
 }
 
+// From https://github.com/lolengine/lol/blob/b5f0/include/lol/private/image/color.h#L146
 #[inline]
-pub(crate) fn rgb_to_hsv([r, g, b]: [f32; 3]) -> [f32; 3] {
-    let min = r.min(g).min(b);
-    let max = r.max(g).max(b);
+pub(crate) fn rgb_to_hsv(rgb: [f32; 3]) -> [f32; 3] {
+    let mut k = 0.;
 
-    let delta = max - min;
+    let [mut r, mut g, mut b] = rgb;
 
-    let mut h = if r == max {
-        // Between yellow & magenta
-        (g - b) / delta
-    } else if g == max {
-        // Between cyan & yellow
-        2. + (b - r) / delta
-    } else {
-        // Between magenta & cyan
-        4. + (r - g) / delta
-    };
+    if g < b {
+        std::mem::swap(&mut g, &mut b);
+        k = -1.;
+    }
 
-    h = h.rem_euclid(6.);
+    let mut min_gb = b;
 
-    [h, if max == 0. { 0. } else { delta / max }, max]
+    if r < g {
+        std::mem::swap(&mut r, &mut g);
+        k = -2. / 6. - k;
+        min_gb = g.min(b);
+    }
+
+    let chroma = r - min_gb;
+
+    [(k + (g - b) / (chroma * 6.)).abs(), chroma / r, r]
 }
 
 #[inline]
@@ -76,13 +78,14 @@ pub(crate) fn hsv_to_rgb([h, s, v]: [f32; 3]) -> [f32; 3] {
         return [v, v, v];
     }
 
-    let h = h.rem_euclid(6.);
+    let h = h.fract() * 6.;
+    let h_fract = h.fract();
     let s = s.clamp(0., 1.);
     let v = v.clamp(0., 1.);
 
     let p = v * (1. - s);
-    let q = v * (1. - (s * h.fract()));
-    let t = v * (1. - (s * (1. - h.fract())));
+    let q = v * (1. - (s * h_fract));
+    let t = v * (1. - (s * (1. - h_fract)));
 
     match (h as u8) % 6 {
         0 => [v, t, p],
