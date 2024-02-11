@@ -27,6 +27,7 @@ bevy = { version = "0.12", default-features = false, features = [
     "multi-threaded",
     "mp3",
     "png",
+    "wayland",
     "webgl2",
     "x11",
 ] }
