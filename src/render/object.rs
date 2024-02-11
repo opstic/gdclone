@@ -14,8 +14,8 @@ use bevy::ecs::system::{
 use bevy::log::warn;
 use bevy::math::{Affine2, Rect, Vec2, Vec2Swizzles, Vec4};
 use bevy::prelude::{
-    Commands, Component, Entity, FromWorld, Image, IntoSystemConfigs, Local, Msaa, Query, Res,
-    ResMut, Resource, Shader, World,
+    Commands, Component, Entity, FromWorld, Image, IntoSystemConfigs, Msaa, Query, Res, ResMut,
+    Resource, Shader, World,
 };
 use bevy::render::{
     mesh::PrimitiveTopology,
@@ -45,6 +45,7 @@ use bevy::render::{
 };
 use bevy::tasks::ComputeTaskPool;
 use bevy::utils::{syncunsafecell::SyncUnsafeCell, FloatOrd};
+use indexmap::IndexMap;
 
 use crate::asset::compressed_image::CompressedImage;
 use crate::level::color::ObjectColorCalculated;
@@ -93,7 +94,9 @@ impl Plugin for ObjectRenderPlugin {
                 warn!(
                 "Current GPU does not support texture arrays, switching to fallback implementation"
             );
-                fallbacks.no_texture_array = true;
+                fallbacks.texture_array_size = 1;
+            } else {
+                fallbacks.texture_array_size = 16;
             }
 
             render_app
@@ -105,7 +108,7 @@ impl Plugin for ObjectRenderPlugin {
 
 #[derive(Default, Resource)]
 pub struct Fallbacks {
-    no_texture_array: bool,
+    texture_array_size: usize,
 }
 
 #[derive(Resource)]
@@ -149,20 +152,20 @@ impl FromWorld for ObjectPipeline {
                         sample_type: TextureSampleType::Float { filterable: true },
                         view_dimension: TextureViewDimension::D2,
                     },
-                    count: if fallbacks.no_texture_array {
+                    count: if fallbacks.texture_array_size == 1 {
                         None
                     } else {
-                        NonZeroU32::new(16)
+                        NonZeroU32::new(fallbacks.texture_array_size as u32)
                     },
                 },
                 BindGroupLayoutEntry {
                     binding: 1,
                     visibility: ShaderStages::FRAGMENT,
                     ty: BindingType::Sampler(SamplerBindingType::Filtering),
-                    count: if fallbacks.no_texture_array {
+                    count: if fallbacks.texture_array_size == 1 {
                         None
                     } else {
-                        NonZeroU32::new(16)
+                        NonZeroU32::new(fallbacks.texture_array_size as u32)
                     },
                 },
             ],
@@ -532,21 +535,24 @@ impl Default for ObjectMeta {
 
 #[derive(Default, Component, PartialEq, Eq, Clone)]
 pub struct ObjectBatch {
-    pub(crate) bind_group_index: usize,
-    pub(crate) range: Range<u32>,
+    pub(crate) ranges: Vec<(usize, Range<u32>)>,
 }
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn queue_objects(
     draw_functions: Res<DrawFunctions<Transparent2d>>,
     object_pipeline: Res<ObjectPipeline>,
+    fallbacks: Res<Fallbacks>,
     mut pipelines: ResMut<SpecializedRenderPipelines<ObjectPipeline>>,
     pipeline_cache: Res<PipelineCache>,
     msaa: Res<Msaa>,
     mut extracted_layers: ResMut<ExtractedLayers>,
     mut phases: Query<&mut RenderPhase<Transparent2d>>,
 ) {
-    let view_key = ObjectPipelineKey::from_msaa_samples(msaa.samples());
+    let mut view_key = ObjectPipelineKey::from_msaa_samples(msaa.samples());
+    if fallbacks.texture_array_size == 1 {
+        view_key |= ObjectPipelineKey::NO_TEXTURE_ARRAY;
+    }
 
     let draw_object_function = draw_functions.read().id::<DrawObject>();
 
@@ -573,7 +579,7 @@ pub(crate) fn queue_objects(
 
             total_size += extracted_layer.len();
 
-            let entity_bits = 55555_u64 << 32 | (layer_index.to_u32() as u64);
+            let entity_bits = u64::MAX << 32 | (layer_index.to_u32() as u64);
             transparent_phase.add(Transparent2d {
                 draw_function: draw_object_function,
                 pipeline: if layer_index.0 % 2 == 0 {
@@ -620,13 +626,12 @@ pub(crate) fn queue_objects(
 
 #[derive(Resource, Default)]
 pub struct ImageBindGroups {
-    values: Vec<(Vec<AssetId<CompressedImage>>, BindGroup)>,
+    values: Vec<BindGroup>,
 }
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare_objects(
     mut commands: Commands,
-    mut previous_len: Local<usize>,
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
     mut object_meta: ResMut<ObjectMeta>,
@@ -636,14 +641,13 @@ pub(crate) fn prepare_objects(
     gpu_images: Res<RenderAssets<CompressedImage>>,
     extracted_layers: Res<ExtractedLayers>,
     mut phases: Query<&mut RenderPhase<Transparent2d>>,
+    fallbacks: Res<Fallbacks>,
 ) {
     image_bind_groups.values.clear();
 
     let Some(view_binding) = view_uniforms.uniforms.binding() else {
         return;
     };
-
-    let mut batches: Vec<(usize, ObjectBatch)> = Vec::with_capacity(*previous_len);
 
     object_meta.view_bind_group = Some(render_device.create_bind_group(
         "object_view_bind_group",
@@ -660,22 +664,27 @@ pub(crate) fn prepare_objects(
     for mut transparent_phase in &mut phases {
         let mut instance_mut_ref = &mut instance_buffer_values[..];
 
-        let image_group_index = AtomicUsize::new(0);
+        let mut layers_batches: SyncUnsafeCell<IndexMap<usize, ObjectBatch>> =
+            SyncUnsafeCell::new(IndexMap::with_capacity(extracted_layers.layers.len()));
         let dummy_image = &object_pipeline.dummy_white_gpu_image;
-        let image_group = SyncUnsafeCell::new(
-            [(
+        let mut images_index = AtomicUsize::new(0);
+        let images = SyncUnsafeCell::new(vec![
+            (
                 AssetId::invalid(),
-                Vec2::new(dummy_image.size.x, dummy_image.size.y),
+                dummy_image.size,
                 &dummy_image.texture_view,
                 &dummy_image.sampler,
-            ); 16],
-        );
+            );
+            32
+        ]);
 
         let compute_task_pool = ComputeTaskPool::get();
 
         compute_task_pool.scope(|scope| {
-            let image_group = &image_group;
-            let image_group_index = &image_group_index;
+            let layers_batches = &layers_batches;
+            let fallbacks = &fallbacks;
+            let images_index = &images_index;
+            let images = &images;
             let gpu_images = &gpu_images;
             // Iterate through the phase items and detect when successive sprites that can be batched.
             // Spawn an entity with a `SpriteBatch` component for each possible batch.
@@ -683,7 +692,7 @@ pub(crate) fn prepare_objects(
             for item_index in 0..transparent_phase.items.len() {
                 let item = &transparent_phase.items[item_index];
 
-                if item.entity.generation() != 55555 {
+                if item.entity.generation() != u32::MAX {
                     continue;
                 }
 
@@ -705,44 +714,61 @@ pub(crate) fn prepare_objects(
 
                 assert_eq!(extracted_layer.len(), this_chunk.len());
 
+                let layer_batches = unsafe { &mut *layers_batches.get() }
+                    .entry(item_index)
+                    .or_default();
+
                 // let a = info_span!("prepare_objects: layer task");
                 scope.spawn(async move {
                     // let _a = a.enter();
-                    let image_group = unsafe { &mut *image_group.get() };
+                    let mut previous_image_group_index = 0;
+                    let mut batch_ranges = Vec::new();
+                    let mut batch_range = index..index;
+                    let images = unsafe { &mut *images.get() };
                     for (extracted_object, buffer_entry) in extracted_layer.iter().zip(this_chunk) {
-                        let (texture_index, current_image_size) =
-                            match image_group.iter().position(|(asset_id, _, _, _)| {
+                        let (image_group_index, texture_index, current_image_size) =
+                            match images.iter().position(|(asset_id, _, _, _)| {
                                 *asset_id == extracted_object.image_handle_id
                             }) {
                                 Some(index) => {
-                                    let image_group_entry = &image_group[index];
-                                    (index, image_group_entry.1)
+                                    let y = index % fallbacks.texture_array_size;
+                                    let x = (index - y) / fallbacks.texture_array_size;
+                                    let image_group_entry = images[index];
+                                    (x, y, image_group_entry.1)
                                 }
                                 None => {
-                                    if let Some(gpu_image) =
+                                    let Some(gpu_image) =
                                         gpu_images.get(extracted_object.image_handle_id)
-                                    {
-                                        let new_index =
-                                            image_group_index.fetch_add(1, Ordering::Relaxed);
-                                        if new_index < 16 {
-                                            let current_image_size =
-                                                Vec2::new(gpu_image.size.x, gpu_image.size.y);
-                                            image_group[new_index] = (
-                                                extracted_object.image_handle_id,
-                                                current_image_size,
-                                                &gpu_image.texture_view,
-                                                &gpu_image.sampler,
-                                            );
-                                            (new_index, current_image_size)
-                                        } else {
-                                            panic!();
-                                        }
-                                    } else {
-                                        // The texture is not ready yet
+                                    else {
+                                        // Texture isn't ready yet
                                         continue;
-                                    }
+                                    };
+
+                                    let new_index = images_index.fetch_add(1, Ordering::Relaxed);
+
+                                    images[new_index] = (
+                                        extracted_object.image_handle_id,
+                                        gpu_image.size,
+                                        &gpu_image.texture_view,
+                                        &gpu_image.sampler,
+                                    );
+
+                                    let y = new_index % fallbacks.texture_array_size;
+                                    let x = (new_index - y) / fallbacks.texture_array_size;
+                                    (x, y, gpu_image.size)
                                 }
                             };
+
+                        if image_group_index != previous_image_group_index
+                            && !batch_range.is_empty()
+                        {
+                            let new_range = batch_range.end..batch_range.end;
+                            batch_ranges.push((
+                                previous_image_group_index,
+                                std::mem::replace(&mut batch_range, new_range),
+                            ));
+                        }
+                        previous_image_group_index = image_group_index;
 
                         // By default, the size of the quad is the size of the texture
                         let mut quad_size = current_image_size;
@@ -802,30 +828,36 @@ pub(crate) fn prepare_objects(
                             &uv_offset_scale,
                             texture_index as u32,
                         );
-                    }
-                });
 
-                batches.push((
-                    item_index,
-                    ObjectBatch {
-                        bind_group_index: 0,
-                        range: index..index + (extracted_layer.len() as u32),
-                    },
-                ));
+                        batch_range.end += 1;
+                    }
+
+                    batch_ranges.push((previous_image_group_index, batch_range));
+
+                    *layer_batches = ObjectBatch {
+                        ranges: batch_ranges,
+                    };
+                });
 
                 index += extracted_layer.len() as u32;
             }
         });
 
-        for (item_index, batch) in &mut batches {
+        for (item_index, batch) in &mut layers_batches.get_mut().iter_mut() {
             let batch_id = commands.spawn(std::mem::take(batch)).id();
             transparent_phase.items[*item_index].entity = batch_id;
         }
 
-        image_bind_groups.values.push((
-            vec![],
-            create_image_bind_group(&image_group.into_inner(), &object_pipeline, &render_device),
-        ));
+        for image_chunk in
+            images.into_inner()[..*images_index.get_mut()].chunks(fallbacks.texture_array_size)
+        {
+            image_bind_groups.values.push(create_image_bind_group(
+                image_chunk,
+                fallbacks.texture_array_size,
+                &object_pipeline,
+                &render_device,
+            ))
+        }
     }
 
     object_meta
@@ -851,41 +883,65 @@ pub(crate) fn prepare_objects(
             .index_buffer
             .write_buffer(&render_device, &render_queue);
     }
-
-    *previous_len = batches.len();
 }
 
 fn create_image_bind_group(
     image_handles: &[(AssetId<CompressedImage>, Vec2, &TextureView, &Sampler)],
+    image_bind_group_size: usize,
     object_pipeline: &ObjectPipeline,
     render_device: &RenderDevice,
 ) -> BindGroup {
-    let (texture_views, samplers): (Vec<_>, Vec<_>) = image_handles
+    let (mut texture_views, mut samplers): (Vec<_>, Vec<_>) = image_handles
         .iter()
         .map(|(_, _, texture_view, sampler)| (&***texture_view, &***sampler))
         .unzip();
 
-    render_device.create_bind_group(
-        Some("object_material_bind_group"),
-        &object_pipeline.material_layout,
-        &[
-            BindGroupEntry {
-                binding: 0,
-                resource: BindingResource::TextureViewArray(&texture_views),
-            },
-            BindGroupEntry {
-                binding: 1,
-                resource: BindingResource::SamplerArray(&samplers),
-            },
-        ],
-    )
+    texture_views.resize(
+        image_bind_group_size,
+        &object_pipeline.dummy_white_gpu_image.texture_view,
+    );
+    samplers.resize(
+        image_bind_group_size,
+        &object_pipeline.dummy_white_gpu_image.sampler,
+    );
+
+    if image_handles.len() != 1 {
+        render_device.create_bind_group(
+            Some("object_material_bind_group"),
+            &object_pipeline.material_layout,
+            &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::TextureViewArray(&texture_views),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::SamplerArray(&samplers),
+                },
+            ],
+        )
+    } else {
+        render_device.create_bind_group(
+            Some("object_material_bind_group"),
+            &object_pipeline.material_layout,
+            &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::TextureView(texture_views.first().unwrap()),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::Sampler(samplers.first().unwrap()),
+                },
+            ],
+        )
+    }
 }
 
 pub type DrawObject = (
     SetItemPipeline,
     SetObjectViewBindGroup<0>,
-    SetObjectTextureBindGroup<1>,
-    DrawObjectBatch,
+    DrawObjectBatch<1>,
 );
 
 pub struct SetObjectViewBindGroup<const I: usize>;
@@ -911,10 +967,10 @@ impl<P: PhaseItem, const I: usize> RenderCommand<P> for SetObjectViewBindGroup<I
     }
 }
 
-pub struct SetObjectTextureBindGroup<const I: usize>;
+pub struct DrawObjectBatch<const I: usize>;
 
-impl<P: PhaseItem, const I: usize> RenderCommand<P> for SetObjectTextureBindGroup<I> {
-    type Param = SRes<ImageBindGroups>;
+impl<P: PhaseItem, const I: usize> RenderCommand<P> for DrawObjectBatch<I> {
+    type Param = (SRes<ObjectMeta>, SRes<ImageBindGroups>);
     type ViewWorldQuery = ();
     type ItemWorldQuery = Read<ObjectBatch>;
 
@@ -922,38 +978,23 @@ impl<P: PhaseItem, const I: usize> RenderCommand<P> for SetObjectTextureBindGrou
         _item: &P,
         _view: (),
         batch: &'_ ObjectBatch,
-        image_bind_groups: SystemParamItem<'w, '_, Self::Param>,
-        pass: &mut TrackedRenderPass<'w>,
-    ) -> RenderCommandResult {
-        let image_bind_groups = image_bind_groups.into_inner();
-
-        pass.set_bind_group(I, &image_bind_groups.values[batch.bind_group_index].1, &[]);
-        RenderCommandResult::Success
-    }
-}
-
-pub struct DrawObjectBatch;
-
-impl<P: PhaseItem> RenderCommand<P> for DrawObjectBatch {
-    type Param = SRes<ObjectMeta>;
-    type ViewWorldQuery = ();
-    type ItemWorldQuery = Read<ObjectBatch>;
-
-    fn render<'w>(
-        _item: &P,
-        _view: (),
-        batch: &'_ ObjectBatch,
-        object_meta: SystemParamItem<'w, '_, Self::Param>,
+        (object_meta, image_bind_groups): SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
         let object_meta = object_meta.into_inner();
+        let image_bind_groups = image_bind_groups.into_inner();
+
         pass.set_index_buffer(
             object_meta.index_buffer.buffer().unwrap().slice(..),
             0,
             IndexFormat::Uint32,
         );
         pass.set_vertex_buffer(0, object_meta.instance_buffer.buffer().unwrap().slice(..));
-        pass.draw_indexed(0..6, 0, batch.range.clone());
+
+        for (bind_group_index, range) in &batch.ranges {
+            pass.set_bind_group(I, &image_bind_groups.values[*bind_group_index], &[]);
+            pass.draw_indexed(0..6, 0, range.clone());
+        }
         RenderCommandResult::Success
     }
 }
