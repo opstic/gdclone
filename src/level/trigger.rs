@@ -1,7 +1,7 @@
 use std::any::{Any, TypeId};
 
 use bevy::ecs::system::SystemState;
-use bevy::math::Vec3;
+use bevy::math::Vec3A;
 use bevy::prelude::{Component, Entity, EntityWorldMut, Query, ResMut, Resource, With, World};
 use bevy::utils::syncunsafecell::SyncUnsafeCell;
 use bevy::utils::{default, hashbrown, HashMap as AHashMap};
@@ -513,7 +513,7 @@ pub(crate) fn insert_trigger_data(
                 }
                 trigger.color_mod = ColorMod::Hsv(hsv);
             } else {
-                let mut color = Vec3::ONE;
+                let mut color = Vec3A::ONE;
                 if let Some(r) = object_data.get("7") {
                     color[0] = r.parse::<u8>()? as f32 / u8::MAX as f32;
                 }

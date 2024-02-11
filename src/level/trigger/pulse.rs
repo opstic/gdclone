@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use bevy::ecs::system::SystemState;
-use bevy::math::{Vec3, Vec4Swizzles};
+use bevy::math::Vec3A;
 use bevy::prelude::{Entity, Query, Res, World};
 
 use crate::level::color::{
@@ -79,19 +79,20 @@ impl TriggerFunction for PulseTrigger {
                         if hsv.empty() {
                             return;
                         } else {
-                            let mut color = if self.copied_color_id == self.target_id {
-                                calculated.pre_pulse_color
-                            } else {
-                                calculated.color
-                            };
-                            hsv.apply_rgba(&mut color);
-                            ColorMod::Color(color.xyz())
+                            let mut color =
+                                Vec3A::from(if self.copied_color_id == self.target_id {
+                                    calculated.pre_pulse_color
+                                } else {
+                                    calculated.color
+                                });
+                            hsv.apply_rgb(&mut color);
+                            ColorMod::Color(color)
                         }
                     } else {
                         self.color_mod
                     }
                 } else {
-                    ColorMod::Color(Vec3::ONE)
+                    ColorMod::Color(Vec3A::ONE)
                 }
             }
         };

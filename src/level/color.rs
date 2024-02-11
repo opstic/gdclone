@@ -2,7 +2,7 @@ use std::sync::Mutex;
 
 use bevy::ecs::query::{ReadOnlyWorldQuery, WorldQuery};
 use bevy::hierarchy::{BuildChildren, BuildWorldChildren, Children, Parent};
-use bevy::math::{Vec3, Vec4, Vec4Swizzles};
+use bevy::math::{Vec3A, Vec4};
 use bevy::prelude::{
     Commands, Component, DetectChanges, Entity, Mut, Query, Ref, Res, ResMut, Resource, With,
     Without, World,
@@ -553,13 +553,13 @@ pub(crate) enum ObjectColorKind {
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) enum ColorMod {
-    Color(Vec3),
+    Color(Vec3A),
     Hsv(HsvMod),
 }
 
 impl Default for ColorMod {
     fn default() -> Self {
-        Self::Color(Vec3::ONE)
+        Self::Color(Vec3A::ONE)
     }
 }
 
@@ -568,19 +568,19 @@ impl ColorMod {
     where
         I: IntoIterator<Item = (f32, Self)>,
     {
-        let mut transforming_color = *color;
+        let mut transforming_color = Vec3A::from(*color);
         for (progress, color_mod) in mods {
             match color_mod {
                 ColorMod::Color(color) => {
                     if progress == 1. {
-                        transforming_color = color.extend(1.);
+                        transforming_color = color;
                         continue;
                     }
-                    transforming_color = transforming_color.lerp(color.extend(1.), progress);
+                    transforming_color = transforming_color.lerp(color, progress);
                 }
                 ColorMod::Hsv(hsv_mod) => {
                     let mut target_color = transforming_color;
-                    hsv_mod.apply_rgba(&mut target_color);
+                    hsv_mod.apply_rgb(&mut target_color);
 
                     if progress == 1. {
                         transforming_color = target_color;
@@ -591,9 +591,7 @@ impl ColorMod {
                 }
             }
         }
-
-        transforming_color[3] = color[3];
-        *color = transforming_color;
+        *color = transforming_color.extend(color[3]);
     }
 }
 
@@ -635,11 +633,17 @@ impl HsvMod {
     }
 
     pub(crate) fn apply_rgba(&self, color: &mut Vec4) {
+        let mut applied_rgb = Vec3A::from(*color);
+        self.apply_rgb(&mut applied_rgb);
+        *color = applied_rgb.extend(color[3]);
+    }
+
+    pub(crate) fn apply_rgb(&self, color: &mut Vec3A) {
         if self.empty() {
             return;
         }
 
-        let [h, s, v] = rgb_to_hsv(color.xyz().to_array());
+        let [h, s, v] = rgb_to_hsv(color.to_array());
         let rgb = hsv_to_rgb([
             h + self.h,
             if self.s_absolute {
@@ -654,7 +658,7 @@ impl HsvMod {
             },
         ]);
 
-        *color = Vec3::from(rgb).extend(color[3])
+        *color = Vec3A::from(rgb)
     }
 }
 
