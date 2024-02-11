@@ -128,7 +128,7 @@ impl TriggerFunction for PulseTrigger {
 
     fn target_id(&self) -> u64 {
         if self.target_is_group {
-            u64::MAX
+            (u64::MAX / 2) + self.target_id
         } else {
             self.target_id
         }
@@ -139,6 +139,6 @@ impl TriggerFunction for PulseTrigger {
     }
 
     fn exclusive(&self) -> bool {
-        self.exclusive && !self.target_is_group
+        self.exclusive
     }
 }
