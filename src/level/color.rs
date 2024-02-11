@@ -272,6 +272,7 @@ pub(crate) fn update_color_channel_calculated(
                 recursive_propagate_color(
                     &mutex,
                     children,
+                    color_channel.id,
                     calculated.color,
                     &child_color_channels,
                     should_update,
@@ -284,6 +285,7 @@ pub(crate) fn update_color_channel_calculated(
 unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery>(
     mutex: &Mutex<(Commands, &mut GlobalColorChannels)>,
     children: &Children,
+    parent_id: u64,
     parent_color: Vec4,
     children_query: &'w Query<'w, 's, Q, F>,
     should_update: bool,
@@ -327,6 +329,15 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
             continue;
         };
 
+        if parent_id != copied_index {
+            // Fix the hierarchy for the next iteration
+            let (commands, _) = &mut *mutex.lock().unwrap();
+
+            commands.entity(entity).remove_parent();
+            calculated.deferred = true;
+            continue;
+        }
+
         if should_update {
             calculated.pre_pulse_color = parent_color;
 
@@ -360,6 +371,7 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
             recursive_propagate_color(
                 mutex,
                 children,
+                color_channel.id,
                 calculated.color,
                 children_query,
                 should_update,
