@@ -5,7 +5,7 @@ use bevy::math::Vec4;
 use bevy::prelude::{Entity, Mut, Query, World};
 
 use crate::level::color::{
-    ColorChannelCalculated, GlobalColorChannel, GlobalColorChannels, HsvMod,
+    ColorChannelCalculated, GlobalColorChannel, GlobalColorChannelKind, GlobalColorChannels, HsvMod,
 };
 use crate::level::trigger::TriggerFunction;
 use crate::utils::lerp_start_vec4;
@@ -96,7 +96,7 @@ impl TriggerFunction for ColorTrigger {
 
         if progress == 1. {
             if self.copied_channel != 0 {
-                *color_channel = GlobalColorChannel::Copy {
+                color_channel.kind = GlobalColorChannelKind::Copy {
                     copied_index: self.copied_channel,
                     copy_opacity: self.copy_opacity,
                     opacity: self.target_color[3],
@@ -104,7 +104,7 @@ impl TriggerFunction for ColorTrigger {
                     hsv: self.copied_hsv,
                 }
             } else {
-                *color_channel = GlobalColorChannel::Base {
+                color_channel.kind = GlobalColorChannelKind::Base {
                     color: self.target_color,
                     blending: self.target_blending,
                 }
@@ -126,7 +126,7 @@ impl TriggerFunction for ColorTrigger {
         let original_color =
             lerp_start_vec4(calculated.pre_pulse_color, target_color, previous_progress);
 
-        *color_channel = GlobalColorChannel::Base {
+        color_channel.kind = GlobalColorChannelKind::Base {
             color: original_color.lerp(target_color, progress),
             blending: self.target_blending,
         };

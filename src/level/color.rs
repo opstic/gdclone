@@ -20,8 +20,14 @@ use crate::utils::{hsv_to_rgb, rgb_to_hsv, str_to_bool, U64Hash};
 #[derive(Default, Resource)]
 pub(crate) struct GlobalColorChannels(pub(crate) DashMap<u64, Entity, U64Hash>);
 
-#[derive(Component, Debug)]
-pub(crate) enum GlobalColorChannel {
+#[derive(Component, Debug, Default)]
+pub(crate) struct GlobalColorChannel {
+    pub(crate) id: u64,
+    pub(crate) kind: GlobalColorChannelKind,
+}
+
+#[derive(Debug)]
+pub(crate) enum GlobalColorChannelKind {
     Base {
         color: Vec4,
         blending: bool,
@@ -36,7 +42,7 @@ pub(crate) enum GlobalColorChannel {
 }
 
 impl GlobalColorChannel {
-    pub(crate) fn parse(color_string: &str) -> Result<(u64, GlobalColorChannel), anyhow::Error> {
+    pub(crate) fn parse(color_string: &str) -> Result<GlobalColorChannel, anyhow::Error> {
         let color_data: AHashMap<&str, &str> = de::from_str(color_string, '_')?;
         let index = color_data
             .get("6")
@@ -68,7 +74,7 @@ impl GlobalColorChannel {
             } else {
                 None
             };
-            GlobalColorChannel::Copy {
+            GlobalColorChannelKind::Copy {
                 copied_index,
                 copy_opacity,
                 opacity,
@@ -94,18 +100,21 @@ impl GlobalColorChannel {
             } else {
                 false
             };
-            GlobalColorChannel::Base {
+            GlobalColorChannelKind::Base {
                 color: temp_color,
                 blending,
             }
         };
-        Ok((index, color))
+        Ok(Self {
+            id: index,
+            kind: color,
+        })
     }
 }
 
-impl Default for GlobalColorChannel {
+impl Default for GlobalColorChannelKind {
     fn default() -> Self {
-        GlobalColorChannel::Base {
+        GlobalColorChannelKind::Base {
             color: Vec4::ONE,
             blending: false,
         }
@@ -137,23 +146,23 @@ pub(crate) fn construct_color_channel_hierarchy(
         let Ok(color_channel) = query.get(world, color_channel_entity) else {
             continue;
         };
-        match color_channel {
-            GlobalColorChannel::Copy { copied_index, .. } => {
-                let copying_entity = if let Some(entity) = global_color_channels.0.get(copied_index)
-                {
-                    *entity
-                } else {
-                    // Delegate it to later
-                    let channel_to_add = channels_to_add.entry(*copied_index).or_default();
-                    channel_to_add.push(color_channel_entity);
-                    continue;
-                };
+        match color_channel.kind {
+            GlobalColorChannelKind::Copy { copied_index, .. } => {
+                let copying_entity =
+                    if let Some(entity) = global_color_channels.0.get(&copied_index) {
+                        *entity
+                    } else {
+                        // Delegate it to later
+                        let channel_to_add = channels_to_add.entry(copied_index).or_default();
+                        channel_to_add.push(color_channel_entity);
+                        continue;
+                    };
 
                 world
                     .entity_mut(copying_entity)
                     .add_child(color_channel_entity);
             }
-            GlobalColorChannel::Base { .. } => continue,
+            GlobalColorChannelKind::Base { .. } => continue,
         }
     }
     for (index, dependent_entities) in channels_to_add {
@@ -210,9 +219,9 @@ pub(crate) fn update_color_channel_calculated(
             let should_update =
                 color_channel.is_changed() || calculated.deferred || pulses.is_changed();
 
-            let (color, blending) = match *color_channel {
-                GlobalColorChannel::Base { color, blending } => (color, blending),
-                GlobalColorChannel::Copy { copied_index, .. } => {
+            let (color, blending) = match color_channel.kind {
+                GlobalColorChannelKind::Base { color, blending } => (color, blending),
+                GlobalColorChannelKind::Copy { copied_index, .. } => {
                     // Fix the hierarchy for the next iteration
                     let (commands, global_color_channels) = &mut *mutex.lock().unwrap();
                     let mut parent_entity =
@@ -301,13 +310,14 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
             || calculated.deferred
             || pulses.is_changed();
 
-        let GlobalColorChannel::Copy {
+        let GlobalColorChannelKind::Copy {
+            copied_index,
             copy_opacity,
             opacity,
             blending,
             hsv,
             ..
-        } = *color_channel
+        } = color_channel.kind
         else {
             // Fix the hierarchy for the next iteration
             let (commands, _) = &mut *mutex.lock().unwrap();

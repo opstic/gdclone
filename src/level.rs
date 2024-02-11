@@ -24,7 +24,7 @@ use serde::{Deserialize, Deserializer};
 
 use crate::asset::cocos2d_atlas::Cocos2dFrames;
 use crate::asset::TestAssets;
-use crate::level::color::{HsvMod, Pulses};
+use crate::level::color::{GlobalColorChannelKind, HsvMod, Pulses};
 use crate::level::player::{update_player_pos, Player};
 use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::{process_triggers, SpeedChange, TriggerActivator, TriggerData};
@@ -155,13 +155,16 @@ fn spawn_level_world(
                 .try_reserve(parsed_colors.len())
                 .unwrap();
             for color_string in parsed_colors {
-                let (index, color_channel) = match GlobalColorChannel::parse(color_string) {
+                let color_channel = match GlobalColorChannel::parse(color_string) {
                     Ok(result) => result,
                     Err(error) => {
                         warn!("Failed to parse color channel: {:?}", error);
                         continue;
                     }
                 };
+
+                let id = color_channel.id;
+
                 let color_channel_entity = world
                     .spawn((
                         color_channel,
@@ -170,7 +173,7 @@ fn spawn_level_world(
                     ))
                     .id();
 
-                global_color_channels.0.insert(index, color_channel_entity);
+                global_color_channels.0.insert(id, color_channel_entity);
             }
         }
 
@@ -178,16 +181,19 @@ fn spawn_level_world(
             1007,
             world
                 .spawn((
-                    GlobalColorChannel::Copy {
-                        copied_index: 1000,
-                        copy_opacity: false,
-                        opacity: 1.,
-                        blending: true,
-                        hsv: Some(HsvMod {
-                            s: -20.,
-                            s_absolute: true,
-                            ..default()
-                        }),
+                    GlobalColorChannel {
+                        id: 1007,
+                        kind: GlobalColorChannelKind::Copy {
+                            copied_index: 1000,
+                            copy_opacity: false,
+                            opacity: 1.,
+                            blending: true,
+                            hsv: Some(HsvMod {
+                                s: -20.,
+                                s_absolute: true,
+                                ..default()
+                            }),
+                        },
                     },
                     ColorChannelCalculated::default(),
                     Pulses::default(),
@@ -199,9 +205,12 @@ fn spawn_level_world(
             1010,
             world
                 .spawn((
-                    GlobalColorChannel::Base {
-                        color: Vec3::ZERO.extend(1.),
-                        blending: false,
+                    GlobalColorChannel {
+                        id: 1010,
+                        kind: GlobalColorChannelKind::Base {
+                            color: Vec3::ZERO.extend(1.),
+                            blending: false,
+                        },
                     },
                     ColorChannelCalculated::default(),
                     Pulses::default(),
@@ -218,7 +227,10 @@ fn spawn_level_world(
                 i,
                 world
                     .spawn((
-                        GlobalColorChannel::default(),
+                        GlobalColorChannel {
+                            id: i,
+                            kind: GlobalColorChannelKind::default(),
+                        },
                         ColorChannelCalculated::default(),
                         Pulses::default(),
                     ))
