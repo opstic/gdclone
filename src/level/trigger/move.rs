@@ -58,11 +58,15 @@ impl TriggerFunction for MoveTrigger {
         if self.lock.any() {
             let (player, transform) = player_query.single();
 
-            let last_translation = if previous_progress == 0. {
+            let mut last_translation = if previous_progress == 0. {
                 transform_query.get(entity).unwrap().translation.xy()
             } else {
                 player.last_translation
             };
+
+            if previous_progress == 0. && last_translation.x < 0. {
+                last_translation.x += 30.;
+            }
 
             if self.lock.x {
                 delta.x += transform.translation.x - last_translation.x;
