@@ -78,7 +78,7 @@ pub(crate) fn hsv_to_rgb([h, s, v]: [f32; 3]) -> [f32; 3] {
         return [v, v, v];
     }
 
-    let h = h.fract() * 6.;
+    let h = (h.fract() + if h < 0. { 1. } else { 0. }) * 6.;
     let h_fract = h.fract();
     let s = s.clamp(0., 1.);
     let v = v.clamp(0., 1.);
