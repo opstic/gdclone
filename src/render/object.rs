@@ -668,15 +668,14 @@ pub(crate) fn prepare_objects(
             SyncUnsafeCell::new(IndexMap::with_capacity(extracted_layers.layers.len()));
         let dummy_image = &object_pipeline.dummy_white_gpu_image;
         let mut images_index = AtomicUsize::new(0);
-        let images = SyncUnsafeCell::new(vec![
-            (
+        let images = SyncUnsafeCell::new(
+            [(
                 AssetId::invalid(),
                 dummy_image.size,
                 &dummy_image.texture_view,
                 &dummy_image.sampler,
-            );
-            32
-        ]);
+            ); 16],
+        );
 
         let compute_task_pool = ComputeTaskPool::get();
 
