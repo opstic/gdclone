@@ -1,5 +1,3 @@
-use std::sync::Mutex;
-
 use bevy::ecs::query::{ReadOnlyWorldQuery, WorldQuery};
 use bevy::hierarchy::{BuildChildren, BuildWorldChildren, Children, Parent};
 use bevy::math::{Vec3A, Vec4};
@@ -12,6 +10,7 @@ use bevy::tasks::ComputeTaskPool;
 use bevy::utils::{hashbrown, HashMap as AHashMap};
 use dashmap::DashMap;
 use serde::Deserialize;
+use spin::Mutex;
 
 use crate::level::group::{GroupArchetypeCalculated, ObjectGroups};
 use crate::level::{de, section::GlobalSections};
@@ -223,7 +222,7 @@ pub(crate) fn update_color_channel_calculated(
                 GlobalColorChannelKind::Base { color, blending } => (color, blending),
                 GlobalColorChannelKind::Copy { copied_index, .. } => {
                     // Fix the hierarchy for the next iteration
-                    let (commands, global_color_channels) = &mut *mutex.lock().unwrap();
+                    let (commands, global_color_channels) = &mut *mutex.lock();
                     let mut parent_entity =
                         if let Some(parent_entity) = global_color_channels.0.get(&copied_index) {
                             if *parent_entity == entity {
@@ -236,6 +235,7 @@ pub(crate) fn update_color_channel_calculated(
                             let entity = commands.spawn((
                                 GlobalColorChannel::default(),
                                 ColorChannelCalculated::default(),
+                                Pulses::default(),
                             ));
                             global_color_channels.0.insert(copied_index, entity.id());
                             entity
@@ -322,7 +322,7 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
         } = color_channel.kind
         else {
             // Fix the hierarchy for the next iteration
-            let (commands, _) = &mut *mutex.lock().unwrap();
+            let (commands, _) = &mut *mutex.lock();
 
             commands.entity(entity).remove_parent();
             calculated.deferred = true;
@@ -331,7 +331,7 @@ unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery
 
         if parent_id != copied_index {
             // Fix the hierarchy for the next iteration
-            let (commands, _) = &mut *mutex.lock().unwrap();
+            let (commands, _) = &mut *mutex.lock();
 
             commands.entity(entity).remove_parent();
             calculated.deferred = true;
