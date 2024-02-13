@@ -4,7 +4,7 @@ This project is currently no longer on haitus, check the [rewrite branch](https:
 
 In the mean time, go take a look at [GDRender](https://github.com/maxnut/gdrender), [I helped a lot with the project over there](https://github.com/maxnut/gdrender#credits) and it's currently much more feature complete than the current GDClone. But efforts are expected to merge.
 
-<img src="https://github.com/opstic/gdclone/raw/main/assets/branding/icon.png" align="right" alt="Logo" width="192" height="192">
+<img src="https://github.com/opstic/gdclone/raw/legacy/assets/branding/icon.png" align="right" alt="Logo" width="192" height="192">
 
 # GDClone
 
@@ -32,11 +32,11 @@ Use Esc to exit out of a level.
 
 ## Screenshots
 
-<img src="https://github.com/opstic/gdclone/raw/main/assets/screenshots/the_eschaton_1.png" width="1080">
-<img src="https://github.com/opstic/gdclone/raw/main/assets/screenshots/the_eschaton_2.png" width="1080">
-<img src="https://github.com/opstic/gdclone/raw/main/assets/screenshots/the_eschaton_3.png" width="1080">
-<img src="https://github.com/opstic/gdclone/raw/main/assets/screenshots/white_space.png" width="1080">
-<img src="https://github.com/opstic/gdclone/raw/main/assets/screenshots/kocmoc.png" width="1080">
+![The Eschaton 1](assets/screenshots/the_eschaton_1.png)
+![The Eschaton 2](assets/screenshots/the_eschaton_2.png)
+![The Eschaton 3](assets/screenshots/the_eschaton_3.png)
+![White Space](assets/screenshots/white_space.png)
+![KOCMOC](assets/screenshots/kocmoc.png)
 
 ### Credits
 
