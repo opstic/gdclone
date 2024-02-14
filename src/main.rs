@@ -1,6 +1,7 @@
 #![allow(clippy::type_complexity, clippy::too_many_arguments)]
 
 use bevy::app::{App, PluginGroup, Startup, Update};
+use bevy::core::{TaskPoolOptions, TaskPoolPlugin, TaskPoolThreadAssignmentPolicy};
 use bevy::core_pipeline::tonemapping::{DebandDither, Tonemapping};
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::hierarchy::BuildChildren;
@@ -30,14 +31,25 @@ fn main() {
     let mut app = App::new();
 
     app.add_plugins((
-        DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: concat!("GDClone ", env!("VERSION")).into(),
-                present_mode: PresentMode::AutoNoVsync,
+        DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: concat!("GDClone ", env!("VERSION")).into(),
+                    present_mode: PresentMode::AutoNoVsync,
+                    ..default()
+                }),
                 ..default()
+            })
+            .set(TaskPoolPlugin {
+                task_pool_options: TaskPoolOptions {
+                    compute: TaskPoolThreadAssignmentPolicy {
+                        min_threads: 2,
+                        max_threads: usize::MAX,
+                        percent: 1.0,
+                    },
+                    ..default()
+                },
             }),
-            ..default()
-        }),
         FrameTimeDiagnosticsPlugin,
         AssetPlugin,
         LevelPlugin,
