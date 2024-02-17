@@ -15538,7 +15538,7 @@
     "color_type": "Base",
     "children": [
       {
-        "texture": "block009c_slope_01_color_001.png",
+        "texture": "emptyFrame.png",
         "anchor_x": 0.0,
         "anchor_y": 0.0,
         "scale_x": 1.0,
