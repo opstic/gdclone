@@ -6,9 +6,9 @@ use bevy::asset::{
 };
 use bevy::log::info;
 use bevy::math::{Rect, Vec2};
-use bevy::prelude::{default, EventReader, FromWorld, Image, ResMut, Resource, World};
+use bevy::prelude::{EventReader, FromWorld, Image, ResMut, Resource, World};
 use bevy::reflect::TypePath;
-use bevy::render::texture::{ImageFilterMode, ImageSamplerDescriptor};
+use bevy::render::texture::ImageSamplerDescriptor;
 use bevy::render::{
     renderer::RenderDevice,
     texture::{CompressedImageFormats, ImageSampler, ImageType},
@@ -192,11 +192,7 @@ impl AssetLoader for Cocos2dAtlasLoader {
                     texture.texture_descriptor.format =
                         texture.texture_descriptor.format.remove_srgb_suffix();
 
-                    texture.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
-                        min_filter: ImageFilterMode::Linear,
-                        mag_filter: ImageFilterMode::Linear,
-                        ..default()
-                    });
+                    texture.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor::linear());
 
                     Ok(CompressedImage::from(texture))
                 });
