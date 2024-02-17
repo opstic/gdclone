@@ -1,7 +1,7 @@
 use std::ops::Range;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use bevy::ecs::query::{ReadOnlyWorldQuery, WorldQuery};
+use bevy::ecs::query::{QueryData, QueryFilter};
 use bevy::hierarchy::{Children, Parent};
 use bevy::prelude::{
     Changed, Component, Entity, Local, Mut, Query, ResMut, Resource, With, Without,
@@ -98,13 +98,13 @@ pub(crate) fn update_sections(
         .min(global_sections.sections.len());
 }
 
-unsafe fn propagate_section_recursive<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery>(
+unsafe fn propagate_section_recursive<'w, 's, D: QueryData, F: QueryFilter>(
     children: &Children,
-    children_query: &'w Query<'w, 's, Q, F>,
+    children_query: &'w Query<'w, 's, D, F>,
     parent_section: &Section,
     changed_entities: &(AtomicUsize, SyncUnsafeCell<Vec<(u32, u32, Entity)>>),
 ) where
-    Q: WorldQuery<Item<'w> = (Mut<'w, Section>, Option<&'w Children>)>,
+    D: QueryData<Item<'w> = (Mut<'w, Section>, Option<&'w Children>)>,
 {
     for child_entity in children {
         let Ok((mut section, children)) = children_query.get_unchecked(*child_entity) else {

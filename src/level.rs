@@ -3,15 +3,18 @@ use std::io::Read;
 use std::marker::PhantomData;
 use std::time::Instant;
 
-use bevy::app::{App, First, Last, Plugin, PostUpdate, PreUpdate, RunFixedUpdateLoop, Update};
+use bevy::app::{
+    App, First, Last, MainScheduleOrder, Plugin, PostUpdate, PreUpdate, RunFixedMainLoop, Update,
+};
 use bevy::asset::{AssetServer, LoadState};
 use bevy::core::FrameCountPlugin;
-use bevy::input::Input;
+use bevy::ecs::schedule::{ExecutorKind, ScheduleLabel};
+use bevy::input::ButtonInput;
 use bevy::log::{info, warn};
-use bevy::math::{Vec2, Vec3};
+use bevy::math::{Vec2, Vec3, Vec4Swizzles};
 use bevy::prelude::{
     Camera, ClearColor, Commands, Gizmos, IntoSystemConfigs, KeyCode, Local, Mut,
-    OrthographicProjection, Query, Res, ResMut, Resource, Time, Transform, With, World,
+    OrthographicProjection, Query, Res, ResMut, Resource, Schedule, Time, Transform, With, World,
 };
 use bevy::render::color::Color;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
@@ -64,12 +67,25 @@ pub(crate) struct LevelPlugin;
 
 impl Plugin for LevelPlugin {
     fn build(&self, app: &mut App) {
+        let mut level_schedule = Schedule::new(Level);
+        level_schedule.set_executor_kind(ExecutorKind::SingleThreaded);
+
+        app.add_schedule(level_schedule);
+
+        app.world
+            .resource_scope(|_, mut schedule_order: Mut<MainScheduleOrder>| {
+                schedule_order.insert_after(Update, Level)
+            });
+
         app.init_resource::<LevelWorld>()
             .init_resource::<Options>()
-            .add_systems(Update, (update_level_world, update_controls))
-            .add_systems(PostUpdate, spawn_level_world);
+            .add_systems(Level, update_level_world)
+            .add_systems(Update, (spawn_level_world, update_controls));
     }
 }
+
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
+struct Level;
 
 fn spawn_level_world(
     cocos2d_frames: Res<Cocos2dFrames>,
@@ -369,53 +385,53 @@ impl Default for Options {
 fn update_controls(
     mut projections: Query<&mut OrthographicProjection, With<Camera>>,
     mut transforms: Query<&mut Transform, With<Camera>>,
-    keys: Res<Input<KeyCode>>,
+    keys: Res<ButtonInput<KeyCode>>,
     mut options: ResMut<Options>,
     time: Res<Time>,
 ) {
     let multiplier = time.delta_seconds() * 20.;
-    if keys.just_pressed(KeyCode::U) {
+    if keys.just_pressed(KeyCode::KeyU) {
         options.synchronize_cameras = !options.synchronize_cameras;
     }
-    if keys.just_pressed(KeyCode::L) {
+    if keys.just_pressed(KeyCode::KeyL) {
         options.show_lines = !options.show_lines;
     }
-    if keys.just_pressed(KeyCode::T) {
+    if keys.just_pressed(KeyCode::KeyT) {
         options.hide_triggers = !options.hide_triggers;
     }
     for mut transform in transforms.iter_mut() {
         if !options.synchronize_cameras {
-            if keys.pressed(KeyCode::Right) {
+            if keys.pressed(KeyCode::ArrowRight) {
                 transform.translation.x += 10.0 * multiplier;
             }
-            if keys.pressed(KeyCode::Left) {
+            if keys.pressed(KeyCode::ArrowLeft) {
                 transform.translation.x -= 10.0 * multiplier;
             }
-            if keys.pressed(KeyCode::A) {
+            if keys.pressed(KeyCode::KeyA) {
                 transform.translation.x -= 20.0 * multiplier;
             }
-            if keys.pressed(KeyCode::D) {
+            if keys.pressed(KeyCode::KeyD) {
                 transform.translation.x += 20.0 * multiplier;
             }
         }
-        if keys.pressed(KeyCode::Up) {
+        if keys.pressed(KeyCode::ArrowUp) {
             transform.translation.y += 10.0 * multiplier;
         }
-        if keys.pressed(KeyCode::Down) {
+        if keys.pressed(KeyCode::ArrowDown) {
             transform.translation.y -= 10.0 * multiplier;
         }
-        if keys.pressed(KeyCode::W) {
+        if keys.pressed(KeyCode::KeyW) {
             transform.translation.y += 20.0 * multiplier;
         }
-        if keys.pressed(KeyCode::S) {
+        if keys.pressed(KeyCode::KeyS) {
             transform.translation.y -= 20.0 * multiplier;
         }
     }
     for mut projection in projections.iter_mut() {
-        if keys.pressed(KeyCode::Q) {
+        if keys.pressed(KeyCode::KeyQ) {
             projection.scale *= 1.01;
         }
-        if keys.pressed(KeyCode::E) {
+        if keys.pressed(KeyCode::KeyE) {
             projection.scale *= 0.99;
         }
     }
@@ -432,7 +448,7 @@ fn update_level_world(
         LevelWorld::World(ref mut world) => {
             world.run_schedule(First);
             world.run_schedule(PreUpdate);
-            world.run_schedule(RunFixedUpdateLoop);
+            world.run_schedule(RunFixedMainLoop);
             world.run_schedule(Update);
 
             // Render player line
@@ -503,7 +519,9 @@ fn update_level_world(
                 if let Some(entity) = global_color_channels.0.get(&1000) {
                     let mut query = world.query::<&ColorChannelCalculated>();
                     if let Ok(calculated) = query.get(world, *entity) {
-                        commands.insert_resource(ClearColor(Color::from(calculated.color)));
+                        commands.insert_resource(ClearColor(Color::rgb_from_array(
+                            calculated.color.xyz(),
+                        )));
                     }
                 }
             });
@@ -528,7 +546,7 @@ where
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct Level {
+pub(crate) struct LevelData {
     #[serde(rename = "k1")]
     pub(crate) id: Option<u64>,
     #[serde(rename = "k2")]
@@ -541,7 +559,7 @@ pub(crate) struct Level {
     pub(crate) creator: String,
 }
 
-impl Level {
+impl LevelData {
     pub(crate) fn decompress_inner_level(
         &self,
     ) -> Option<Result<DecompressedInnerLevel, anyhow::Error>> {

@@ -1,4 +1,4 @@
-use bevy::ecs::query::{ReadOnlyWorldQuery, WorldQuery};
+use bevy::ecs::query::{QueryData, QueryFilter};
 use bevy::hierarchy::{BuildChildren, BuildWorldChildren, Children, Parent};
 use bevy::math::{Vec3A, Vec4};
 use bevy::prelude::{
@@ -282,15 +282,15 @@ pub(crate) fn update_color_channel_calculated(
     );
 }
 
-unsafe fn recursive_propagate_color<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery>(
+unsafe fn recursive_propagate_color<'w, 's, D: QueryData, F: QueryFilter>(
     mutex: &Mutex<(Commands, &mut GlobalColorChannels)>,
     children: &Children,
     parent_id: u64,
     parent_color: Vec4,
-    children_query: &'w Query<'w, 's, Q, F>,
+    children_query: &'w Query<'w, 's, D, F>,
     should_update: bool,
 ) where
-    Q: WorldQuery<
+    D: QueryData<
         Item<'w> = (
             Entity,
             Ref<'w, GlobalColorChannel>,

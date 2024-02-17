@@ -1,9 +1,9 @@
 use std::hash::BuildHasher;
 
+use bevy::ecs::entity::EntityHasher;
 use bevy::log::{info, warn};
 use bevy::math::Vec4;
 use bevy::tasks::AsyncComputeTaskPool;
-use bevy::utils::EntityHasher;
 use libdeflater::Decompressor;
 
 /// A copy of [`bevy::utils::EntityHash`] with [`Clone`] derived

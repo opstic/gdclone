@@ -8,6 +8,7 @@ use bevy::log::info;
 use bevy::math::{Rect, Vec2};
 use bevy::prelude::{EventReader, FromWorld, Image, ResMut, Resource, World};
 use bevy::reflect::TypePath;
+use bevy::render::render_asset::RenderAssetUsages;
 use bevy::render::texture::ImageSamplerDescriptor;
 use bevy::render::{
     renderer::RenderDevice,
@@ -239,6 +240,7 @@ async fn load_texture<'a>(
         supported_compressed_formats,
         true,
         ImageSampler::Default,
+        RenderAssetUsages::default(),
     )
     .unwrap())
 }

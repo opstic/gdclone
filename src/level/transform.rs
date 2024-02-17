@@ -1,4 +1,4 @@
-use bevy::ecs::query::{ReadOnlyWorldQuery, WorldQuery};
+use bevy::ecs::query::{QueryData, QueryFilter};
 use bevy::hierarchy::{Children, Parent};
 use bevy::math::{Affine2, Mat2, Vec2, Vec3, Vec3Swizzles};
 use bevy::prelude::{Component, DetectChanges, Mut, Query, Ref, Res, With, Without};
@@ -128,12 +128,12 @@ pub(crate) fn update_transform(
     });
 }
 
-unsafe fn propagate_transform_recursive<'w, 's, Q: WorldQuery, F: ReadOnlyWorldQuery>(
+unsafe fn propagate_transform_recursive<'w, 's, D: QueryData, F: QueryFilter>(
     children: &Children,
-    children_query: &'w Query<'w, 's, Q, F>,
+    children_query: &'w Query<'w, 's, D, F>,
     parent_transform: &GlobalTransform2d,
 ) where
-    Q: WorldQuery<
+    D: QueryData<
         Item<'w> = (
             &'w Transform2d,
             Mut<'w, GlobalTransform2d>,

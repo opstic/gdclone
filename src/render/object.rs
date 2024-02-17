@@ -17,6 +17,8 @@ use bevy::prelude::{
     Commands, Component, Entity, FromWorld, Image, IntoSystemConfigs, Msaa, Query, Res, ResMut,
     Resource, Shader, World,
 };
+use bevy::render::render_resource::binding_types::{sampler, texture_2d, uniform_buffer};
+use bevy::render::render_resource::BindGroupLayoutEntries;
 use bevy::render::{
     mesh::PrimitiveTopology,
     render_asset::RenderAssets,
@@ -29,13 +31,11 @@ use bevy::render::{
         IndexFormat, PipelineCache, Sampler, TextureView, WgpuFeatures,
     },
     render_resource::{
-        BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState,
-        BufferBindingType, ColorTargetState, ColorWrites, FragmentState, FrontFace,
+        BindGroupLayout, BlendState, ColorTargetState, ColorWrites, FragmentState, FrontFace,
         ImageCopyTexture, ImageDataLayout, MultisampleState, Origin3d, PolygonMode, PrimitiveState,
-        RenderPipelineDescriptor, SamplerBindingType, ShaderStages, ShaderType,
-        SpecializedRenderPipeline, SpecializedRenderPipelines, TextureAspect, TextureFormat,
-        TextureSampleType, TextureViewDescriptor, TextureViewDimension, VertexBufferLayout,
-        VertexFormat, VertexState, VertexStepMode,
+        RenderPipelineDescriptor, SamplerBindingType, ShaderStages, SpecializedRenderPipeline,
+        SpecializedRenderPipelines, TextureAspect, TextureFormat, TextureSampleType,
+        TextureViewDescriptor, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
     },
     renderer::{RenderDevice, RenderQueue},
     texture::{BevyDefault, DefaultImageSampler, GpuImage, ImageSampler, TextureFormatPixelInfo},
@@ -128,49 +128,26 @@ impl FromWorld for ObjectPipeline {
         )> = SystemState::new(world);
         let (render_device, default_sampler, render_queue, fallbacks) = system_state.get_mut(world);
 
-        let view_layout = render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            entries: &[BindGroupLayoutEntry {
-                binding: 0,
-                visibility: ShaderStages::VERTEX | ShaderStages::FRAGMENT,
-                ty: BindingType::Buffer {
-                    ty: BufferBindingType::Uniform,
-                    has_dynamic_offset: true,
-                    min_binding_size: Some(ViewUniform::min_size()),
-                },
-                count: None,
-            }],
-            label: Some("object_view_layout"),
-        });
+        let view_layout = render_device.create_bind_group_layout(
+            "sprite_view_layout",
+            &BindGroupLayoutEntries::single(
+                ShaderStages::VERTEX_FRAGMENT,
+                uniform_buffer::<ViewUniform>(true),
+            ),
+        );
 
-        let material_layout = render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            entries: &[
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
-                        multisampled: false,
-                        sample_type: TextureSampleType::Float { filterable: true },
-                        view_dimension: TextureViewDimension::D2,
-                    },
-                    count: if fallbacks.texture_array_size == 1 {
-                        None
-                    } else {
-                        NonZeroU32::new(fallbacks.texture_array_size as u32)
-                    },
-                },
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
-                    count: if fallbacks.texture_array_size == 1 {
-                        None
-                    } else {
-                        NonZeroU32::new(fallbacks.texture_array_size as u32)
-                    },
-                },
-            ],
-            label: Some("object_material_layout"),
-        });
+        let texture_count = NonZeroU32::new(fallbacks.texture_array_size as u32).unwrap();
+
+        let material_layout = render_device.create_bind_group_layout(
+            "sprite_material_layout",
+            &BindGroupLayoutEntries::sequential(
+                ShaderStages::FRAGMENT,
+                (
+                    texture_2d(TextureSampleType::Float { filterable: true }).count(texture_count),
+                    sampler(SamplerBindingType::Filtering).count(texture_count),
+                ),
+            ),
+        );
         let dummy_white_gpu_image = {
             let image = Image::default();
             let texture = render_device.create_texture(&image.texture_descriptor);
@@ -538,6 +515,8 @@ pub struct ObjectBatch {
     pub(crate) ranges: Vec<(usize, Range<u32>)>,
 }
 
+const LAYER_IDENTIFIER: u32 = u32::MAX & 0x7FFF_FFFF | ((0u32) << 16);
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn queue_objects(
     draw_functions: Res<DrawFunctions<Transparent2d>>,
@@ -579,7 +558,7 @@ pub(crate) fn queue_objects(
 
             total_size += extracted_layer.len();
 
-            let entity_bits = u64::MAX << 32 | (layer_index.to_u32() as u64);
+            let entity_bits = (LAYER_IDENTIFIER as u64) << 32 | (layer_index.to_u32() as u64);
             transparent_phase.add(Transparent2d {
                 draw_function: draw_object_function,
                 pipeline: if layer_index.0 % 2 == 0 {
@@ -691,7 +670,7 @@ pub(crate) fn prepare_objects(
             for item_index in 0..transparent_phase.items.len() {
                 let item = &transparent_phase.items[item_index];
 
-                if item.entity.generation() != u32::MAX {
+                if item.entity.generation() != LAYER_IDENTIFIER {
                     continue;
                 }
 
@@ -947,13 +926,13 @@ pub struct SetObjectViewBindGroup<const I: usize>;
 
 impl<P: PhaseItem, const I: usize> RenderCommand<P> for SetObjectViewBindGroup<I> {
     type Param = SRes<ObjectMeta>;
-    type ViewWorldQuery = Read<ViewUniformOffset>;
-    type ItemWorldQuery = ();
+    type ViewQuery = Read<ViewUniformOffset>;
+    type ItemQuery = ();
 
     fn render<'w>(
         _item: &P,
         view_uniform: &'_ ViewUniformOffset,
-        _entity: (),
+        _entity: Option<()>,
         object_meta: SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
@@ -970,18 +949,21 @@ pub struct DrawObjectBatch<const I: usize>;
 
 impl<P: PhaseItem, const I: usize> RenderCommand<P> for DrawObjectBatch<I> {
     type Param = (SRes<ObjectMeta>, SRes<ImageBindGroups>);
-    type ViewWorldQuery = ();
-    type ItemWorldQuery = Read<ObjectBatch>;
+    type ViewQuery = ();
+    type ItemQuery = Read<ObjectBatch>;
 
     fn render<'w>(
         _item: &P,
         _view: (),
-        batch: &'_ ObjectBatch,
+        batch: Option<&'_ ObjectBatch>,
         (object_meta, image_bind_groups): SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
         let object_meta = object_meta.into_inner();
         let image_bind_groups = image_bind_groups.into_inner();
+        let Some(batch) = batch else {
+            return RenderCommandResult::Failure;
+        };
 
         pass.set_index_buffer(
             object_meta.index_buffer.buffer().unwrap().slice(..),

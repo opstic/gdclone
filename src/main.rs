@@ -5,7 +5,7 @@ use bevy::core::{TaskPoolOptions, TaskPoolPlugin, TaskPoolThreadAssignmentPolicy
 use bevy::core_pipeline::tonemapping::{DebandDither, Tonemapping};
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::hierarchy::BuildChildren;
-use bevy::input::Input;
+use bevy::input::ButtonInput;
 use bevy::log::info;
 use bevy::prelude::{
     Camera2dBundle, ClearColor, Color, Commands, Component, EventReader, KeyCode, NodeBundle,
@@ -114,7 +114,7 @@ struct FpsText;
 fn update_fps(diagnostics: Res<DiagnosticsStore>, mut query: Query<&mut Text, With<FpsText>>) {
     let mut text = query.single_mut();
 
-    if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
+    if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
         if let Some(average) = fps.average() {
             text.sections[1].value = average.trunc().to_string();
         }
@@ -140,7 +140,7 @@ fn update_scale_factor(
     }
 }
 
-fn toggle_fullscreen(input: Res<Input<KeyCode>>, mut windows: Query<&mut Window>) {
+fn toggle_fullscreen(input: Res<ButtonInput<KeyCode>>, mut windows: Query<&mut Window>) {
     if input.just_pressed(KeyCode::F11) {
         let mut window = windows.single_mut();
 

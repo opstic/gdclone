@@ -3,6 +3,8 @@ use bevy::ecs::{system::lifetimeless::SRes, system::SystemParamItem};
 use bevy::math::Vec2;
 use bevy::prelude::Image;
 use bevy::reflect::Reflect;
+use bevy::render::render_asset::RenderAssetUsages;
+use bevy::render::render_resource::TextureDataOrder;
 use bevy::render::{
     render_asset::{PrepareAssetError, RenderAsset},
     render_resource::{TextureDescriptor, TextureViewDescriptor},
@@ -25,6 +27,7 @@ pub(crate) struct CompressedImage {
     pub texture_descriptor: TextureDescriptor<'static>,
     pub sampler: ImageSampler,
     pub texture_view_descriptor: Option<TextureViewDescriptor<'static>>,
+    pub asset_usage: RenderAssetUsages,
 }
 
 impl From<Image> for CompressedImage {
@@ -40,12 +43,12 @@ impl From<Image> for CompressedImage {
             texture_descriptor: image.texture_descriptor,
             sampler: image.sampler,
             texture_view_descriptor: image.texture_view_descriptor,
+            asset_usage: image.asset_usage,
         }
     }
 }
 
 impl RenderAsset for CompressedImage {
-    type ExtractedAsset = CompressedImage;
     type PreparedAsset = GpuImage;
     type Param = (
         SRes<RenderDevice>,
@@ -53,40 +56,39 @@ impl RenderAsset for CompressedImage {
         SRes<DefaultImageSampler>,
     );
 
-    /// Clones the [`CompressedImage`].
-    fn extract_asset(&self) -> Self::ExtractedAsset {
-        self.clone()
+    fn asset_usage(&self) -> RenderAssetUsages {
+        self.asset_usage
     }
 
     /// Converts the extracted [`Image`] into a [`GpuImage`].
     fn prepare_asset(
-        image: Self::ExtractedAsset,
+        self,
         (render_device, render_queue, default_sampler): &mut SystemParamItem<Self::Param>,
-    ) -> Result<Self::PreparedAsset, PrepareAssetError<Self::ExtractedAsset>> {
+    ) -> Result<Self::PreparedAsset, PrepareAssetError<Self>> {
         let mut zstd_decompressor =
             Decompressor::new().expect("Failed to create zstd decompressor");
         let decompressed_image = zstd_decompressor
-            .decompress(&image.data, image.uncompressed_size)
+            .decompress(&self.data, self.uncompressed_size)
             .expect("Failed to decompress image data");
 
         let texture = render_device.create_texture_with_data(
             render_queue,
-            &image.texture_descriptor,
+            &self.texture_descriptor,
+            TextureDataOrder::default(),
             &decompressed_image,
         );
 
         let texture_view = texture.create_view(
-            image
-                .texture_view_descriptor
+            self.texture_view_descriptor
                 .or_else(|| Some(TextureViewDescriptor::default()))
                 .as_ref()
                 .unwrap(),
         );
         let size = Vec2::new(
-            image.texture_descriptor.size.width as f32,
-            image.texture_descriptor.size.height as f32,
+            self.texture_descriptor.size.width as f32,
+            self.texture_descriptor.size.height as f32,
         );
-        let sampler = match image.sampler {
+        let sampler = match self.sampler {
             ImageSampler::Default => (***default_sampler).clone(),
             ImageSampler::Descriptor(descriptor) => {
                 render_device.create_sampler(&descriptor.as_wgpu())
@@ -96,10 +98,10 @@ impl RenderAsset for CompressedImage {
         Ok(GpuImage {
             texture,
             texture_view,
-            texture_format: image.texture_descriptor.format,
+            texture_format: self.texture_descriptor.format,
             sampler,
             size,
-            mip_level_count: image.texture_descriptor.mip_level_count,
+            mip_level_count: self.texture_descriptor.mip_level_count,
         })
     }
 }

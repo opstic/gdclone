@@ -1,16 +1,19 @@
 use bevy::app::{App, Plugin};
 use bevy::asset::{load_internal_asset, Handle};
-use bevy::core_pipeline::{core_2d, fullscreen_vertex_shader::fullscreen_shader_vertex_state};
+use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
+use bevy::core_pipeline::fullscreen_vertex_shader::fullscreen_shader_vertex_state;
 use bevy::ecs::query::QueryItem;
 use bevy::prelude::{FromWorld, Resource, Shader, World};
+use bevy::render::render_graph::RenderLabel;
+use bevy::render::render_resource::binding_types::{sampler, texture_2d};
+use bevy::render::render_resource::BindGroupLayoutEntries;
 use bevy::render::{
     render_graph::{NodeRunError, RenderGraphApp, RenderGraphContext, ViewNode, ViewNodeRunner},
     render_resource::{
-        BindGroupEntries, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
-        BindingType, CachedRenderPipelineId, ColorTargetState, ColorWrites, FragmentState,
-        MultisampleState, Operations, PipelineCache, PrimitiveState, RenderPassColorAttachment,
-        RenderPassDescriptor, RenderPipelineDescriptor, Sampler, SamplerBindingType,
-        SamplerDescriptor, ShaderStages, TextureFormat, TextureSampleType, TextureViewDimension,
+        BindGroupEntries, BindGroupLayout, CachedRenderPipelineId, ColorTargetState, ColorWrites,
+        FragmentState, MultisampleState, Operations, PipelineCache, PrimitiveState,
+        RenderPassColorAttachment, RenderPassDescriptor, RenderPipelineDescriptor, Sampler,
+        SamplerBindingType, SamplerDescriptor, ShaderStages, TextureFormat, TextureSampleType,
     },
     renderer::{RenderContext, RenderDevice},
     texture::BevyDefault,
@@ -49,19 +52,19 @@ impl Plugin for RemoveSrgbPlugin {
             // The Node needs to impl FromWorld
             .add_render_graph_node::<ViewNodeRunner<RemoveSrgbNode>>(
                 // Specify the name of the graph, in this case we want the graph for 2d
-                core_2d::graph::NAME,
+                Core2d,
                 // It also needs the name of the node
-                RemoveSrgbNode::NAME,
+                RemoveSrgbLabel,
             )
             .add_render_graph_edges(
-                core_2d::graph::NAME,
+                Core2d,
                 // Specify the node ordering.
                 // This will automatically create all required node edges to enforce the given ordering.
-                &[
-                    core_2d::graph::node::END_MAIN_PASS_POST_PROCESSING,
-                    RemoveSrgbNode::NAME,
-                    core_2d::graph::node::UPSCALING,
-                ],
+                (
+                    Node2d::EndMainPassPostProcessing,
+                    RemoveSrgbLabel,
+                    Node2d::Upscaling,
+                ),
             );
     }
 
@@ -77,13 +80,12 @@ impl Plugin for RemoveSrgbPlugin {
     }
 }
 
+#[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
+struct RemoveSrgbLabel;
+
 /// The post process node used for the render graph
 #[derive(Default)]
 struct RemoveSrgbNode;
-
-impl RemoveSrgbNode {
-    pub const NAME: &'static str = "remove_srgb";
-}
 
 impl ViewNode for RemoveSrgbNode {
     // The node needs a query to gather data from the ECS in order to do its rendering,
@@ -153,6 +155,8 @@ impl ViewNode for RemoveSrgbNode {
                 ops: Operations::default(),
             })],
             depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
         });
 
         // This is mostly just wgpu boilerplate for drawing a fullscreen triangle,
@@ -178,29 +182,20 @@ impl FromWorld for RemoveSrgbPipeline {
         let render_device = world.resource::<RenderDevice>();
 
         // We need to define the bind group layout used for our pipeline
-        let layout = render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some("remove_srgb_bind_group_layout"),
-            entries: &[
-                // The screen texture
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Float { filterable: true },
-                        view_dimension: TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                // The sampler that will be used to sample the screen texture
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-        });
+        let layout = render_device.create_bind_group_layout(
+            "post_process_bind_group_layout",
+            &BindGroupLayoutEntries::sequential(
+                // The layout entries will only be visible in the fragment stage
+                ShaderStages::FRAGMENT,
+                (
+                    // The screen texture
+                    texture_2d(TextureSampleType::Float { filterable: true }),
+                    // The sampler that will be used to sample the screen texture
+                    sampler(SamplerBindingType::Filtering),
+                    // The settings uniform that will control the effect
+                ),
+            ),
+        );
 
         // We can create the sampler here since it won't change at runtime and doesn't depend on the view
         let sampler = render_device.create_sampler(&SamplerDescriptor::default());
