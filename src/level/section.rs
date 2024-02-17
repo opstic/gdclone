@@ -84,7 +84,7 @@ pub(crate) fn update_sections(
             );
         }
 
-        global_sections.sections[*old as usize].remove(entity);
+        global_sections.sections[*old as usize].swap_remove(entity);
         global_sections.sections[*new as usize].insert(*entity);
     }
 
