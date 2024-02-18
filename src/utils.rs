@@ -1,8 +1,9 @@
 use std::hash::BuildHasher;
+use std::ops::{Add, Div, Mul, Sub};
 
 use bevy::ecs::entity::EntityHasher;
 use bevy::log::{info, warn};
-use bevy::math::{Vec3A, Vec4};
+use bevy::math::Vec3A;
 use bevy::tasks::AsyncComputeTaskPool;
 use libdeflater::Decompressor;
 
@@ -27,17 +28,22 @@ pub(crate) fn str_to_bool(string: &str) -> bool {
 }
 
 #[inline]
-pub(crate) fn lerp(start: f32, end: f32, x: f32) -> f32 {
+pub(crate) fn lerp<T: Copy + Mul<f32, Output = T> + Add<T, Output = T> + Sub<T, Output = T>>(
+    start: T,
+    end: T,
+    x: f32,
+) -> T {
     start + (end - start) * x
 }
 
 #[inline]
-pub(crate) fn lerp_start(current: f32, end: f32, x: f32) -> f32 {
-    (current - end * x) / (1. - x)
-}
-
-#[inline]
-pub(crate) fn lerp_start_vec4(current: Vec4, end: Vec4, x: f32) -> Vec4 {
+pub(crate) fn lerp_start<
+    T: Copy + Mul<f32, Output = T> + Div<f32, Output = T> + Sub<T, Output = T>,
+>(
+    current: T,
+    end: T,
+    x: f32,
+) -> T {
     (current - end * x) / (1. - x)
 }
 

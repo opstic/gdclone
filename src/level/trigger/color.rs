@@ -8,7 +8,7 @@ use crate::level::color::{
     ColorChannelCalculated, GlobalColorChannel, GlobalColorChannelKind, GlobalColorChannels, HsvMod,
 };
 use crate::level::trigger::TriggerFunction;
-use crate::utils::lerp_start_vec4;
+use crate::utils::lerp_start;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ColorTrigger {
@@ -97,7 +97,7 @@ impl TriggerFunction for ColorTrigger {
         };
 
         let original_color =
-            lerp_start_vec4(calculated.pre_pulse_color, target_color, previous_progress);
+            lerp_start(calculated.pre_pulse_color, target_color, previous_progress);
 
         color_channel.kind = GlobalColorChannelKind::Base {
             color: original_color.lerp(target_color, progress),
