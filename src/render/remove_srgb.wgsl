@@ -24,7 +24,10 @@ var screen_texture: texture_2d<f32>;
 var texture_sampler: sampler;
 
 fn srgb_to_rgb(color: vec3<f32>) -> vec3<f32> {
-    return pow((color + 0.055) / 1.055, vec3<f32>(2.4));
+    let lower = color / 12.92;
+    let higher = pow((color + 0.055) / 1.055, vec3<f32>(2.4));
+    let cutoff = color >= vec3<f32>(0.0404482362771082);
+    return mix(lower, higher, vec3<f32>(cutoff));
 }
 
 @fragment
