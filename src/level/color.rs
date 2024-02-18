@@ -2,8 +2,8 @@ use bevy::ecs::query::{QueryData, QueryFilter};
 use bevy::hierarchy::{BuildChildren, BuildWorldChildren, Children, Parent};
 use bevy::math::{Vec3A, Vec4};
 use bevy::prelude::{
-    Commands, Component, DetectChanges, Entity, Mut, Query, Ref, Res, ResMut, Resource, With,
-    Without, World,
+    Commands, Component, DetectChanges, DetectChangesMut, Entity, Mut, Query, Ref, Res, ResMut,
+    Resource, With, Without, World,
 };
 use bevy::reflect::Reflect;
 use bevy::tasks::ComputeTaskPool;
@@ -420,7 +420,7 @@ impl Default for ObjectColorCalculated {
 
 pub(crate) fn update_object_color(
     global_sections: Res<GlobalSections>,
-    group_archetypes: Query<(Ref<GroupArchetypeCalculated>, &Pulses)>,
+    group_archetypes: Query<(Ref<GroupArchetypeCalculated>, Ref<Pulses>)>,
     objects: Query<(&ObjectGroups, &mut ObjectColor, &mut ObjectColorCalculated)>,
     color_channels: Query<Ref<ColorChannelCalculated>>,
 ) {
@@ -446,57 +446,31 @@ pub(crate) fn update_object_color(
                             .get(object_groups.archetype_entity)
                             .unwrap();
 
-                        // if !group_archetype.enabled {
-                        //     calculated.bypass_change_detection().enabled = false;
-                        //     continue;
-                        // }
-                        // calculated.bypass_change_detection().enabled = true;
+                        if !group_archetype.enabled {
+                            calculated.bypass_change_detection().enabled = false;
+                            continue;
+                        }
 
-                        // let (mut color_channel_color, blending, color_channel_tick) =
-                        //     if let Ok(color_channel_calculated) =
-                        //         color_channels.get(object_color.channel_entity)
-                        //     {
-                        //         (
-                        //             color_channel_calculated.color,
-                        //             color_channel_calculated.blending,
-                        //             color_channel_calculated.last_changed(),
-                        //         )
-                        //     } else if let Some(entity) =
-                        //         global_color_channels.0.get(&object_color.channel_id)
-                        //     {
-                        //         object_color.channel_entity = *entity;
-                        //         if let Ok(color_channel_calculated) = color_channels.get(*entity) {
-                        //             (
-                        //                 color_channel_calculated.color,
-                        //                 color_channel_calculated.blending,
-                        //                 color_channel_calculated.last_changed(),
-                        //             )
-                        //         } else {
-                        //             (Color::WHITE, false, Tick::new(0))
-                        //         }
-                        //     } else {
-                        //         (Color::WHITE, false, Tick::new(0))
-                        //     };
-                        //
-                        // // TODO: This will only work for one hour until overflow messes it up
-                        // let most_recent_change = color_channel_tick
-                        //     .get()
-                        //     .max(group_archetype.last_changed().get());
-                        // if most_recent_change < calculated.last_changed().get() {
-                        //     continue;
-                        // }
-
-                        calculated.enabled = group_archetype.enabled;
-
-                        let (color, blending) = color_channels
+                        let (color, blending, tick) = color_channels
                             .get(object_color.channel_entity)
                             .map(|color_channel_calculated| {
                                 (
                                     color_channel_calculated.color,
                                     color_channel_calculated.blending,
+                                    color_channel_calculated.last_changed().get(),
                                 )
                             })
-                            .unwrap_or((Vec4::ONE, false));
+                            .unwrap_or((Vec4::ONE, false, 0));
+
+                        // TODO: This will only work for one hour until overflow messes it up
+                        let most_recent_change = tick
+                            .max(group_archetype.last_changed().get())
+                            .max(pulses.last_changed().get());
+                        if most_recent_change < calculated.last_changed().get() {
+                            continue;
+                        }
+
+                        calculated.enabled = group_archetype.enabled;
 
                         let alpha =
                             group_archetype.opacity * object_color.object_opacity * color[3];
