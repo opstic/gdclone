@@ -483,20 +483,21 @@ pub(crate) fn update_object_color(
 
                         color[3] = alpha;
 
-                        let iter = pulses
-                            .pulses
-                            .iter()
-                            .filter(|(_, _, target_kind)| {
-                                object_color.object_color_kind != ObjectColorKind::Black
-                                    && !(*target_kind != ObjectColorKind::None
+                        if object_color.object_color_kind != ObjectColorKind::Black {
+                            let iter = pulses
+                                .pulses
+                                .iter()
+                                .filter(|(_, _, target_kind)| {
+                                    !(*target_kind != ObjectColorKind::None
                                         && !(*target_kind == ObjectColorKind::Base
                                             && object_color.object_color_kind
                                                 == ObjectColorKind::None)
                                         && *target_kind != object_color.object_color_kind)
-                            })
-                            .map(|(progress, color_mod, _)| (*progress, *color_mod));
+                                })
+                                .map(|(progress, color_mod, _)| (*progress, *color_mod));
 
-                        ColorMod::apply_color_mods(iter, &mut color);
+                            ColorMod::apply_color_mods(iter, &mut color);
+                        }
 
                         match object_color.object_color_kind {
                             ObjectColorKind::None | ObjectColorKind::Black => (),
