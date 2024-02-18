@@ -519,7 +519,7 @@ fn update_level_world(
                 if let Some(entity) = global_color_channels.0.get(&1000) {
                     let mut query = world.query::<&ColorChannelCalculated>();
                     if let Ok(calculated) = query.get(world, *entity) {
-                        commands.insert_resource(ClearColor(Color::rgb_from_array(
+                        commands.insert_resource(ClearColor(Color::rgb_linear_from_array(
                             calculated.color.xyz(),
                         )));
                     }
