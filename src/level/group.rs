@@ -149,7 +149,7 @@ pub(crate) fn apply_group_delta(
 
 pub(crate) fn spawn_groups(
     world: &mut World,
-    global_groups_data: IndexMap<u64, Vec<Entity>, U64Hash>,
+    global_groups_data: IndexMap<u64, (Vec<Entity>, Vec<Entity>), U64Hash>,
     group_archetypes: IndexMap<Vec<u64>, Vec<Entity>>,
 ) {
     let mut global_groups = GlobalGroups::default();
@@ -188,17 +188,13 @@ pub(crate) fn spawn_groups(
         }
     }
 
-    for (group, entities) in global_groups_data {
+    for (group, (root_entities, entities)) in global_groups_data {
         let group_entity = world
             .spawn((
                 GlobalGroup {
                     id: group,
-                    entities: entities.clone(),
-                    root_entities: entities
-                        .iter()
-                        .filter(|entity| !world.entity(**entity).contains::<Parent>())
-                        .copied()
-                        .collect(),
+                    entities,
+                    root_entities,
                     archetypes: (*group_archetype_group.get(&group).unwrap()).clone().into(),
                     ..default()
                 },

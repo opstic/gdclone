@@ -115,7 +115,7 @@ pub(crate) fn spawn_object(
     world: &mut World,
     object_data: &HashMap<&str, &str>,
     global_sections: &mut GlobalSections,
-    global_groups: &mut IndexMap<u64, Vec<Entity>, U64Hash>,
+    global_groups: &mut IndexMap<u64, (Vec<Entity>, Vec<Entity>), U64Hash>,
     group_archetypes: &mut IndexMap<Vec<u64>, Vec<Entity>>,
     global_color_channels: &GlobalColorChannels,
     cocos2d_frames: &Cocos2dFrames,
@@ -270,9 +270,7 @@ pub(crate) fn spawn_object(
 
     let group_archetype_entry = group_archetypes.entry(groups.clone()).or_default();
 
-    group_archetype_entry.push(entity);
-
-    let mut spawned = Vec::new();
+    let mut spawned = vec![entity];
 
     recursive_spawn_children(
         world,
@@ -292,9 +290,9 @@ pub(crate) fn spawn_object(
     )?;
 
     for group in groups {
-        let global_group = global_groups.entry(group).or_default();
-        global_group.push(entity);
-        global_group.extend(&spawned)
+        let (root_entities, entities) = global_groups.entry(group).or_default();
+        root_entities.push(entity);
+        entities.append(&mut spawned.clone())
     }
 
     group_archetype_entry.append(&mut spawned);
