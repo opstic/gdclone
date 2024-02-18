@@ -601,12 +601,6 @@ impl HsvMod {
         }
     }
 
-    pub(crate) fn empty(&self) -> bool {
-        self.h == 0.
-            && ((self.s == 1. && !self.s_absolute) || (self.s == 0. && self.s_absolute))
-            && ((self.v == 1. && !self.v_absolute) || (self.v == 0. && self.v_absolute))
-    }
-
     pub(crate) fn apply_rgba(&self, color: &mut Vec4) {
         let mut applied_rgb = Vec3A::from(*color);
         self.apply_rgb(&mut applied_rgb);
@@ -614,10 +608,6 @@ impl HsvMod {
     }
 
     pub(crate) fn apply_rgb(&self, color: &mut Vec3A) {
-        if self.empty() {
-            return;
-        }
-
         let [h, s, v] = rgb_to_hsv(color.to_array());
         let rgb = hsv_to_rgb([
             h + self.h,
