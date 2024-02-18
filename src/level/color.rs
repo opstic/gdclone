@@ -218,13 +218,59 @@ pub(crate) fn update_color_channel_calculated(
             let should_update =
                 color_channel.is_changed() || calculated.deferred || pulses.is_changed();
 
-            let (color, blending) = match color_channel.kind {
-                GlobalColorChannelKind::Base { color, blending } => (color, blending),
-                GlobalColorChannelKind::Copy { copied_index, .. } => {
-                    // Fix the hierarchy for the next iteration
-                    let (commands, global_color_channels) = &mut *mutex.lock();
-                    let mut parent_entity =
-                        if let Some(parent_entity) = global_color_channels.0.get(&copied_index) {
+            match color_channel.kind {
+                GlobalColorChannelKind::Base { color, blending } => {
+                    if should_update {
+                        calculated.pre_pulse_color = color;
+                        calculated.color = color;
+
+                        ColorMod::apply_color_mods(
+                            pulses
+                                .pulses
+                                .iter()
+                                .map(|(progress, color_mod, _)| (*progress, *color_mod)),
+                            &mut calculated.color,
+                        );
+
+                        calculated.blending = blending;
+                        calculated.deferred = false;
+                    }
+                }
+                GlobalColorChannelKind::Copy {
+                    copied_index,
+                    opacity,
+                    blending,
+                    hsv,
+                    ..
+                } => {
+                    // Replicate GD behavior
+                    if copied_index == color_channel.id {
+                        calculated.pre_pulse_color = calculated.color;
+
+                        calculated.pre_pulse_color[3] = opacity;
+
+                        if let Some(hsv) = hsv {
+                            hsv.apply_rgba(&mut calculated.pre_pulse_color);
+                        }
+
+                        calculated.color = calculated.pre_pulse_color;
+
+                        ColorMod::apply_color_mods(
+                            pulses
+                                .pulses
+                                .iter()
+                                .map(|(progress, color_mod, _)| (*progress, *color_mod)),
+                            &mut calculated.color,
+                        );
+
+                        calculated.blending = blending;
+                        calculated.deferred = false;
+                    } else {
+                        // Fix the hierarchy for the next iteration
+                        let (commands, global_color_channels) = &mut *mutex.lock();
+                        let mut parent_entity = if let Some(parent_entity) =
+                            global_color_channels.0.get(&copied_index)
+                        {
                             if *parent_entity == entity {
                                 // Recursive color channel
                                 calculated.deferred = true;
@@ -241,28 +287,13 @@ pub(crate) fn update_color_channel_calculated(
                             entity
                         };
 
-                    parent_entity.add_child(entity);
+                        parent_entity.add_child(entity);
 
-                    calculated.deferred = true;
-                    return;
+                        calculated.deferred = true;
+                        return;
+                    }
                 }
             };
-
-            if should_update {
-                calculated.pre_pulse_color = color;
-                calculated.color = color;
-
-                ColorMod::apply_color_mods(
-                    pulses
-                        .pulses
-                        .iter()
-                        .map(|(progress, color_mod, _)| (*progress, *color_mod)),
-                    &mut calculated.color,
-                );
-
-                calculated.blending = blending;
-                calculated.deferred = false;
-            }
 
             let Some(children) = children else {
                 return;
