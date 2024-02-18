@@ -2,7 +2,7 @@ use std::hash::BuildHasher;
 
 use bevy::ecs::entity::EntityHasher;
 use bevy::log::{info, warn};
-use bevy::math::Vec4;
+use bevy::math::{Vec3A, Vec4};
 use bevy::tasks::AsyncComputeTaskPool;
 use libdeflater::Decompressor;
 
@@ -69,31 +69,31 @@ pub(crate) fn rgb_to_hsv(rgb: [f32; 3]) -> [f32; 3] {
 
     let chroma = r - min_gb;
 
-    [(k + (g - b) / (chroma * 6.)).abs(), chroma / r, r]
+    [
+        (k + (g - b) / (chroma * 6. + 1e-45)).abs(),
+        chroma / (r + 1e-45),
+        r,
+    ]
 }
 
 #[inline]
 pub(crate) fn hsv_to_rgb([h, s, v]: [f32; 3]) -> [f32; 3] {
-    if h.is_nan() {
-        return [v, v, v];
-    }
-
     let h = (h.fract() + if h < 0. { 1. } else { 0. }) * 6.;
     let h_fract = h.fract();
     let s = s.clamp(0., 1.);
     let v = v.clamp(0., 1.);
 
-    let p = v * (1. - s);
-    let q = v * (1. - (s * h_fract));
-    let t = v * (1. - (s * (1. - h_fract)));
+    let mut pqt = Vec3A::new(1. - s, 1. - (s * h_fract), 1. - (s * (1. - h_fract)));
+
+    pqt *= v;
 
     match (h as u8) % 6 {
-        0 => [v, t, p],
-        1 => [q, v, p],
-        2 => [p, v, t],
-        3 => [p, q, v],
-        4 => [t, p, v],
-        5 => [v, p, q],
+        0 => [v, pqt.z, pqt.x],
+        1 => [pqt.y, v, pqt.x],
+        2 => [pqt.x, v, pqt.z],
+        3 => [pqt.x, pqt.y, v],
+        4 => [pqt.z, pqt.x, v],
+        5 => [v, pqt.x, pqt.y],
         _ => unreachable!(),
     }
 }
