@@ -1,3 +1,5 @@
+use std::hash::{Hash, Hasher};
+
 use bevy::ecs::query::{QueryData, QueryFilter};
 use bevy::hierarchy::{BuildChildren, BuildWorldChildren, Children, Parent};
 use bevy::math::{Vec3A, Vec4};
@@ -7,7 +9,7 @@ use bevy::prelude::{
 };
 use bevy::reflect::Reflect;
 use bevy::tasks::ComputeTaskPool;
-use bevy::utils::{hashbrown, HashMap as AHashMap};
+use bevy::utils::{default, hashbrown, HashMap as AHashMap};
 use dashmap::DashMap;
 use serde::Deserialize;
 use spin::Mutex;
@@ -432,7 +434,7 @@ impl Default for ObjectColor {
     }
 }
 
-#[derive(Component)]
+#[derive(Clone, Component, Copy)]
 pub(crate) struct ObjectColorCalculated {
     pub(crate) color: Vec4,
     pub(crate) blending: bool,
@@ -468,40 +470,59 @@ pub(crate) fn update_object_color(
     compute_task_pool.scope(|scope| {
         for thread_chunk in sections_to_update.chunks(thread_chunk_size) {
             scope.spawn(async move {
+                let mut color_cache = AHashMap::new();
                 for section in thread_chunk {
                     let mut iter = unsafe { objects.iter_many_unsafe(section) };
                     while let Some((object_groups, object_color, mut calculated)) =
                         iter.fetch_next()
                     {
+                        if let Some(cached_calculated) = color_cache.get(&(
+                            object_groups.archetype_entity,
+                            object_color.object_color_kind,
+                            object_color.channel_entity,
+                            object_color.hsv,
+                        )) {
+                            let Some(cached_calculated) = cached_calculated else {
+                                continue;
+                            };
+
+                            *calculated = *cached_calculated;
+                            calculated.color[3] *= object_color.object_opacity;
+                            continue;
+                        }
+
                         let (group_archetype, pulses) = group_archetypes
                             .get(object_groups.archetype_entity)
                             .unwrap();
 
                         if !group_archetype.enabled {
                             calculated.bypass_change_detection().enabled = false;
+                            color_cache.insert(
+                                (
+                                    object_groups.archetype_entity,
+                                    object_color.object_color_kind,
+                                    object_color.channel_entity,
+                                    object_color.hsv,
+                                ),
+                                Some(ObjectColorCalculated {
+                                    enabled: false,
+                                    ..default()
+                                }),
+                            );
                             continue;
                         }
 
-                        let (color, blending, tick) = color_channels
+                        let (color, blending) = color_channels
                             .get(object_color.channel_entity)
                             .map(|color_channel_calculated| {
                                 (
                                     color_channel_calculated.color,
                                     color_channel_calculated.blending,
-                                    color_channel_calculated.last_changed().get(),
                                 )
                             })
-                            .unwrap_or((Vec4::ONE, false, 0));
+                            .unwrap_or((Vec4::ONE, false));
 
-                        // TODO: This will only work for one hour until overflow messes it up
-                        let most_recent_change = tick
-                            .max(group_archetype.last_changed().get())
-                            .max(pulses.last_changed().get());
-                        if most_recent_change < calculated.last_changed().get() {
-                            continue;
-                        }
-
-                        calculated.enabled = group_archetype.enabled;
+                        calculated.enabled = true;
 
                         let alpha =
                             group_archetype.opacity * object_color.object_opacity * color[3];
@@ -541,6 +562,18 @@ pub(crate) fn update_object_color(
 
                         calculated.color = color;
                         calculated.blending = blending;
+
+                        color_cache.insert(
+                            (
+                                object_groups.archetype_entity,
+                                object_color.object_color_kind,
+                                object_color.channel_entity,
+                                object_color.hsv,
+                            ),
+                            Some(*calculated),
+                        );
+
+                        calculated.color[3] *= object_color.object_opacity;
                     }
                 }
             });
@@ -548,7 +581,7 @@ pub(crate) fn update_object_color(
     });
 }
 
-#[derive(Debug, Default, Copy, Clone, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub(crate) enum ObjectColorKind {
     Base,
     Detail,
@@ -601,7 +634,7 @@ impl ColorMod {
     }
 }
 
-#[derive(Component, Debug, Deserialize, Copy, Clone, Reflect)]
+#[derive(Component, Debug, Deserialize, Copy, Clone, Reflect, PartialEq)]
 pub(crate) struct HsvMod {
     pub(crate) h: f32,
     pub(crate) s: f32,
@@ -609,6 +642,21 @@ pub(crate) struct HsvMod {
     pub(crate) s_absolute: bool,
     pub(crate) v_absolute: bool,
 }
+
+impl Hash for HsvMod {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        (
+            self.h.to_bits(),
+            self.s.to_bits(),
+            self.v.to_bits(),
+            self.s_absolute,
+            self.v_absolute,
+        )
+            .hash(state)
+    }
+}
+
+impl Eq for HsvMod {}
 
 impl HsvMod {
     pub(crate) fn parse(hsv_string: &str) -> Result<HsvMod, anyhow::Error> {
