@@ -2,7 +2,7 @@ use std::any::Any;
 
 use bevy::ecs::system::SystemState;
 use bevy::math::Vec4;
-use bevy::prelude::{Entity, Mut, Query, World};
+use bevy::prelude::{Entity, Query, Res, World};
 
 use crate::level::color::{
     ColorChannelCalculated, GlobalColorChannel, GlobalColorChannelKind, GlobalColorChannels, HsvMod,
@@ -21,14 +21,17 @@ pub(crate) struct ColorTrigger {
     pub(crate) target_blending: bool,
 }
 
-type ColorTriggerSystemParam = Query<
-    'static,
-    'static,
-    (
-        &'static mut GlobalColorChannel,
-        &'static ColorChannelCalculated,
-    ),
->;
+type ColorTriggerSystemParam = (
+    Res<'static, GlobalColorChannels>,
+    Query<
+        'static,
+        'static,
+        (
+            &'static mut GlobalColorChannel,
+            &'static ColorChannelCalculated,
+        ),
+    >,
+);
 
 impl TriggerFunction for ColorTrigger {
     fn execute(
@@ -40,55 +43,25 @@ impl TriggerFunction for ColorTrigger {
         previous_progress: f32,
         progress: f32,
     ) {
-        let (target_entity, parent_data) =
-            world.resource_scope(|world, global_color_channels: Mut<GlobalColorChannels>| {
-                let target_entity = if let Some(target_entity) =
-                    global_color_channels.0.get(&self.target_channel)
-                {
-                    *target_entity
-                } else {
-                    let entity = world
-                        .spawn((
-                            GlobalColorChannel::default(),
-                            ColorChannelCalculated::default(),
-                        ))
-                        .id();
-                    global_color_channels.0.insert(self.target_channel, entity);
-                    entity
-                };
-
-                let parent_entity = if self.copied_channel != 0 {
-                    let parent_entity = if let Some(target_entity) =
-                        global_color_channels.0.get(&self.copied_channel)
-                    {
-                        *target_entity
-                    } else {
-                        let entity = world
-                            .spawn((
-                                GlobalColorChannel::default(),
-                                ColorChannelCalculated::default(),
-                            ))
-                            .id();
-                        global_color_channels.0.insert(self.copied_channel, entity);
-                        entity
-                    };
-                    let copied_color = world
-                        .entity(parent_entity)
-                        .get::<ColorChannelCalculated>()
-                        .unwrap()
-                        .color;
-                    Some((parent_entity, copied_color))
-                } else {
-                    None
-                };
-
-                (target_entity, parent_entity)
-            });
-
         let system_state: &mut SystemState<ColorTriggerSystemParam> =
             system_state.downcast_mut().unwrap();
 
-        let mut color_channel_query = system_state.get_mut(world);
+        let (global_color_channels, mut color_channel_query) = system_state.get_mut(world);
+
+        let target_entity = *global_color_channels
+            .0
+            .get(&self.target_channel)
+            .unwrap()
+            .value();
+
+        let copied_color = if self.copied_channel != 0 {
+            global_color_channels
+                .0
+                .get(&self.copied_channel)
+                .map(|map_ref| color_channel_query.get(*map_ref.value()).unwrap().1.color)
+        } else {
+            None
+        };
 
         let Ok((mut color_channel, calculated)) = color_channel_query.get_mut(target_entity) else {
             return;
@@ -113,8 +86,8 @@ impl TriggerFunction for ColorTrigger {
             return;
         }
 
-        let target_color = if let Some((_, target_color)) = parent_data {
-            let mut target_color = target_color;
+        let target_color = if let Some(copied_color) = copied_color {
+            let mut target_color = copied_color;
             if let Some(hsv) = self.copied_hsv {
                 hsv.apply_rgba(&mut target_color);
             }
