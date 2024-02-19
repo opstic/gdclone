@@ -13,7 +13,7 @@ use bevy::input::ButtonInput;
 use bevy::log::{info, warn};
 use bevy::math::{Vec2, Vec3, Vec4Swizzles};
 use bevy::prelude::{
-    Camera, ClearColor, Commands, Gizmos, IntoSystemConfigs, KeyCode, Local, Mut,
+    Camera, ClearColor, Commands, GizmoPrimitive2d, Gizmos, IntoSystemConfigs, KeyCode, Local, Mut,
     OrthographicProjection, Query, Res, ResMut, Resource, Schedule, Time, Transform, With, World,
 };
 use bevy::render::color::Color;
@@ -28,6 +28,7 @@ use serde::{Deserialize, Deserializer};
 use crate::asset::cocos2d_atlas::Cocos2dFrames;
 use crate::asset::TestAssets;
 use crate::level::color::{GlobalColorChannelKind, HsvMod, Pulses};
+use crate::level::collision::GlobalHitbox;
 use crate::level::player::{update_player_pos, Player};
 use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::{process_triggers, SpeedChange, TriggerActivator, TriggerData};
@@ -45,6 +46,7 @@ use crate::level::{
 };
 use crate::utils::{decompress, decrypt, section_index_from_x, U64Hash};
 
+mod collision;
 pub(crate) mod color;
 mod de;
 mod easing;
@@ -365,6 +367,7 @@ fn spawn_level_world(
 pub(crate) struct Options {
     synchronize_cameras: bool,
     display_simulated_camera: bool,
+    display_hitboxes: bool,
     visible_sections_from_simulated: bool,
     show_lines: bool,
     pub(crate) hide_triggers: bool,
@@ -375,6 +378,7 @@ impl Default for Options {
         Self {
             synchronize_cameras: true,
             display_simulated_camera: false,
+            display_hitboxes: false,
             visible_sections_from_simulated: false,
             show_lines: false,
             hide_triggers: true,
@@ -398,6 +402,9 @@ fn update_controls(
     }
     if keys.just_pressed(KeyCode::KeyT) {
         options.hide_triggers = !options.hide_triggers;
+    }
+    if keys.just_pressed(KeyCode::KeyH) {
+        options.display_hitboxes = !options.display_hitboxes;
     }
     for mut transform in transforms.iter_mut() {
         if !options.synchronize_cameras {
@@ -514,6 +521,21 @@ fn update_level_world(
 
             world.run_schedule(PostUpdate);
             world.run_schedule(Last);
+
+            if options.display_hitboxes {
+                world.resource_scope(|world, global_sections: Mut<GlobalSections>| {
+                    let mut query = world.query::<(&ObjectColorCalculated, &GlobalHitbox)>();
+                    for section in &global_sections.sections[global_sections.visible.clone()] {
+                        for (object_calculated, hitbox) in query.iter_many(world, section) {
+                            if !object_calculated.enabled {
+                                continue;
+                            }
+
+                            gizmos.primitive_2d(*hitbox, Vec2::ZERO, 0., Color::BLUE);
+                        }
+                    }
+                })
+            }
 
             world.resource_scope(|world, global_color_channels: Mut<GlobalColorChannels>| {
                 if let Some(entity) = global_color_channels.0.get(&1000) {

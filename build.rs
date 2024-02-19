@@ -18,6 +18,7 @@ struct ObjectData {
     color_type: Option<String>,
     swap_base_detail: Option<bool>,
     opacity: Option<f32>,
+    hitbox: Option<Hitbox>,
     children: Option<Vec<Child>>,
 }
 
@@ -37,6 +38,16 @@ struct Child {
     color_type: Option<String>,
     opacity: Option<f32>,
     children: Option<Vec<Child>>,
+}
+
+#[derive(Deserialize)]
+struct Hitbox {
+    r#type: String,
+    x: Option<f32>,
+    y: Option<f32>,
+    width: Option<f32>,
+    height: Option<f32>,
+    radius: Option<f32>,
 }
 
 fn main() {
@@ -153,6 +164,12 @@ fn write_object(object_data: ObjectData, output: &mut String) {
         write_value_f32("opacity", 1., output);
     }
 
+    if let Some(hitbox) = &object_data.hitbox {
+        write_hitbox(hitbox, output);
+    } else {
+        output.write_str("hitbox: None,").unwrap();
+    }
+
     if let Some(children) = &object_data.children {
         output.write_str("children: &[").unwrap();
 
@@ -170,6 +187,39 @@ fn write_object(object_data: ObjectData, output: &mut String) {
         output.write_str("children: &[]").unwrap();
     }
     output.write_str(" }").unwrap();
+}
+
+fn write_hitbox(hitbox: &Hitbox, output: &mut String) {
+    output.write_str("hitbox: ").unwrap();
+
+    match &*hitbox.r#type {
+        "Box" | "Slope" => {
+            output
+                .write_str(&format!("Some(HitboxData::{} {{ ", hitbox.r#type))
+                .unwrap();
+
+            if hitbox.r#type == "Box" {
+                write_value_vec2("offset", hitbox.x.unwrap(), hitbox.y.unwrap(), output);
+            }
+
+            write_value_vec2(
+                "half_extents",
+                hitbox.width.unwrap() / 2.,
+                hitbox.height.unwrap() / 2.,
+                output,
+            );
+            output.write_str(" }), ").unwrap();
+        }
+        "Circle" => {
+            output
+                .write_str(&format!(
+                    "Some(HitboxData::Circle {{ radius: {} }}), ",
+                    f32_writable(hitbox.radius.unwrap())
+                ))
+                .unwrap();
+        }
+        _ => panic!(),
+    }
 }
 
 fn write_child(child: &Child, output: &mut String) {

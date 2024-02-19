@@ -7,6 +7,7 @@ use bevy::utils::{default, HashMap};
 use indexmap::{IndexMap, IndexSet};
 
 use crate::asset::cocos2d_atlas::{Cocos2dFrame, Cocos2dFrames};
+use crate::level::collision::{GlobalHitbox, Hitbox};
 use crate::level::color::{GlobalColorChannels, HsvMod, ObjectColorCalculated};
 use crate::level::color::{ObjectColor, ObjectColorKind};
 use crate::level::de;
@@ -24,6 +25,7 @@ struct ObjectDefaultData {
     color_kind: ObjectColorKind,
     swap_base_detail: bool,
     opacity: f32,
+    hitbox: Option<HitboxData>,
     children: &'static [ObjectChild],
 }
 
@@ -37,6 +39,7 @@ impl ObjectDefaultData {
         color_kind: ObjectColorKind::None,
         swap_base_detail: false,
         opacity: 1.,
+        hitbox: None,
         children: &[],
     };
 }
@@ -52,6 +55,7 @@ impl Default for ObjectDefaultData {
             color_kind: ObjectColorKind::None,
             swap_base_detail: false,
             opacity: 1.,
+            hitbox: None,
             children: &[],
         }
     }
@@ -85,6 +89,12 @@ impl Default for ObjectChild {
             children: &[],
         }
     }
+}
+
+enum HitboxData {
+    Box { offset: Vec2, half_extents: Vec2 },
+    Slope { half_extents: Vec2 },
+    Circle { radius: f32 },
 }
 
 include!(concat!(env!("OUT_DIR"), "/generated_object.rs"));
@@ -244,6 +254,28 @@ pub(crate) fn spawn_object(
         object_transform,
         Handle::Weak(*image_asset_id),
     ));
+
+    if let Some(hitbox) = &object_default_data.hitbox {
+        match *hitbox {
+            HitboxData::Box {
+                offset,
+                half_extents,
+            } => {
+                entity.insert(Hitbox::Box {
+                    no_rotation: false,
+                    offset,
+                    half_extents,
+                });
+            }
+            HitboxData::Slope { half_extents } => {
+                entity.insert(Hitbox::Slope { half_extents });
+            }
+            HitboxData::Circle { radius } => {
+                entity.insert(Hitbox::Circle { radius });
+            }
+        }
+        entity.insert(GlobalHitbox::default());
+    }
 
     insert_trigger_data(&mut entity, object_id, object_data)?;
 

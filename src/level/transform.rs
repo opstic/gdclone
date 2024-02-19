@@ -1,9 +1,12 @@
+use std::f32::consts::FRAC_2_PI;
+
 use bevy::ecs::query::{QueryData, QueryFilter};
 use bevy::hierarchy::{Children, Parent};
 use bevy::math::{Affine2, Mat2, Vec2, Vec3, Vec3Swizzles};
 use bevy::prelude::{Component, DetectChanges, Mut, Query, Ref, Res, With, Without};
 use bevy::tasks::ComputeTaskPool;
 
+use crate::level::collision::{GlobalHitbox, Hitbox};
 use crate::level::section::GlobalSections;
 
 #[derive(Clone, Component, Copy)]
@@ -62,6 +65,7 @@ impl From<Transform2d> for GlobalTransform2d {
 }
 
 impl GlobalTransform2d {
+    #[inline]
     pub(crate) fn mul_transform(&self, transform: Transform2d) -> Self {
         let rhs = GlobalTransform2d::from(transform);
         Self {
@@ -70,10 +74,12 @@ impl GlobalTransform2d {
         }
     }
 
+    #[inline]
     pub(crate) fn affine(&self) -> Affine2 {
         self.affine
     }
 
+    #[inline]
     pub(crate) fn z(&self) -> f32 {
         self.z
     }
@@ -82,7 +88,12 @@ impl GlobalTransform2d {
 pub(crate) fn update_transform(
     global_sections: Res<GlobalSections>,
     object_query: Query<
-        (Ref<Transform2d>, &mut GlobalTransform2d, Option<&Children>),
+        (
+            Ref<Transform2d>,
+            &mut GlobalTransform2d,
+            Option<(&Hitbox, &mut GlobalHitbox)>,
+            Option<&Children>,
+        ),
         Without<Parent>,
     >,
     children_query: Query<(&Transform2d, &mut GlobalTransform2d, Option<&Children>), With<Parent>>,
@@ -101,7 +112,8 @@ pub(crate) fn update_transform(
             scope.spawn(async move {
                 for section in thread_chunk {
                     let mut iter = unsafe { object_query.iter_many_unsafe(section) };
-                    while let Some((transform, mut global_transform, children)) = iter.fetch_next()
+                    while let Some((transform, mut global_transform, hitbox, children)) =
+                        iter.fetch_next()
                     {
                         // TODO: This will only work for one hour until overflow messes it up
                         if transform.last_changed().get() < global_transform.last_changed().get() {
@@ -109,6 +121,15 @@ pub(crate) fn update_transform(
                         }
 
                         *global_transform = GlobalTransform2d::from(*transform);
+
+                        if let Some((hitbox, mut global_hitbox)) = hitbox {
+                            *global_hitbox = GlobalHitbox::calculate(
+                                hitbox,
+                                global_transform.affine,
+                                transform.scale,
+                                (transform.angle * FRAC_2_PI).fract() == 0.,
+                            );
+                        }
 
                         let Some(children) = children else {
                             continue;
