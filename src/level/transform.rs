@@ -1,5 +1,3 @@
-use std::f32::consts::FRAC_2_PI;
-
 use bevy::ecs::query::{QueryData, QueryFilter};
 use bevy::hierarchy::{Children, Parent};
 use bevy::math::{Affine2, Mat2, Vec2, Vec3, Vec3Swizzles};
@@ -123,12 +121,12 @@ pub(crate) fn update_transform(
                         *global_transform = GlobalTransform2d::from(*transform);
 
                         if let Some((hitbox, mut global_hitbox)) = hitbox {
-                            *global_hitbox = GlobalHitbox::calculate(
+                            *global_hitbox = GlobalHitbox::from((
                                 hitbox,
-                                global_transform.affine,
+                                &global_transform.affine,
+                                transform.angle,
                                 transform.scale,
-                                (transform.angle * FRAC_2_PI).fract() == 0.,
-                            );
+                            ));
                         }
 
                         let Some(children) = children else {

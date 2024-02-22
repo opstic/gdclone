@@ -263,7 +263,11 @@ pub(crate) fn spawn_object(
             } => {
                 entity.insert(Hitbox::Box {
                     no_rotation: false,
-                    offset,
+                    offset: if offset != Vec2::ZERO {
+                        Some(offset)
+                    } else {
+                        None
+                    },
                     half_extents,
                 });
             }
