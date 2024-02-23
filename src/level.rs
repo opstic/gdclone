@@ -27,8 +27,8 @@ use serde::{Deserialize, Deserializer};
 
 use crate::asset::cocos2d_atlas::Cocos2dFrames;
 use crate::asset::TestAssets;
-use crate::level::color::{GlobalColorChannelKind, HsvMod, Pulses};
 use crate::level::collision::GlobalHitbox;
+use crate::level::color::{GlobalColorChannelKind, HsvMod, ObjectColorCalculated, Pulses};
 use crate::level::player::{update_player_pos, Player};
 use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::{process_triggers, SpeedChange, TriggerActivator, TriggerData};
