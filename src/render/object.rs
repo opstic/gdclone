@@ -136,16 +136,24 @@ impl FromWorld for ObjectPipeline {
             ),
         );
 
-        let texture_count = NonZeroU32::new(fallbacks.texture_array_size as u32).unwrap();
-
         let material_layout = render_device.create_bind_group_layout(
             "sprite_material_layout",
             &BindGroupLayoutEntries::sequential(
                 ShaderStages::FRAGMENT,
-                (
-                    texture_2d(TextureSampleType::Float { filterable: true }).count(texture_count),
-                    sampler(SamplerBindingType::Filtering).count(texture_count),
-                ),
+                if fallbacks.texture_array_size != 1 {
+                    let texture_count =
+                        NonZeroU32::new(fallbacks.texture_array_size as u32).unwrap();
+                    (
+                        texture_2d(TextureSampleType::Float { filterable: true })
+                            .count(texture_count),
+                        sampler(SamplerBindingType::Filtering).count(texture_count),
+                    )
+                } else {
+                    (
+                        texture_2d(TextureSampleType::Float { filterable: true }),
+                        sampler(SamplerBindingType::Filtering),
+                    )
+                },
             ),
         );
         let dummy_white_gpu_image = {
