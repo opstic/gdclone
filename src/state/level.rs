@@ -101,6 +101,8 @@ fn render_option_gui(
     }
 
     egui::Window::new("Level Options").show(contexts.ctx_mut(), |ui| {
+        ui.label("F7 to show/hide options");
+        ui.separator();
         ui.checkbox(&mut options.synchronize_cameras, "Synchronize cameras");
         ui.checkbox(&mut options.display_hitboxes, "Display hitboxes");
         ui.checkbox(&mut options.show_lines, "Display camera and player X");
