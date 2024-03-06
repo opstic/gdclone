@@ -17,14 +17,17 @@ use bevy::ui::{PositionType, Style, UiRect, Val, ZIndex};
 use bevy::utils::default;
 use bevy::window::{PresentMode, Window, WindowMode, WindowPlugin, WindowResized};
 use bevy::DefaultPlugins;
+use bevy_egui::EguiPlugin;
 
 use crate::asset::AssetPlugin;
-use crate::level::LevelPlugin;
 use crate::render::RenderPlugins;
+use crate::state::StatePlugin;
 
+mod api;
 mod asset;
 mod level;
 mod render;
+mod state;
 mod utils;
 
 fn main() {
@@ -51,9 +54,10 @@ fn main() {
                 },
             }),
         FrameTimeDiagnosticsPlugin,
+        EguiPlugin,
         AssetPlugin,
-        LevelPlugin,
         RenderPlugins,
+        StatePlugin,
     ));
 
     app.add_systems(Startup, setup)

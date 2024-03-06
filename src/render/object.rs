@@ -50,7 +50,8 @@ use indexmap::IndexMap;
 use crate::asset::compressed_image::CompressedImage;
 use crate::level::color::ObjectColorCalculated;
 use crate::level::transform::GlobalTransform2d;
-use crate::level::{object::Object, section::GlobalSections, LevelWorld, Options};
+use crate::level::{object::Object, section::GlobalSections, LevelWorld};
+use crate::state::level::Options;
 
 #[derive(Default)]
 pub(crate) struct ObjectRenderPlugin;
@@ -68,7 +69,6 @@ impl Plugin for ObjectRenderPlugin {
                 .init_resource::<ObjectMeta>()
                 .init_resource::<ExtractedLayers>()
                 .init_resource::<ExtractSystemStateCache>()
-                // .init_resource::<SpriteAssetEvents>()
                 .add_render_command::<Transparent2d, DrawObject>()
                 .add_systems(ExtractSchedule, extract_objects)
                 .add_systems(
@@ -367,9 +367,17 @@ pub(crate) struct ExtractSystemStateCache {
 pub(crate) fn extract_objects(
     mut extract_system_state_cache: ResMut<ExtractSystemStateCache>,
     mut extracted_layers: ResMut<ExtractedLayers>,
-    level_world: Extract<Res<LevelWorld>>,
-    options: Extract<Res<Options>>,
+    level_world: Extract<Option<Res<LevelWorld>>>,
+    options: Extract<Option<Res<Options>>>,
 ) {
+    let Some(level_world) = &*level_world else {
+        return;
+    };
+
+    let Some(options) = &*options else {
+        return;
+    };
+
     let LevelWorld::World(world) = &**level_world else {
         // There's nothing to render
         return;

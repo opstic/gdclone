@@ -1,34 +1,20 @@
-use std::fs::File;
-use std::io::Read;
 use std::marker::PhantomData;
 use std::time::Instant;
 
-use bevy::app::{
-    App, First, Last, MainScheduleOrder, Plugin, PostUpdate, PreUpdate, RunFixedMainLoop, Update,
-};
-use bevy::asset::{AssetServer, LoadState};
+use bevy::app::{App, PostUpdate, PreUpdate, Update};
 use bevy::core::FrameCountPlugin;
-use bevy::ecs::schedule::{ExecutorKind, ScheduleLabel};
-use bevy::input::ButtonInput;
 use bevy::log::{info, warn};
-use bevy::math::{Vec2, Vec3, Vec4Swizzles};
-use bevy::prelude::{
-    Camera, ClearColor, Commands, GizmoPrimitive2d, Gizmos, IntoSystemConfigs, KeyCode, Local, Mut,
-    OrthographicProjection, Query, Res, ResMut, Resource, Schedule, Time, Transform, With, World,
-};
-use bevy::render::color::Color;
+use bevy::math::Vec3;
+use bevy::prelude::{IntoSystemConfigs, Resource, World};
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::time::TimePlugin;
 use bevy::utils::{default, HashMap};
-use futures_lite::future;
 use indexmap::IndexMap;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
 use crate::asset::cocos2d_atlas::Cocos2dFrames;
-use crate::asset::TestAssets;
-use crate::level::collision::GlobalHitbox;
-use crate::level::color::{GlobalColorChannelKind, HsvMod, ObjectColorCalculated, Pulses};
+use crate::level::color::{GlobalColorChannelKind, HsvMod, Pulses};
 use crate::level::player::{update_player_pos, Player};
 use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::{process_triggers, SpeedChange, TriggerActivator, TriggerData};
@@ -44,15 +30,15 @@ use crate::level::{
     section::{update_sections, GlobalSections, Section},
     transform::update_transform,
 };
-use crate::utils::{decompress, decrypt, section_index_from_x, U64Hash};
+use crate::utils::{decompress, decrypt, U64Hash};
 
-mod collision;
+pub(crate) mod collision;
 pub(crate) mod color;
-mod de;
+pub(crate) mod de;
 mod easing;
 pub(crate) mod group;
 pub(crate) mod object;
-mod player;
+pub(crate) mod player;
 pub(crate) mod section;
 pub(crate) mod transform;
 pub(crate) mod trigger;
@@ -61,61 +47,154 @@ pub(crate) mod trigger;
 pub(crate) enum LevelWorld {
     #[default]
     None,
-    Pending(Task<World>),
+    Pending(Task<Result<World, anyhow::Error>>),
     World(World),
 }
 
-pub(crate) struct LevelPlugin;
+fn base64_decrypt<'de, D>(deserializer: D) -> Result<Option<Vec<u8>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: String = Deserialize::deserialize(deserializer).unwrap();
+    Ok(Some(decrypt::<0>(s.as_bytes()).map_err(Error::custom)?))
+}
 
-impl Plugin for LevelPlugin {
-    fn build(&self, app: &mut App) {
-        let mut level_schedule = Schedule::new(Level);
-        level_schedule.set_executor_kind(ExecutorKind::SingleThreaded);
+fn base64_decrypt_string<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: String = Deserialize::deserialize(deserializer).unwrap();
+    Ok(Some(
+        String::from_utf8(decrypt::<0>(s.as_bytes()).map_err(Error::custom)?)
+            .map_err(|err| Error::custom(err.to_string()))?,
+    ))
+}
 
-        app.add_schedule(level_schedule);
+fn decode_percent<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: String = Deserialize::deserialize(deserializer).unwrap();
+    Ok(percent_encoding::percent_decode_str(&s)
+        .decode_utf8()
+        .map_err(|err| Error::custom(err.to_string()))?
+        .to_string())
+}
 
-        app.world
-            .resource_scope(|_, mut schedule_order: Mut<MainScheduleOrder>| {
-                schedule_order.insert_after(Update, Level)
-            });
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct LevelInfo {
+    #[serde(rename = "1")]
+    pub(crate) id: u64,
+    #[serde(rename = "2")]
+    pub(crate) name: String,
+    #[serde(rename = "35")]
+    pub(crate) song_id: u64,
+}
 
-        app.init_resource::<LevelWorld>()
-            .init_resource::<Options>()
-            .add_systems(Level, update_level_world)
-            .add_systems(Update, (spawn_level_world, update_controls));
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct SongInfo {
+    #[serde(rename = "1")]
+    pub(crate) id: u64,
+    #[serde(rename = "2")]
+    pub(crate) name: String,
+    #[serde(rename = "10", deserialize_with = "decode_percent")]
+    pub(crate) url: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct LevelData {
+    #[serde(alias = "k1", alias = "1")]
+    pub(crate) id: Option<u64>,
+    #[serde(alias = "k2", alias = "2")]
+    pub(crate) name: String,
+    #[serde(alias = "k3", alias = "3", deserialize_with = "base64_decrypt_string")]
+    pub(crate) description: Option<String>,
+    #[serde(
+        default,
+        alias = "k4",
+        alias = "4",
+        deserialize_with = "base64_decrypt"
+    )]
+    pub(crate) inner_level: Option<Vec<u8>>,
+    #[serde(rename = "k5")]
+    pub(crate) creator: Option<String>,
+}
+
+impl LevelData {
+    pub(crate) fn decompress_inner_level(
+        &self,
+    ) -> Option<Result<DecompressedInnerLevel, anyhow::Error>> {
+        self.inner_level.as_ref().map(|compressed| {
+            let decompressed = decompress(compressed)?;
+            // Validate the data
+            simdutf8::basic::from_utf8(&decompressed)?;
+            Ok(DecompressedInnerLevel(unsafe {
+                String::from_utf8_unchecked(decompressed)
+            }))
+        })
     }
 }
 
-#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
-struct Level;
+pub(crate) struct DecompressedInnerLevel(pub(crate) String);
 
-fn spawn_level_world(
-    cocos2d_frames: Res<Cocos2dFrames>,
-    server: Res<AssetServer>,
-    test_assets: Res<TestAssets>,
-    mut level_world: ResMut<LevelWorld>,
-    mut a: Local<bool>,
-) {
-    match *level_world {
-        LevelWorld::None => (),
-        _ => return,
-    }
+impl DecompressedInnerLevel {
+    pub(crate) fn parse(&self) -> Result<ParsedInnerLevel, anyhow::Error> {
+        let object_strings: Vec<&str> = de::from_str(&self.0, ';')?;
 
-    for handle in &test_assets.assets {
-        if server.load_state(handle) != LoadState::Loaded {
-            return;
+        if object_strings.is_empty() {
+            return Ok(ParsedInnerLevel {
+                start_object: HashMap::default(),
+                objects: Vec::default(),
+                phantom: PhantomData,
+            });
         }
+
+        let start_object: HashMap<&str, &str> = de::from_str(object_strings[0], ',')?;
+
+        let mut objects = vec![HashMap::new(); object_strings.len() - 1];
+
+        let async_compute = AsyncComputeTaskPool::get();
+
+        let thread_chunk_size = ((object_strings.len() - 1) / async_compute.thread_num()).max(1);
+
+        async_compute.scope(|scope| {
+            for (object_strings_chunk, parsed_object_chunk) in object_strings[1..]
+                .chunks(thread_chunk_size)
+                .zip(objects.chunks_mut(thread_chunk_size))
+            {
+                scope.spawn(async move {
+                    for (object_string, parsed_object) in
+                        object_strings_chunk.iter().zip(parsed_object_chunk)
+                    {
+                        match de::from_str(object_string, ',') {
+                            Ok(parsed) => *parsed_object = parsed,
+                            Err(error) => {
+                                warn!("Failed to parse object: {:?}", error);
+                                warn!("Failed object string: {}", object_string);
+                            }
+                        }
+                    }
+                });
+            }
+        });
+
+        Ok(ParsedInnerLevel {
+            start_object,
+            objects,
+            phantom: PhantomData,
+        })
     }
+}
 
-    if !*a {
-        *a = true;
-        return;
-    }
+#[derive(Debug)]
+pub(crate) struct ParsedInnerLevel<'a> {
+    start_object: HashMap<&'a str, &'a str>,
+    objects: Vec<HashMap<&'a str, &'a str>>,
+    phantom: PhantomData<&'a DecompressedInnerLevel>,
+}
 
-    let async_compute = AsyncComputeTaskPool::get();
-
-    let cocos2d_frames = cocos2d_frames.clone();
-    let level_world_future = async_compute.spawn(async move {
+impl<'a> ParsedInnerLevel<'a> {
+    pub(crate) fn create_world(&self, cocos2d_frames: &Cocos2dFrames) -> World {
         let mut sub_app = App::new();
 
         sub_app.add_plugins((TimePlugin, FrameCountPlugin));
@@ -145,28 +224,10 @@ fn spawn_level_world(
 
         let mut world = sub_app.world;
 
-        let mut save_file = File::open("assets/theeschaton.txt").unwrap();
-        let mut save_data = Vec::new();
-        let _ = save_file.read_to_end(&mut save_data);
-        let start_all = Instant::now();
-        let decrypted = decrypt::<0>(&save_data).unwrap();
-        info!("Decrypting took {:?}", start_all.elapsed());
-        let mut start = Instant::now();
-        let decompressed = decompress(&decrypted).unwrap();
-        info!("Decompressing took {:?}", start.elapsed());
-        start = Instant::now();
-        simdutf8::basic::from_utf8(&decompressed).unwrap();
-        info!("UTF8 validation took {:?}", start.elapsed());
-        let decom_inner_level =
-            DecompressedInnerLevel(unsafe { String::from_utf8_unchecked(decompressed) });
-        start = Instant::now();
-        let parsed = decom_inner_level.parse().unwrap();
-        info!("Parsing took {:?}", start.elapsed());
-
         let mut global_color_channels = GlobalColorChannels::default();
 
-        start = Instant::now();
-        if let Some(colors_string) = parsed.start_object.get("kS38") {
+        let mut start = Instant::now();
+        if let Some(colors_string) = self.start_object.get("kS38") {
             let parsed_colors: Vec<&str> = de::from_str(colors_string, '|').unwrap();
             global_color_channels
                 .0
@@ -266,8 +327,8 @@ fn spawn_level_world(
         start = Instant::now();
 
         // Spawn the objects in order of the sections to hopefully improve access pattern
-        let mut temp_objects = Vec::with_capacity(parsed.objects.len());
-        for (index, object_data) in parsed.objects.iter().enumerate() {
+        let mut temp_objects = Vec::with_capacity(self.objects.len());
+        for (index, object_data) in self.objects.iter().enumerate() {
             let object_position = object::get_object_pos(object_data).unwrap();
             temp_objects.push((
                 (object_position.x, object_position.y, object_position.z),
@@ -280,7 +341,7 @@ fn spawn_level_world(
         for (_, index) in temp_objects {
             if let Err(error) = object::spawn_object(
                 &mut world,
-                &parsed.objects[index as usize],
+                &self.objects[index as usize],
                 &mut global_sections,
                 &mut global_groups,
                 &mut group_archetypes,
@@ -291,7 +352,7 @@ fn spawn_level_world(
             }
         }
 
-        // for object_data in &parsed.objects {
+        // for object_data in &selfobjects {
         //     if let Err(error) = object::spawn_object(
         //         &mut world,
         //         object_data,
@@ -304,7 +365,7 @@ fn spawn_level_world(
         //     }
         // }
         info!("Spawning took {:?}", start.elapsed());
-        info!("Spawned {} objects", parsed.objects.len());
+        info!("Spawned {} objects", self.objects.len());
         info!("{} sections used", global_sections.sections.len());
 
         let player = world
@@ -327,7 +388,7 @@ fn spawn_level_world(
         group::spawn_groups(&mut world, global_groups, group_archetypes);
         info!("Initializing groups took {:?}", start.elapsed());
 
-        let default_speed = if let Some(speed) = parsed.start_object.get("kA4") {
+        let default_speed = if let Some(speed) = self.start_object.get("kA4") {
             match speed.parse().unwrap() {
                 0 => (5.77 * 60., 0.9),
                 1 => (5.98 * 60., 0.7),
@@ -355,301 +416,6 @@ fn spawn_level_world(
 
         world.init_resource::<TriggerData>();
 
-        info!("Total time: {:?}", start_all.elapsed());
-
         world
-    });
-
-    *level_world = LevelWorld::Pending(level_world_future);
-}
-
-#[derive(Resource)]
-pub(crate) struct Options {
-    synchronize_cameras: bool,
-    display_simulated_camera: bool,
-    display_hitboxes: bool,
-    visible_sections_from_simulated: bool,
-    show_lines: bool,
-    pub(crate) hide_triggers: bool,
-}
-
-impl Default for Options {
-    fn default() -> Self {
-        Self {
-            synchronize_cameras: true,
-            display_simulated_camera: false,
-            display_hitboxes: false,
-            visible_sections_from_simulated: false,
-            show_lines: false,
-            hide_triggers: true,
-        }
     }
-}
-
-fn update_controls(
-    mut projections: Query<&mut OrthographicProjection, With<Camera>>,
-    mut transforms: Query<&mut Transform, With<Camera>>,
-    keys: Res<ButtonInput<KeyCode>>,
-    mut options: ResMut<Options>,
-    time: Res<Time>,
-) {
-    let multiplier = time.delta_seconds() * 20.;
-    if keys.just_pressed(KeyCode::KeyU) {
-        options.synchronize_cameras = !options.synchronize_cameras;
-    }
-    if keys.just_pressed(KeyCode::KeyL) {
-        options.show_lines = !options.show_lines;
-    }
-    if keys.just_pressed(KeyCode::KeyT) {
-        options.hide_triggers = !options.hide_triggers;
-    }
-    if keys.just_pressed(KeyCode::KeyH) {
-        options.display_hitboxes = !options.display_hitboxes;
-    }
-    for mut transform in transforms.iter_mut() {
-        if !options.synchronize_cameras {
-            if keys.pressed(KeyCode::ArrowRight) {
-                transform.translation.x += 10.0 * multiplier;
-            }
-            if keys.pressed(KeyCode::ArrowLeft) {
-                transform.translation.x -= 10.0 * multiplier;
-            }
-            if keys.pressed(KeyCode::KeyA) {
-                transform.translation.x -= 20.0 * multiplier;
-            }
-            if keys.pressed(KeyCode::KeyD) {
-                transform.translation.x += 20.0 * multiplier;
-            }
-        }
-        if keys.pressed(KeyCode::ArrowUp) {
-            transform.translation.y += 10.0 * multiplier;
-        }
-        if keys.pressed(KeyCode::ArrowDown) {
-            transform.translation.y -= 10.0 * multiplier;
-        }
-        if keys.pressed(KeyCode::KeyW) {
-            transform.translation.y += 20.0 * multiplier;
-        }
-        if keys.pressed(KeyCode::KeyS) {
-            transform.translation.y -= 20.0 * multiplier;
-        }
-    }
-    for mut projection in projections.iter_mut() {
-        if keys.pressed(KeyCode::KeyQ) {
-            projection.scale *= 1.01;
-        }
-        if keys.pressed(KeyCode::KeyE) {
-            projection.scale *= 0.99;
-        }
-    }
-}
-
-fn update_level_world(
-    mut commands: Commands,
-    mut camera: Query<(&OrthographicProjection, &mut Transform)>,
-    mut level_world: ResMut<LevelWorld>,
-    options: Res<Options>,
-    mut gizmos: Gizmos,
-) {
-    match &mut *level_world {
-        LevelWorld::World(ref mut world) => {
-            world.run_schedule(First);
-            world.run_schedule(PreUpdate);
-            world.run_schedule(RunFixedMainLoop);
-            world.run_schedule(Update);
-
-            // Render player line
-            let mut players = world.query::<(&Player, &Transform2d)>();
-
-            if options.show_lines {
-                for (player, transform) in players.iter(world) {
-                    let (player_line_start, player_line_end) = if player.vertical_is_x {
-                        (
-                            Vec2::new(transform.translation.x - 500., transform.translation.y),
-                            Vec2::new(transform.translation.x + 500., transform.translation.y),
-                        )
-                    } else {
-                        (
-                            Vec2::new(transform.translation.x, transform.translation.y - 500.),
-                            Vec2::new(transform.translation.x, transform.translation.y + 500.),
-                        )
-                    };
-                    gizmos.line_2d(player_line_start, player_line_end, Color::ORANGE_RED)
-                }
-            }
-
-            let (camera_projection, mut camera_transform) = camera.single_mut();
-
-            let (_, player_transform) = players.single(world);
-
-            if options.synchronize_cameras {
-                camera_transform.translation.x = player_transform.translation.x + 75.;
-                if options.show_lines {
-                    gizmos.line_2d(
-                        Vec2::new(
-                            camera_transform.translation.x,
-                            camera_transform.translation.y - 500.,
-                        ),
-                        Vec2::new(
-                            camera_transform.translation.x,
-                            camera_transform.translation.y + 500.,
-                        ),
-                        Color::GREEN,
-                    );
-                    gizmos.line_2d(
-                        Vec2::new(
-                            player_transform.translation.x,
-                            camera_transform.translation.y - 500.,
-                        ),
-                        Vec2::new(
-                            player_transform.translation.x,
-                            camera_transform.translation.y + 500.,
-                        ),
-                        Color::ORANGE_RED,
-                    );
-                }
-            }
-
-            let camera_min = camera_projection.area.min.x + camera_transform.translation.x;
-            let camera_max = camera_projection.area.max.x + camera_transform.translation.x;
-
-            let min_section = section_index_from_x(camera_min) as usize;
-            let max_section = section_index_from_x(camera_max) as usize;
-
-            let mut global_sections = world.resource_mut::<GlobalSections>();
-            global_sections.visible = min_section.saturating_sub(2)..max_section.saturating_add(2);
-
-            world.run_schedule(PostUpdate);
-            world.run_schedule(Last);
-
-            if options.display_hitboxes {
-                world.resource_scope(|world, global_sections: Mut<GlobalSections>| {
-                    let mut query = world.query::<(&ObjectColorCalculated, &GlobalHitbox)>();
-                    for section in &global_sections.sections[global_sections.visible.clone()] {
-                        for (object_calculated, hitbox) in query.iter_many(world, section) {
-                            if !object_calculated.enabled {
-                                continue;
-                            }
-
-                            gizmos.primitive_2d(*hitbox, Vec2::ZERO, 0., Color::BLUE);
-                        }
-                    }
-                })
-            }
-
-            world.resource_scope(|world, global_color_channels: Mut<GlobalColorChannels>| {
-                if let Some(entity) = global_color_channels.0.get(&1000) {
-                    let mut query = world.query::<&ColorChannelCalculated>();
-                    if let Ok(calculated) = query.get(world, *entity) {
-                        commands.insert_resource(ClearColor(Color::rgb_linear_from_array(
-                            calculated.color.xyz(),
-                        )));
-                    }
-                }
-            });
-
-            world.clear_trackers();
-        }
-        LevelWorld::Pending(world_task) => {
-            if let Some(world) = future::block_on(future::poll_once(world_task)) {
-                *level_world = LevelWorld::World(world);
-            }
-        }
-        _ => (),
-    }
-}
-
-fn decrypt_inner_level<'de, D>(deserializer: D) -> Result<Option<Vec<u8>>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s: String = Deserialize::deserialize(deserializer).unwrap();
-    Ok(Some(decrypt::<0>(s.as_bytes()).map_err(Error::custom)?))
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct LevelData {
-    #[serde(rename = "k1")]
-    pub(crate) id: Option<u64>,
-    #[serde(rename = "k2")]
-    pub(crate) name: String,
-    #[serde(rename = "k3")]
-    pub(crate) description: Option<String>,
-    #[serde(default, rename = "k4", deserialize_with = "decrypt_inner_level")]
-    pub(crate) inner_level: Option<Vec<u8>>,
-    #[serde(rename = "k5")]
-    pub(crate) creator: String,
-}
-
-impl LevelData {
-    pub(crate) fn decompress_inner_level(
-        &self,
-    ) -> Option<Result<DecompressedInnerLevel, anyhow::Error>> {
-        self.inner_level.as_ref().map(|compressed| {
-            let decompressed = decompress(compressed)?;
-            // Validate the data
-            simdutf8::basic::from_utf8(&decompressed)?;
-            Ok(DecompressedInnerLevel(unsafe {
-                String::from_utf8_unchecked(decompressed)
-            }))
-        })
-    }
-}
-
-pub(crate) struct DecompressedInnerLevel(pub(crate) String);
-
-impl DecompressedInnerLevel {
-    pub(crate) fn parse(&self) -> Result<ParsedInnerLevel, anyhow::Error> {
-        let object_strings: Vec<&str> = de::from_str(&self.0, ';')?;
-
-        if object_strings.is_empty() {
-            return Ok(ParsedInnerLevel {
-                start_object: HashMap::default(),
-                objects: Vec::default(),
-                phantom: PhantomData,
-            });
-        }
-
-        let start_object: HashMap<&str, &str> = de::from_str(object_strings[0], ',')?;
-
-        let mut objects = vec![HashMap::new(); object_strings.len() - 1];
-
-        let async_compute = AsyncComputeTaskPool::get();
-
-        let thread_chunk_size = ((object_strings.len() - 1) / async_compute.thread_num()).max(1);
-
-        async_compute.scope(|scope| {
-            for (object_strings_chunk, parsed_object_chunk) in object_strings[1..]
-                .chunks(thread_chunk_size)
-                .zip(objects.chunks_mut(thread_chunk_size))
-            {
-                scope.spawn(async move {
-                    for (object_string, parsed_object) in
-                        object_strings_chunk.iter().zip(parsed_object_chunk)
-                    {
-                        match de::from_str(object_string, ',') {
-                            Ok(parsed) => *parsed_object = parsed,
-                            Err(error) => {
-                                warn!("Failed to parse object: {:?}", error);
-                                warn!("Failed object string: {}", object_string);
-                            }
-                        }
-                    }
-                });
-            }
-        });
-
-        Ok(ParsedInnerLevel {
-            start_object,
-            objects,
-            phantom: PhantomData,
-        })
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct ParsedInnerLevel<'a> {
-    start_object: HashMap<&'a str, &'a str>,
-    objects: Vec<HashMap<&'a str, &'a str>>,
-    phantom: PhantomData<&'a DecompressedInnerLevel>,
 }

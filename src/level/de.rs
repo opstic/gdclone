@@ -77,6 +77,8 @@ impl serde::de::Error for DeError {
 trait Reader<'a> {
     fn read_until_char(&mut self, sep: char) -> Option<&'a str>;
 
+    fn read_until_substring(&mut self, sep: &str) -> Option<&'a str>;
+
     fn len(&self) -> Option<usize>;
 }
 
@@ -102,6 +104,23 @@ impl<'a> Reader<'a> for StrReader<'a> {
         )
     }
 
+    fn read_until_substring(&mut self, sep: &str) -> Option<&'a str> {
+        if self.source.is_empty() {
+            return None;
+        }
+        Some(
+            if let Some(i) = memchr::memmem::find(self.source.as_bytes(), sep.as_bytes()) {
+                let string = &self.source[..i];
+                self.source = &self.source[i + sep.len()..];
+                string
+            } else {
+                let string = self.source;
+                self.source = "";
+                string
+            },
+        )
+    }
+
     fn len(&self) -> Option<usize> {
         Some(self.source.len())
     }
@@ -111,8 +130,21 @@ pub(crate) fn from_str<'de, T>(source: &'de str, sep: char) -> Result<T, DeError
 where
     T: Deserialize<'de>,
 {
-    let mut de = SeparatorDeserializer::from_str(source, sep);
+    let mut de = SeparatorDeserializer::from_str_char(source, sep);
     T::deserialize(&mut de)
+}
+
+pub(crate) fn from_str_str<'de, T>(source: &'de str, sep: String) -> Result<T, DeError>
+where
+    T: Deserialize<'de>,
+{
+    let mut de = SeparatorDeserializer::from_str_str(source, sep);
+    T::deserialize(&mut de)
+}
+
+enum Separator {
+    Char(char),
+    Substring(String),
 }
 
 struct SeparatorDeserializer<'de, R>
@@ -120,7 +152,7 @@ where
     R: Reader<'de>,
 {
     reader: R,
-    separator: char,
+    separator: Separator,
     peek: Option<&'de str>,
     initial: bool,
     seen: Vec<&'de str>,
@@ -128,8 +160,12 @@ where
 
 impl<'de> SeparatorDeserializer<'de, StrReader<'de>> {
     /// Create new deserializer that will borrow data from the specified string
-    pub fn from_str(source: &'de str, sep: char) -> Self {
-        Self::new(StrReader { source }, sep)
+    pub fn from_str_char(source: &'de str, sep: char) -> Self {
+        Self::new(StrReader { source }, Separator::Char(sep))
+    }
+
+    pub fn from_str_str(source: &'de str, sep: String) -> Self {
+        Self::new(StrReader { source }, Separator::Substring(sep))
     }
 }
 
@@ -137,7 +173,7 @@ impl<'de, R> SeparatorDeserializer<'de, R>
 where
     R: Reader<'de>,
 {
-    fn new(reader: R, separator: char) -> Self {
+    fn new(reader: R, separator: Separator) -> Self {
         SeparatorDeserializer {
             reader,
             separator,
@@ -156,7 +192,10 @@ where
 
     fn peek(&mut self) -> Option<&'de str> {
         if self.peek.is_none() {
-            self.peek = self.reader.read_until_char(self.separator);
+            match &self.separator {
+                Separator::Char(sep) => self.peek = self.reader.read_until_char(*sep),
+                Separator::Substring(sep) => self.peek = self.reader.read_until_substring(sep),
+            }
         }
         self.peek
     }
@@ -165,7 +204,10 @@ where
         if let Some(b) = self.peek.take() {
             return Some(b);
         }
-        self.reader.read_until_char(self.separator)
+        match &self.separator {
+            Separator::Char(sep) => self.reader.read_until_char(*sep),
+            Separator::Substring(sep) => self.reader.read_until_substring(sep),
+        }
     }
 }
 
