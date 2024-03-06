@@ -167,6 +167,12 @@ pub(crate) fn spawn_object(
     if let Some(scale) = object_data.get("32") {
         transform.scale = Vec2::splat(scale.parse()?);
     }
+    if let Some(scale_x) = object_data.get("128") {
+        transform.scale.x = scale_x.parse()?;
+    }
+    if let Some(scale_y) = object_data.get("129") {
+        transform.scale.y = scale_y.parse()?;
+    }
     if let Some(flip_x) = object_data.get("4") {
         transform.scale.x *= if str_to_bool(flip_x) { -1. } else { 1. };
     }
