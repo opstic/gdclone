@@ -199,11 +199,15 @@ impl<'a> ParsedInnerLevel<'a> {
 
         sub_app.add_plugins((TimePlugin, FrameCountPlugin));
 
-        sub_app.add_systems(PreUpdate, (clear_group_delta, clear_pulses));
+        sub_app.add_systems(PreUpdate, clear_group_delta);
 
         sub_app.add_systems(
             Update,
-            (update_player_pos, process_triggers.after(update_player_pos)),
+            (
+                update_player_pos,
+                clear_pulses.before(process_triggers),
+                process_triggers.after(update_player_pos),
+            ),
         );
 
         sub_app.add_systems(
