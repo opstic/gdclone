@@ -227,6 +227,19 @@ fn update_level_world(
                     instance.pause(AudioTween::linear(Duration::ZERO));
                 }
             } else if let PlaybackState::Paused { .. } = instance.state() {
+                let mut players = world.query_filtered::<&Transform2d, With<Player>>();
+                world.resource_scope(|world, song_offset: Mut<SongOffset>| {
+                    world.resource_scope(|world, global_triggers: Mut<GlobalTriggers>| {
+                        let transform = players.single(world);
+                        let mut time = global_triggers
+                            .speed_changes
+                            .time_for_pos(transform.translation.x);
+
+                        time += song_offset.0;
+
+                        instance.seek_to(time as f64);
+                    });
+                });
                 instance.resume(AudioTween::linear(Duration::ZERO));
             }
         }
