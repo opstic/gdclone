@@ -117,6 +117,10 @@ pub(crate) fn decrypt<const KEY: u8>(bytes: &[u8]) -> Result<Vec<u8>, anyhow::Er
     const BUFFER_SIZE: usize = 1024;
     const RPOSITION_LIMIT: usize = 4;
 
+    if bytes.len() == 0 {
+        return Ok(Vec::new());
+    }
+
     let invalid_bytes_end = bytes[bytes.len().saturating_sub(RPOSITION_LIMIT)..]
         .iter()
         .rposition(|byte| *byte == KEY)
