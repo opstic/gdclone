@@ -87,15 +87,6 @@ pub(crate) fn update_sections(
         global_sections.sections[*old as usize].swap_remove(entity);
         global_sections.sections[*new as usize].insert(*entity);
     }
-
-    global_sections.visible.start = global_sections
-        .visible
-        .start
-        .min(global_sections.sections.len());
-    global_sections.visible.end = global_sections
-        .visible
-        .end
-        .min(global_sections.sections.len());
 }
 
 unsafe fn propagate_section_recursive<'w, 's, D: QueryData, F: QueryFilter>(
@@ -123,4 +114,15 @@ unsafe fn propagate_section_recursive<'w, 's, D: QueryData, F: QueryFilter>(
 
         propagate_section_recursive(children, children_query, parent_section, changed_entities);
     }
+}
+
+pub(crate) fn limit_sections(mut global_sections: ResMut<GlobalSections>) {
+    global_sections.visible.start = global_sections
+        .visible
+        .start
+        .min(global_sections.sections.len());
+    global_sections.visible.end = global_sections
+        .visible
+        .end
+        .min(global_sections.sections.len());
 }

@@ -27,7 +27,7 @@ use crate::level::{
         apply_group_delta, clear_group_delta, update_group_archetype,
         update_group_archetype_calculated,
     },
-    section::{update_sections, GlobalSections, Section},
+    section::{limit_sections, update_sections, GlobalSections, Section},
     transform::update_transform,
 };
 use crate::utils::{decompress, decrypt, U64Hash};
@@ -204,25 +204,24 @@ impl<'a> ParsedInnerLevel<'a> {
         sub_app.add_systems(
             Update,
             (
-                update_player_pos,
-                clear_pulses.before(process_triggers),
+                (update_player_pos, clear_pulses).before(process_triggers),
                 process_triggers.after(update_player_pos),
+                (
+                    update_group_archetype,
+                    update_group_archetype_calculated.after(update_group_archetype),
+                    update_color_channel_calculated,
+                    apply_group_delta,
+                    update_sections.after(apply_group_delta),
+                )
+                    .after(process_triggers),
             ),
         );
 
         sub_app.add_systems(
             PostUpdate,
             (
-                update_group_archetype,
-                update_group_archetype_calculated.after(update_group_archetype),
-                update_color_channel_calculated,
-                apply_group_delta.before(update_sections),
-                update_sections,
-                update_transform.after(update_sections),
-                update_object_color
-                    .after(update_sections)
-                    .after(update_group_archetype_calculated)
-                    .after(update_color_channel_calculated),
+                limit_sections,
+                (update_transform, update_object_color).after(limit_sections),
             ),
         );
 
