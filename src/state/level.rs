@@ -83,8 +83,7 @@ fn level_setup(
     mut options: ResMut<Options>,
     mut cameras: Query<(&mut Transform, &mut OrthographicProjection), With<Camera>>,
 ) {
-    options.pause_player = false;
-    options.synchronize_cameras = true;
+    *options = Options::default();
     for (mut transform, mut projection) in &mut cameras {
         transform.translation = Vec3::ZERO;
         projection.scale = 1.;
