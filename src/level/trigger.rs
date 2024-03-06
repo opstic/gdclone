@@ -354,6 +354,16 @@ pub(crate) fn insert_trigger_data(
     object_data: &AHashMap<&str, &str>,
 ) -> Result<(), anyhow::Error> {
     match object_id {
+        200 | 201 | 202 | 203 | 1334 => {
+            if let Some(editor_preview) = object_data.get("13") {
+                if !str_to_bool(editor_preview) {
+                    return Ok(());
+                }
+            }
+        }
+        _ => (),
+    }
+    match object_id {
         200 => {
             // Known as "0.5x"
             entity_world_mut.insert(SpeedChange {
