@@ -15,6 +15,7 @@ use bevy::prelude::{
     NextState, OnEnter, OnExit, OrthographicProjection, Query, Res, ResMut, Resource, Schedule,
     Transform, With,
 };
+use bevy::time::Time;
 use bevy_egui::EguiContexts;
 use bevy_kira_audio::{AudioInstance, AudioTween, PlaybackState};
 
@@ -130,13 +131,13 @@ fn render_option_gui(
     }
 
     egui::Window::new("Level Options").show(contexts.ctx_mut(), |ui| {
-        ui.label("F7 to show/hide options");
+        ui.checkbox(&mut options.show_options, "Show options (F7)");
+        ui.checkbox(&mut options.synchronize_cameras, "Synchronize cameras (U)");
+        ui.checkbox(&mut options.display_hitboxes, "Display hitboxes (H)");
+        ui.checkbox(&mut options.show_lines, "Display camera and player X (L)");
+        ui.checkbox(&mut options.hide_triggers, "Hide triggers (T)");
+        ui.checkbox(&mut options.pause_player, "Pause player (Esc)");
         ui.separator();
-        ui.checkbox(&mut options.synchronize_cameras, "Synchronize cameras");
-        ui.checkbox(&mut options.display_hitboxes, "Display hitboxes");
-        ui.checkbox(&mut options.show_lines, "Display camera and player X");
-        ui.checkbox(&mut options.hide_triggers, "Hide triggers");
-        ui.checkbox(&mut options.pause_player, "Pause player");
         if ui.button("Exit to menu").clicked() {
             state.set(GameState::Menu);
         }
@@ -152,6 +153,7 @@ fn update_controls(
     mut mouse_motion_events: EventReader<MouseMotion>,
     mut mouse_wheel_events: EventReader<MouseWheel>,
     mut options: ResMut<Options>,
+    time: Res<Time>,
 ) {
     if keys.just_pressed(KeyCode::Escape) {
         if !options.pause_player {
@@ -162,6 +164,56 @@ fn update_controls(
     }
     if keys.just_pressed(KeyCode::F7) {
         options.show_options = !options.show_options;
+    }
+    if keys.just_pressed(KeyCode::KeyU) {
+        options.synchronize_cameras = !options.synchronize_cameras;
+    }
+    if keys.just_pressed(KeyCode::KeyH) {
+        options.display_hitboxes = !options.display_hitboxes;
+    }
+    if keys.just_pressed(KeyCode::KeyL) {
+        options.show_lines = !options.show_lines;
+    }
+    if keys.just_pressed(KeyCode::KeyT) {
+        options.hide_triggers = !options.hide_triggers;
+    }
+
+    let multiplier = time.delta_seconds() * 20.;
+    for mut transform in transforms.iter_mut() {
+        if !options.synchronize_cameras {
+            if keys.pressed(KeyCode::ArrowRight) {
+                transform.translation.x += 10.0 * multiplier;
+            }
+            if keys.pressed(KeyCode::ArrowLeft) {
+                transform.translation.x -= 10.0 * multiplier;
+            }
+            if keys.pressed(KeyCode::KeyA) {
+                transform.translation.x -= 20.0 * multiplier;
+            }
+            if keys.pressed(KeyCode::KeyD) {
+                transform.translation.x += 20.0 * multiplier;
+            }
+        }
+        if keys.pressed(KeyCode::ArrowUp) {
+            transform.translation.y += 10.0 * multiplier;
+        }
+        if keys.pressed(KeyCode::ArrowDown) {
+            transform.translation.y -= 10.0 * multiplier;
+        }
+        if keys.pressed(KeyCode::KeyW) {
+            transform.translation.y += 20.0 * multiplier;
+        }
+        if keys.pressed(KeyCode::KeyS) {
+            transform.translation.y -= 20.0 * multiplier;
+        }
+    }
+    for mut projection in projections.iter_mut() {
+        if keys.pressed(KeyCode::KeyQ) {
+            projection.scale *= 1.01;
+        }
+        if keys.pressed(KeyCode::KeyE) {
+            projection.scale *= 0.99;
+        }
     }
 
     for mouse_wheel_event in mouse_wheel_events.read() {
