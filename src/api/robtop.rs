@@ -1,6 +1,7 @@
 use std::io::Read;
 
 use bevy::audio::AudioSource;
+use bevy::log::error;
 use bevy::utils::HashMap;
 
 use crate::api::ServerApi;
@@ -53,7 +54,11 @@ impl ServerApi for RobtopApi {
             song_info_strings
                 .iter()
                 .filter_map(|song_info_string| {
-                    de::from_str_str::<SongInfo>(song_info_string, "~|~".to_string()).ok()
+                    de::from_str_str::<SongInfo>(
+                        song_info_string.trim_matches('~'),
+                        "~|~".to_string(),
+                    )
+                    .ok()
                 })
                 .collect::<Vec<SongInfo>>()
         } else {
