@@ -45,7 +45,9 @@ fn render_menu_gui(
             ui.horizontal(|ui| {
                 ui.label("Search: ");
                 let response = ui.text_edit_singleline(&mut browser_state.search);
-                if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                if (response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
+                    || ui.button("Search").clicked()
+                {
                     info!("Searching for {}", browser_state.search);
                     let query_string = browser_state.search.clone();
                     browser_state.task = Some(AsyncComputeTaskPool::get().spawn(async {
