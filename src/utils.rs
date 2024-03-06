@@ -117,24 +117,26 @@ pub(crate) fn decrypt<const KEY: u8>(bytes: &[u8]) -> Result<Vec<u8>, anyhow::Er
     const BUFFER_SIZE: usize = 1024;
     const RPOSITION_LIMIT: usize = 4;
 
-    let invalid_bytes_end = bytes[bytes.len() - RPOSITION_LIMIT..]
+    let invalid_bytes_end = bytes[bytes.len().saturating_sub(RPOSITION_LIMIT)..]
         .iter()
         .rposition(|byte| *byte == KEY)
-        .map(|found_index| found_index + bytes.len() - RPOSITION_LIMIT)
+        .map(|found_index| (found_index + bytes.len()).saturating_sub(RPOSITION_LIMIT))
         .unwrap_or(bytes.len());
-    let invalid_bytes_start = bytes[invalid_bytes_end - RPOSITION_LIMIT..invalid_bytes_end]
+    let invalid_bytes_start = bytes
+        [invalid_bytes_end.saturating_sub(RPOSITION_LIMIT)..invalid_bytes_end]
         .iter()
         .rposition(|byte| !(*byte == KEY || (*byte ^ KEY).is_ascii_whitespace()))
-        .map(|found_index| found_index + invalid_bytes_end - RPOSITION_LIMIT)
-        .unwrap_or(bytes.len() - 1)
+        .map(|found_index| (found_index + invalid_bytes_end).saturating_sub(RPOSITION_LIMIT))
+        .unwrap_or(bytes.len().saturating_sub(1))
         + 1;
 
     let base64_padding = b'=' ^ KEY;
 
-    let actual_encoded_len = bytes[invalid_bytes_start - RPOSITION_LIMIT..invalid_bytes_start]
+    let actual_encoded_len = bytes
+        [invalid_bytes_start.saturating_sub(RPOSITION_LIMIT)..invalid_bytes_start]
         .iter()
         .rposition(|byte| *byte != base64_padding)
-        .map(|found_index| found_index + invalid_bytes_start - RPOSITION_LIMIT)
+        .map(|found_index| (found_index + invalid_bytes_start).saturating_sub(RPOSITION_LIMIT))
         .ok_or(anyhow::Error::msg(
             "Data contains nothing but Base64 padding????",
         ))?;
