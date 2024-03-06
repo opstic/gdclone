@@ -5,7 +5,7 @@ use bevy::audio::{AudioSink, AudioSinkPlayback};
 use bevy::ecs::schedule::{ExecutorKind, ScheduleLabel};
 use bevy::input::mouse::{MouseMotion, MouseScrollUnit, MouseWheel};
 use bevy::input::ButtonInput;
-use bevy::math::{Vec2, Vec3Swizzles, Vec4Swizzles};
+use bevy::math::{Vec2, Vec3, Vec3Swizzles, Vec4Swizzles};
 use bevy::prelude::{
     in_state, Camera, ClearColor, Color, Commands, Component, EventReader, GizmoPrimitive2d,
     Gizmos, GlobalTransform, IntoSystemConfigs, KeyCode, MouseButton, Mut, NextState, OnEnter,
@@ -79,8 +79,16 @@ impl Default for Options {
     }
 }
 
-fn level_setup(mut options: ResMut<Options>) {
+fn level_setup(
+    mut options: ResMut<Options>,
+    mut cameras: Query<(&mut Transform, &mut OrthographicProjection), With<Camera>>,
+) {
     options.pause_player = false;
+    options.synchronize_cameras = true;
+    for (mut transform, mut projection) in &mut cameras {
+        transform.translation = Vec3::ZERO;
+        projection.scale = 1.;
+    }
 }
 
 fn render_option_gui(
