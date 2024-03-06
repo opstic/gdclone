@@ -110,9 +110,11 @@ fn level_setup(
 
             time += song_offset.0;
 
-            if let Some(instance) = audio_instances.get_mut(&song_players.single().0) {
-                instance.seek_to(time as f64);
-                instance.resume(AudioTween::linear(Duration::ZERO));
+            if let Ok(song_player) = song_players.get_single() {
+                if let Some(instance) = audio_instances.get_mut(&song_player.0) {
+                    instance.seek_to(time as f64);
+                    instance.resume(AudioTween::linear(Duration::ZERO));
+                }
             }
         });
     })
@@ -218,13 +220,15 @@ fn update_level_world(
         world.run_schedule(Update);
     }
 
-    if let Some(instance) = audio_instances.get_mut(&song_players.single().0) {
-        if options.pause_player {
-            if let PlaybackState::Playing { .. } = instance.state() {
-                instance.pause(AudioTween::linear(Duration::ZERO));
+    if let Ok(song_player) = song_players.get_single() {
+        if let Some(instance) = audio_instances.get_mut(&song_player.0) {
+            if options.pause_player {
+                if let PlaybackState::Playing { .. } = instance.state() {
+                    instance.pause(AudioTween::linear(Duration::ZERO));
+                }
+            } else if let PlaybackState::Paused { .. } = instance.state() {
+                instance.resume(AudioTween::linear(Duration::ZERO));
             }
-        } else if let PlaybackState::Paused { .. } = instance.state() {
-            instance.resume(AudioTween::linear(Duration::ZERO));
         }
     }
 
