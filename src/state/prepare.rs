@@ -231,6 +231,8 @@ fn wait_for_creation(
             return;
         };
 
+        text_query.single_mut().sections[0].value = "".to_string();
+
         let world = match world {
             Ok(world) => world,
             Err(err) => {
