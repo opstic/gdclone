@@ -2,7 +2,6 @@ use std::time::Instant;
 
 use bevy::app::{App, Plugin, Update};
 use bevy::asset::AssetServer;
-use bevy::audio::{AudioBundle, AudioSource, PlaybackSettings};
 use bevy::hierarchy::{BuildChildren, DespawnRecursiveExt};
 use bevy::log::{error, info};
 use bevy::prelude::{
@@ -12,6 +11,7 @@ use bevy::prelude::{
 };
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::ui::FlexDirection;
+use bevy_kira_audio::{Audio, AudioControl, AudioSource};
 use futures_lite::future;
 
 use crate::api::robtop::RobtopApi;
@@ -53,6 +53,7 @@ fn prepare_setup(
     song_players: Query<Entity, With<SongPlayer>>,
     level_to_download: Res<LevelToDownload>,
     browser_state: Res<LevelBrowserState>,
+    audio: Res<Audio>,
 ) {
     for entity in &song_players {
         commands.entity(entity).despawn_recursive();
@@ -126,16 +127,8 @@ fn prepare_setup(
     }
 
     if let Some(audio_handle) = browser_state.stored_songs.get(&level_info.song_id) {
-        commands.spawn((
-            AudioBundle {
-                source: audio_handle.clone(),
-                settings: PlaybackSettings {
-                    paused: true,
-                    ..default()
-                },
-            },
-            SongPlayer,
-        ));
+        let instance_handle = audio.play(audio_handle.clone()).paused().handle();
+        commands.spawn(SongPlayer(instance_handle));
         return;
     }
 
@@ -162,6 +155,7 @@ fn wait_for_creation(
     cocos2d_frames: Res<Cocos2dFrames>,
     mut text_query: Query<&mut Text, With<PrepareText>>,
     mut browser_state: ResMut<LevelBrowserState>,
+    audio: Res<Audio>,
 ) {
     if let Some(ref mut level_download_task) = level_download_task {
         if let Some(downloaded) = future::block_on(future::poll_once(&mut level_download_task.0)) {
@@ -206,16 +200,8 @@ fn wait_for_creation(
                 Ok((id, audio_source)) => {
                     let audio_handle = asset_server.add(audio_source);
                     browser_state.stored_songs.insert(id, audio_handle.clone());
-                    commands.spawn((
-                        AudioBundle {
-                            source: audio_handle,
-                            settings: PlaybackSettings {
-                                paused: true,
-                                ..default()
-                            },
-                        },
-                        SongPlayer,
-                    ));
+                    let instance_handle = audio.play(audio_handle).paused().handle();
+                    commands.spawn(SongPlayer(instance_handle));
                 }
                 Err(err) => {
                     error!("Song download failed. {}", err);

@@ -14,7 +14,6 @@ base64-simd = "0.8"
 bevy = { version = "0.13", default-features = false, features = [
     "android_shared_stdcxx",
     "bevy_asset",
-    "bevy_audio",
     "bevy_core_pipeline",
     "bevy_gizmos",
     "bevy_render",
@@ -32,6 +31,7 @@ bevy = { version = "0.13", default-features = false, features = [
     "x11",
 ] }
 bevy_egui = "0.25"
+bevy_kira_audio = "0.19"
 bitflags = "2.4"
 bytemuck = { version = "1.14", features = ["derive"] }
 dashmap = { version = "5.5", features = ["raw-api"] }
@@ -39,6 +39,7 @@ egui = "0.26"
 float_next_after = "1.0"
 futures-lite = "2.1"
 indexmap = "2.1"
+kira = "0.8"
 libdeflater = "1.19"
 memchr = "2.6"
 nested_intervals = { git = "https://github.com/opstic/nested_intervals" }

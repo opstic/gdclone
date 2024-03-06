@@ -1,7 +1,8 @@
-use std::io::Read;
+use std::io::{Cursor, Read};
 
-use bevy::audio::AudioSource;
 use bevy::utils::HashMap;
+use bevy_kira_audio::AudioSource;
+use kira::sound::static_sound::{StaticSoundData, StaticSoundSettings};
 
 use crate::api::ServerApi;
 use crate::level::{de, LevelData, LevelInfo, SongInfo};
@@ -86,8 +87,8 @@ impl ServerApi for RobtopApi {
         let mut body = ureq::get(&song_info.url).call()?.into_reader();
         let mut raw_audio = Vec::new();
         body.read_to_end(&mut raw_audio)?;
-        Ok(AudioSource {
-            bytes: raw_audio.into(),
-        })
+        let sound_data =
+            StaticSoundData::from_cursor(Cursor::new(raw_audio), StaticSoundSettings::new())?;
+        Ok(AudioSource { sound: sound_data })
     }
 }

@@ -1,23 +1,29 @@
+use std::time::Duration;
+
 use bevy::app::{
     App, First, Last, MainScheduleOrder, Plugin, PostUpdate, PreUpdate, RunFixedMainLoop, Update,
 };
-use bevy::audio::{AudioSink, AudioSinkPlayback};
+use bevy::asset::{Assets, Handle};
 use bevy::ecs::schedule::{ExecutorKind, ScheduleLabel};
+use bevy::hierarchy::DespawnRecursiveExt;
 use bevy::input::mouse::{MouseMotion, MouseScrollUnit, MouseWheel};
 use bevy::input::ButtonInput;
 use bevy::math::{Vec2, Vec3, Vec3Swizzles, Vec4Swizzles};
 use bevy::prelude::{
-    in_state, Camera, ClearColor, Color, Commands, Component, EventReader, GizmoPrimitive2d,
-    Gizmos, GlobalTransform, IntoSystemConfigs, KeyCode, MouseButton, Mut, NextState, OnEnter,
-    OnExit, OrthographicProjection, Query, Res, ResMut, Resource, Schedule, Transform, With,
+    in_state, Camera, ClearColor, Color, Commands, Component, Entity, EventReader,
+    GizmoPrimitive2d, Gizmos, GlobalTransform, IntoSystemConfigs, KeyCode, MouseButton, Mut,
+    NextState, OnEnter, OnExit, OrthographicProjection, Query, Res, ResMut, Resource, Schedule,
+    Transform, With,
 };
 use bevy_egui::EguiContexts;
+use bevy_kira_audio::{AudioInstance, AudioTween, PlaybackState};
 
 use crate::level::color::{ColorChannelCalculated, GlobalColorChannels, ObjectColorCalculated};
 use crate::level::player::Player;
 use crate::level::section::GlobalSections;
 use crate::level::transform::Transform2d;
-use crate::level::LevelWorld;
+use crate::level::trigger::GlobalTriggers;
+use crate::level::{LevelWorld, SongOffset};
 use crate::state::GameState;
 use crate::utils::section_index_from_x;
 
@@ -50,7 +56,7 @@ impl Plugin for LevelStatePlugin {
 struct Level;
 
 #[derive(Component)]
-pub(crate) struct SongPlayer;
+pub(crate) struct SongPlayer(pub(crate) Handle<AudioInstance>);
 
 #[derive(Resource)]
 pub(crate) struct Options {
@@ -82,12 +88,34 @@ impl Default for Options {
 fn level_setup(
     mut options: ResMut<Options>,
     mut cameras: Query<(&mut Transform, &mut OrthographicProjection), With<Camera>>,
+    mut level_world: ResMut<LevelWorld>,
+    mut audio_instances: ResMut<Assets<AudioInstance>>,
+    song_players: Query<&SongPlayer>,
 ) {
     *options = Options::default();
     for (mut transform, mut projection) in &mut cameras {
         transform.translation = Vec3::ZERO;
         projection.scale = 1.;
     }
+    let LevelWorld::World(ref mut world) = *level_world else {
+        panic!("World is supposed to be created");
+    };
+    let mut players = world.query_filtered::<&Transform2d, With<Player>>();
+    world.resource_scope(|world, song_offset: Mut<SongOffset>| {
+        world.resource_scope(|world, global_triggers: Mut<GlobalTriggers>| {
+            let transform = players.single(world);
+            let mut time = global_triggers
+                .speed_changes
+                .time_for_pos(transform.translation.x);
+
+            time += song_offset.0;
+
+            if let Some(instance) = audio_instances.get_mut(&song_players.single().0) {
+                instance.seek_to(time as f64);
+                instance.resume(AudioTween::linear(Duration::ZERO));
+            }
+        });
+    })
 }
 
 fn render_option_gui(
@@ -175,7 +203,8 @@ fn update_level_world(
     mut level_world: ResMut<LevelWorld>,
     options: ResMut<Options>,
     mut gizmos: Gizmos,
-    mut song_players: Query<&mut AudioSink, With<SongPlayer>>,
+    song_players: Query<&SongPlayer>,
+    mut audio_instances: ResMut<Assets<AudioInstance>>,
 ) {
     let LevelWorld::World(ref mut world) = *level_world else {
         panic!("World is supposed to be created");
@@ -186,13 +215,16 @@ fn update_level_world(
     world.run_schedule(RunFixedMainLoop);
 
     if !options.pause_player {
-        for sink in &mut song_players {
-            sink.play();
-        }
         world.run_schedule(Update);
-    } else {
-        for sink in &mut song_players {
-            sink.pause();
+    }
+
+    if let Some(instance) = audio_instances.get_mut(&song_players.single().0) {
+        if options.pause_player {
+            if let PlaybackState::Playing { .. } = instance.state() {
+                instance.pause(AudioTween::linear(Duration::ZERO));
+            }
+        } else if let PlaybackState::Paused { .. } = instance.state() {
+            instance.resume(AudioTween::linear(Duration::ZERO));
         }
     }
 
@@ -292,8 +324,18 @@ fn update_level_world(
     world.clear_trackers();
 }
 
-fn level_cleanup(mut song_players: Query<&mut AudioSink, With<SongPlayer>>) {
-    for sink in &mut song_players {
-        sink.pause();
+fn level_cleanup(
+    mut commands: Commands,
+    mut audio_instances: ResMut<Assets<AudioInstance>>,
+    song_players: Query<(Entity, &SongPlayer)>,
+) {
+    for (entity, song_player) in &song_players {
+        commands.entity(entity).despawn_recursive();
+
+        let Some(instance) = audio_instances.get_mut(&song_player.0) else {
+            continue;
+        };
+
+        instance.stop(AudioTween::linear(Duration::ZERO));
     }
 }

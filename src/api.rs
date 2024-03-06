@@ -1,5 +1,5 @@
-use bevy::audio::AudioSource;
 use bevy::utils::HashMap;
+use bevy_kira_audio::AudioSource;
 
 use crate::level::{LevelData, LevelInfo, SongInfo};
 

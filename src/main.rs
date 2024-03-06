@@ -18,6 +18,7 @@ use bevy::utils::default;
 use bevy::window::{PresentMode, Window, WindowMode, WindowPlugin, WindowResized};
 use bevy::DefaultPlugins;
 use bevy_egui::EguiPlugin;
+use bevy_kira_audio::AudioPlugin;
 
 use crate::asset::AssetPlugin;
 use crate::render::RenderPlugins;
@@ -54,6 +55,7 @@ fn main() {
                 },
             }),
         FrameTimeDiagnosticsPlugin,
+        AudioPlugin,
         EguiPlugin,
         AssetPlugin,
         RenderPlugins,

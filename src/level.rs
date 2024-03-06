@@ -193,6 +193,9 @@ pub(crate) struct ParsedInnerLevel<'a> {
     phantom: PhantomData<&'a DecompressedInnerLevel>,
 }
 
+#[derive(Resource)]
+pub(crate) struct SongOffset(pub(crate) f32);
+
 impl<'a> ParsedInnerLevel<'a> {
     pub(crate) fn create_world(&self, cocos2d_frames: &Cocos2dFrames) -> World {
         let mut sub_app = App::new();
@@ -418,6 +421,13 @@ impl<'a> ParsedInnerLevel<'a> {
         info!("Trigger timeline construction took {:?}", start.elapsed());
 
         world.init_resource::<TriggerData>();
+
+        world.insert_resource(SongOffset(
+            self.start_object
+                .get(&"kA13")
+                .map(|s| s.parse().unwrap_or_default())
+                .unwrap_or_default(),
+        ));
 
         world
     }

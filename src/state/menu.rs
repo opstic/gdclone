@@ -1,11 +1,11 @@
 use bevy::app::{App, Plugin, Update};
 use bevy::asset::Handle;
-use bevy::audio::AudioSource;
 use bevy::log::info;
 use bevy::prelude::{in_state, Commands, IntoSystemConfigs, NextState, ResMut, Resource};
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::utils::HashMap;
 use bevy_egui::EguiContexts;
+use bevy_kira_audio::AudioSource;
 use futures_lite::future;
 
 use crate::api::robtop::RobtopApi;

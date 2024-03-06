@@ -111,13 +111,13 @@ impl SpeedChanges {
         &self.0[index]
     }
 
-    fn time_for_pos(&self, pos: f32) -> f32 {
+    pub(crate) fn time_for_pos(&self, pos: f32) -> f32 {
         let (speed_change_pos, speed_change_data) = self.speed_data_at_pos(pos);
 
         speed_change_data.time_at_pos + (pos - speed_change_pos.0) / speed_change_data.speed_per_sec
     }
 
-    fn pos_for_time(&self, time: f32) -> f32 {
+    pub(crate) fn pos_for_time(&self, time: f32) -> f32 {
         let (speed_change_pos, speed_change_data) = self.speed_data_at_time(time);
 
         speed_change_pos.0
