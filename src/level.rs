@@ -30,7 +30,7 @@ use crate::level::{
     section::{limit_sections, update_sections, GlobalSections, Section},
     transform::update_transform,
 };
-use crate::utils::{decompress, decrypt, U64Hash};
+use crate::utils::{decompress, decrypt, str_to_bool, U64Hash};
 
 pub(crate) mod collision;
 pub(crate) mod color;
@@ -197,7 +197,7 @@ pub(crate) struct ParsedInnerLevel<'a> {
 pub(crate) struct SongOffset(pub(crate) f32);
 
 impl<'a> ParsedInnerLevel<'a> {
-    pub(crate) fn create_world(&self, cocos2d_frames: &Cocos2dFrames) -> World {
+    pub(crate) fn create_world(&self, cocos2d_frames: &Cocos2dFrames, low_detail: bool) -> World {
         let mut sub_app = App::new();
 
         sub_app.add_plugins((TimePlugin, FrameCountPlugin));
@@ -344,17 +344,41 @@ impl<'a> ParsedInnerLevel<'a> {
 
         radsort::sort_by_key(&mut temp_objects, |temp| temp.0);
 
-        for (_, index) in temp_objects {
-            if let Err(error) = object::spawn_object(
-                &mut world,
-                &self.objects[index as usize],
-                &mut global_sections,
-                &mut global_groups,
-                &mut group_archetypes,
-                &global_color_channels,
-                &cocos2d_frames,
-            ) {
-                warn!("Failed to spawn object: {:?}", error);
+        if low_detail {
+            for (_, index) in temp_objects {
+                let object_data = &self.objects[index as usize];
+
+                if let Some(high_detail) = object_data.get("103") {
+                    if str_to_bool(high_detail) {
+                        continue;
+                    }
+                }
+
+                if let Err(error) = object::spawn_object(
+                    &mut world,
+                    object_data,
+                    &mut global_sections,
+                    &mut global_groups,
+                    &mut group_archetypes,
+                    &global_color_channels,
+                    &cocos2d_frames,
+                ) {
+                    warn!("Failed to spawn object: {:?}", error);
+                }
+            }
+        } else {
+            for (_, index) in temp_objects {
+                if let Err(error) = object::spawn_object(
+                    &mut world,
+                    &self.objects[index as usize],
+                    &mut global_sections,
+                    &mut global_groups,
+                    &mut group_archetypes,
+                    &global_color_channels,
+                    &cocos2d_frames,
+                ) {
+                    warn!("Failed to spawn object: {:?}", error);
+                }
             }
         }
 

@@ -173,6 +173,7 @@ fn wait_for_creation(
             info!("Starting world creation...");
 
             let cocos2d_frames = cocos2d_frames.clone();
+            let low_detail = browser_state.low_detail;
             commands.insert_resource(LevelWorld::Pending(async_pool.spawn(async move {
                 let start_all = Instant::now();
                 let mut start = Instant::now();
@@ -181,7 +182,7 @@ fn wait_for_creation(
                 start = Instant::now();
                 let parsed = decompressed.parse()?;
                 info!("Parsing took {:?}", start.elapsed());
-                let world = parsed.create_world(&cocos2d_frames);
+                let world = parsed.create_world(&cocos2d_frames, low_detail);
                 info!("Total time: {:?}", start_all.elapsed());
 
                 Ok(world)

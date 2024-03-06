@@ -31,6 +31,7 @@ pub(crate) struct LevelBrowserState {
     pub(crate) download_audio: bool,
     pub(crate) song_infos: HashMap<u64, SongInfo>,
     pub(crate) stored_songs: HashMap<u64, Handle<AudioSource>>,
+    pub(crate) low_detail: bool,
 }
 
 fn render_menu_gui(
@@ -57,7 +58,8 @@ fn render_menu_gui(
                 }
 
                 ui.separator();
-                ui.checkbox(&mut browser_state.download_audio, "Download song");
+                ui.checkbox(&mut browser_state.download_audio, "Download Song");
+                ui.checkbox(&mut browser_state.low_detail, "Low Detail");
             });
 
             ui.separator();
