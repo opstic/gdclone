@@ -69,11 +69,11 @@ impl TriggerFunction for MoveTrigger {
             }
 
             if self.lock.x {
-                delta.x += transform.translation.x - last_translation.x;
+                delta.x = transform.translation.x - last_translation.x;
             }
 
             if self.lock.y {
-                delta.y += transform.translation.y - last_translation.y;
+                delta.y = transform.translation.y - last_translation.y;
             }
         }
 
