@@ -121,12 +121,8 @@ pub(crate) fn update_transform(
                         *global_transform = GlobalTransform2d::from(*transform);
 
                         if let Some((hitbox, mut global_hitbox)) = hitbox {
-                            *global_hitbox = GlobalHitbox::from((
-                                hitbox,
-                                &global_transform.affine,
-                                transform.angle,
-                                transform.scale,
-                            ));
+                            *global_hitbox =
+                                GlobalHitbox::from((hitbox, &*transform, &*global_transform));
                         }
 
                         let Some(children) = children else {

@@ -1,7 +1,9 @@
 use std::f32::consts::{FRAC_1_PI, FRAC_2_PI};
 
-use bevy::math::{Affine2, Vec2, Vec2Swizzles, Vec4, Vec4Swizzles};
+use bevy::math::{Vec2, Vec2Swizzles, Vec3, Vec4, Vec4Swizzles};
 use bevy::prelude::{Color, Component, GizmoConfigGroup, GizmoPrimitive2d, Gizmos, Primitive2d};
+
+use crate::level::transform::{GlobalTransform2d, Transform2d};
 
 #[derive(Component)]
 pub(crate) enum Hitbox {
@@ -42,8 +44,11 @@ impl Default for GlobalHitbox {
     }
 }
 
-impl From<(&Hitbox, &Affine2, f32, Vec2)> for GlobalHitbox {
-    fn from((hitbox, affine, angle, scale): (&Hitbox, &Affine2, f32, Vec2)) -> Self {
+impl From<(&Hitbox, &Transform2d, &GlobalTransform2d)> for GlobalHitbox {
+    fn from(
+        (hitbox, transform, global_transform): (&Hitbox, &Transform2d, &GlobalTransform2d),
+    ) -> Self {
+        let affine = global_transform.affine();
         match *hitbox {
             Hitbox::Box {
                 no_rotation,
@@ -51,15 +56,15 @@ impl From<(&Hitbox, &Affine2, f32, Vec2)> for GlobalHitbox {
                 half_extents,
             } => {
                 let transformed_center = if let Some(offset) = offset {
-                    offset * scale + affine.translation
+                    offset * transform.scale + affine.translation
                 } else {
                     affine.translation
                 };
 
-                if no_rotation || (angle * FRAC_2_PI).fract() == 0. {
-                    let mut transformed_half_extents = (half_extents * scale).abs();
+                if no_rotation || (transform.angle * FRAC_2_PI).fract() == 0. {
+                    let mut transformed_half_extents = (half_extents * transform.scale).abs();
 
-                    if (angle * FRAC_1_PI).fract() != 0. {
+                    if (transform.angle * FRAC_1_PI).fract() != 0. {
                         transformed_half_extents = transformed_half_extents.yx()
                     }
 
@@ -105,9 +110,9 @@ impl From<(&Hitbox, &Affine2, f32, Vec2)> for GlobalHitbox {
                     *vertex = affine.transform_point2(*vertex);
                 }
 
-                let mut transformed_half_extents = half_extents * scale;
+                let mut transformed_half_extents = half_extents * transform.scale;
 
-                if (angle * FRAC_1_PI).fract() != 0. {
+                if (transform.angle * FRAC_1_PI).fract() != 0. {
                     transformed_half_extents = transformed_half_extents.yx()
                 }
 
@@ -120,7 +125,7 @@ impl From<(&Hitbox, &Affine2, f32, Vec2)> for GlobalHitbox {
                 }
             }
             Hitbox::Circle { radius } => {
-                let scaled_radius = (radius * scale.max_element()).abs();
+                let scaled_radius = (radius * transform.scale.max_element()).abs();
                 let half_extents = Vec2::splat(scaled_radius);
                 let min_point = affine.translation - half_extents;
                 let max_point = affine.translation + half_extents;
@@ -169,7 +174,7 @@ impl<'w, 's, T: GizmoConfigGroup> GizmoPrimitive2d<GlobalHitbox> for Gizmos<'w, 
             primitive.aabb.xy() + scale / 2.,
             0.,
             scale,
-            color.with_a(0.25),
+            Color::rgb_from_array(Vec3::ONE - color.rgb_to_vec3()).with_a(0.1),
         );
 
         match specific {
