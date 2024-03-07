@@ -361,7 +361,7 @@ impl<'a> ParsedInnerLevel<'a> {
                     &mut global_groups,
                     &mut group_archetypes,
                     &global_color_channels,
-                    &cocos2d_frames,
+                    cocos2d_frames,
                 ) {
                     warn!("Failed to spawn object: {:?}", error);
                 }
@@ -375,25 +375,13 @@ impl<'a> ParsedInnerLevel<'a> {
                     &mut global_groups,
                     &mut group_archetypes,
                     &global_color_channels,
-                    &cocos2d_frames,
+                    cocos2d_frames,
                 ) {
                     warn!("Failed to spawn object: {:?}", error);
                 }
             }
         }
 
-        // for object_data in &selfobjects {
-        //     if let Err(error) = object::spawn_object(
-        //         &mut world,
-        //         object_data,
-        //         &global_sections,
-        //         &mut global_groups,
-        //         &global_color_channels,
-        //         &cocos2d_frames,
-        //     ) {
-        //         warn!("Failed to spawn object: {:?}", error);
-        //     }
-        // }
         info!("Spawning took {:?}", start.elapsed());
         info!("Spawned {} objects", self.objects.len());
         info!("{} sections used", global_sections.sections.len());
