@@ -409,7 +409,7 @@ pub(crate) fn insert_trigger_data(
             entity_world_mut.insert(TouchActivate);
             return Ok(());
         }
-        899 => {
+        29 | 30 | 105 | 221 | 717 | 718 | 743 | 744 | 899 => {
             let mut trigger = ColorTrigger::default();
             if let Some(duration) = object_data.get("10") {
                 trigger.duration = duration.parse()?;
@@ -422,6 +422,17 @@ pub(crate) fn insert_trigger_data(
             } else {
                 trigger.target_channel = 1;
             }
+            trigger.target_channel = match object_id {
+                221 => 1,
+                717 => 2,
+                718 => 3,
+                743 => 4,
+                29 => 1000,
+                30 => 1001,
+                744 => 1003,
+                105 => 1004,
+                _ => trigger.target_channel,
+            };
             if let Some(r) = object_data.get("7") {
                 trigger.target_color[0] = r.parse::<u8>()? as f32 / u8::MAX as f32;
             }
