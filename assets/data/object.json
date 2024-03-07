@@ -24787,7 +24787,7 @@
     }
   },
   "367": {
-    "texture": "pit_04_slope_02_001.png",
+    "texture": "emptyFrame.png",
     "default_z_layer": 5,
     "default_z_order": 1,
     "default_base_color_channel": 1004,
