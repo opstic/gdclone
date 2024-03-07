@@ -384,9 +384,8 @@ fn toggle_fullscreen(input: Res<ButtonInput<KeyCode>>, mut windows: Query<&mut W
 
         window.mode = match window.mode {
             WindowMode::Windowed => WindowMode::Fullscreen,
-            WindowMode::Fullscreen => WindowMode::BorderlessFullscreen,
-            WindowMode::BorderlessFullscreen => WindowMode::SizedFullscreen,
-            WindowMode::SizedFullscreen => WindowMode::Windowed,
+            WindowMode::Fullscreen => WindowMode::Windowed,
+            _ => return,
         };
 
         info!("Switching window mode to {:?}", window.mode);
