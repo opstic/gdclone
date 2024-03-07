@@ -55,15 +55,10 @@ fn prepare_setup(
     mut commands: Commands,
     server: Res<AssetServer>,
     level_world: Option<ResMut<LevelWorld>>,
-    song_players: Query<Entity, With<SongPlayer>>,
     level_to_download: Res<LevelToDownload>,
     browser_state: Res<LevelBrowserState>,
     audio: Res<Audio>,
 ) {
-    for entity in &song_players {
-        commands.entity(entity).despawn_recursive();
-    }
-
     if let Some(mut level_world) = level_world {
         *level_world = LevelWorld::None;
     }
