@@ -1,7 +1,8 @@
 use std::time::Instant;
 
 use bevy::app::{App, Plugin, Update};
-use bevy::asset::AssetServer;
+use bevy::asset::io::AssetSourceId;
+use bevy::asset::{AssetPath, AssetServer, Handle, LoadState};
 use bevy::hierarchy::{BuildChildren, DespawnRecursiveExt};
 use bevy::log::{error, info};
 use bevy::prelude::{
@@ -17,7 +18,7 @@ use futures_lite::future;
 use crate::api::robtop::RobtopApi;
 use crate::api::ServerApi;
 use crate::asset::cocos2d_atlas::Cocos2dFrames;
-use crate::level::{LevelData, LevelInfo, LevelWorld};
+use crate::level::{LevelData, LevelInfo, LevelWorld, SongInfo};
 use crate::state::level::SongPlayer;
 use crate::state::menu::LevelBrowserState;
 use crate::state::GameState;
@@ -47,12 +48,16 @@ struct LevelDownloadTask(Task<Result<LevelData, anyhow::Error>>);
 #[derive(Resource)]
 struct AudioDownloadTask(Task<Result<(u64, AudioSource), anyhow::Error>>);
 
+#[derive(Resource)]
+struct LocalSongHandle(SongInfo, Handle<AudioSource>);
+
 fn prepare_setup(
     mut commands: Commands,
+    server: Res<AssetServer>,
     level_world: Option<ResMut<LevelWorld>>,
     song_players: Query<Entity, With<SongPlayer>>,
     level_to_download: Res<LevelToDownload>,
-    browser_state: Res<LevelBrowserState>,
+    mut browser_state: ResMut<LevelBrowserState>,
     audio: Res<Audio>,
 ) {
     for entity in &song_players {
@@ -135,14 +140,12 @@ fn prepare_setup(
     let Some(song_info) = browser_state.song_infos.get(&level_info.song_id).cloned() else {
         return;
     };
-    commands.insert_resource(AudioDownloadTask(async_pool.spawn(async move {
-        info!("Downloading song {}, ID: {}", song_info.name, song_info.id);
-        let start = Instant::now();
-        let api = RobtopApi::default();
-        let audio_source = api.get_song(song_info.clone()).await?;
-        info!("Song download took {:?}", start.elapsed());
-        Ok((song_info.id, audio_source))
-    })))
+
+    let data_source = AssetSourceId::from("data");
+    let local_song: Handle<AudioSource> =
+        server.load(AssetPath::from(song_info.id.to_string() + ".mp3").with_source(data_source));
+
+    commands.insert_resource(LocalSongHandle(song_info, local_song));
 }
 
 fn wait_for_creation(
@@ -151,6 +154,7 @@ fn wait_for_creation(
     mut level_download_task: Option<ResMut<LevelDownloadTask>>,
     mut audio_download_task: Option<ResMut<AudioDownloadTask>>,
     mut level_world: Option<ResMut<LevelWorld>>,
+    local_song_handle: Option<Res<LocalSongHandle>>,
     mut state: ResMut<NextState<GameState>>,
     cocos2d_frames: Res<Cocos2dFrames>,
     mut text_query: Query<&mut Text, With<PrepareText>>,
@@ -191,6 +195,33 @@ fn wait_for_creation(
         } else {
             text_query.single_mut().sections[0].value = "Downloading level\n".to_string();
         };
+    }
+
+    if let Some(local_song_handle) = local_song_handle {
+        match asset_server.load_state(local_song_handle.1.clone()) {
+            LoadState::Loaded => {
+                browser_state
+                    .stored_songs
+                    .insert(local_song_handle.0.id, local_song_handle.1.clone());
+                let instance_handle = audio.play(local_song_handle.1.clone()).paused().handle();
+                commands.spawn(SongPlayer(instance_handle));
+                commands.remove_resource::<LocalSongHandle>()
+            }
+            LoadState::Failed => {
+                let async_pool = AsyncComputeTaskPool::get();
+                let song_info = local_song_handle.0.clone();
+                commands.insert_resource(AudioDownloadTask(async_pool.spawn(async move {
+                    info!("Downloading song {}, ID: {}", song_info.name, song_info.id);
+                    let start = Instant::now();
+                    let api = RobtopApi::default();
+                    let audio_source = api.get_song(song_info.clone()).await?;
+                    info!("Song download took {:?}", start.elapsed());
+                    Ok((song_info.id, audio_source))
+                })));
+                commands.remove_resource::<LocalSongHandle>()
+            }
+            _ => (),
+        }
     }
 
     if let Some(ref mut audio_download_task) = audio_download_task {

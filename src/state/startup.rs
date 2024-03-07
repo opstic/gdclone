@@ -1,4 +1,5 @@
-use bevy::asset::LoadState;
+use bevy::asset::io::AssetSourceId;
+use bevy::asset::{AssetPath, LoadState};
 use bevy::prelude::*;
 
 use crate::asset::GlobalAssets;
@@ -61,13 +62,15 @@ fn startup_setup(mut commands: Commands, server: Res<AssetServer>) {
                 .insert(ListText);
         });
 
+    let source = AssetSourceId::from("resources");
+
     commands.insert_resource(GlobalAssets {
         assets: vec![
-            server.load("GJ_GameSheet-uhd.plist"),
-            server.load("GJ_GameSheet02-uhd.plist"),
-            server.load("GJ_GameSheet03-uhd.plist"),
-            server.load("GJ_GameSheet04-uhd.plist"),
-            server.load("GJ_GameSheetGlow-uhd.plist"),
+            server.load(AssetPath::from("GJ_GameSheet-uhd.plist").with_source(source.clone())),
+            server.load(AssetPath::from("GJ_GameSheet02-uhd.plist").with_source(source.clone())),
+            server.load(AssetPath::from("GJ_GameSheet03-uhd.plist").with_source(source.clone())),
+            server.load(AssetPath::from("GJ_GameSheet04-uhd.plist").with_source(source.clone())),
+            server.load(AssetPath::from("GJ_GameSheetGlow-uhd.plist").with_source(source)),
         ],
     });
 }

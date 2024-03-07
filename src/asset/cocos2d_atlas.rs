@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use bevy::asset::{
-    io::Reader, Asset, AssetEvent, AssetId, AssetLoader, Assets, AsyncReadExt, BoxedFuture, Handle,
-    LoadContext,
+    io::Reader, Asset, AssetEvent, AssetId, AssetLoader, AssetPath, Assets, AsyncReadExt,
+    BoxedFuture, Handle, LoadContext,
 };
 use bevy::log::info;
 use bevy::math::{Rect, Vec2};
@@ -229,9 +229,13 @@ async fn load_texture<'a>(
     filename: &str,
     supported_compressed_formats: CompressedImageFormats,
 ) -> Result<Image, anyhow::Error> {
-    let parent_dir = load_context.path().parent().unwrap();
-    let image_path = parent_dir.join(filename);
-    let bytes = load_context.read_asset_bytes(image_path.clone()).await?;
+    let asset_path = load_context.asset_path().clone();
+    let asset_parent = asset_path.path().parent().unwrap();
+    let bytes = load_context
+        .read_asset_bytes(
+            AssetPath::from(asset_parent.join(filename)).with_source(asset_path.source()),
+        )
+        .await?;
     let extension = Path::new(filename).extension().unwrap().to_str().unwrap();
     let image_type = ImageType::Extension(extension);
     Ok(Image::from_buffer(
