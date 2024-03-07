@@ -6,9 +6,9 @@ use bevy::asset::{AssetPath, AssetServer, Handle, LoadState};
 use bevy::hierarchy::{BuildChildren, DespawnRecursiveExt};
 use bevy::log::{error, info};
 use bevy::prelude::{
-    default, in_state, AlignItems, Color, Commands, Component, Entity, IntoSystemConfigs,
-    JustifyContent, NextState, NodeBundle, OnEnter, OnExit, Query, Res, ResMut, Resource, Style,
-    Text, TextBundle, TextSection, TextStyle, Val, With,
+    default, in_state, AlignItems, ButtonInput, Color, Commands, Component, Entity,
+    IntoSystemConfigs, JustifyContent, KeyCode, NextState, NodeBundle, OnEnter, OnExit, Query, Res,
+    ResMut, Resource, Style, Text, TextBundle, TextSection, TextStyle, Val, With,
 };
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::ui::FlexDirection;
@@ -30,7 +30,7 @@ impl Plugin for PrepareStatePlugin {
         app.add_systems(OnEnter(GameState::Prepare), prepare_setup)
             .add_systems(
                 Update,
-                wait_for_creation.run_if(in_state(GameState::Prepare)),
+                (update_controls, wait_for_creation).run_if(in_state(GameState::Prepare)),
             )
             .add_systems(OnExit(GameState::Prepare), prepare_cleanup);
     }
@@ -143,6 +143,12 @@ fn prepare_setup(
     commands.insert_resource(LocalSongHandle(song_info, local_song));
 }
 
+fn update_controls(input: Res<ButtonInput<KeyCode>>, mut state: ResMut<NextState<GameState>>) {
+    if input.just_pressed(KeyCode::Escape) {
+        state.set(GameState::Menu);
+    }
+}
+
 fn wait_for_creation(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -192,9 +198,10 @@ fn wait_for_creation(
         };
     }
 
-    if let Some(local_song_handle) = local_song_handle {
+    if let Some(ref local_song_handle) = local_song_handle {
         match asset_server.load_state(local_song_handle.1.clone()) {
             LoadState::Loaded => {
+                text_query.single_mut().sections[1].value = "".to_string();
                 browser_state
                     .stored_songs
                     .insert(local_song_handle.0.id, local_song_handle.1.clone());
@@ -203,6 +210,7 @@ fn wait_for_creation(
                 commands.remove_resource::<LocalSongHandle>()
             }
             LoadState::Failed => {
+                text_query.single_mut().sections[1].value = "".to_string();
                 let async_pool = AsyncComputeTaskPool::get();
                 let song_info = local_song_handle.0.clone();
                 commands.insert_resource(AudioDownloadTask(async_pool.spawn(async move {
@@ -215,7 +223,9 @@ fn wait_for_creation(
                 })));
                 commands.remove_resource::<LocalSongHandle>()
             }
-            _ => (),
+            _ => {
+                text_query.single_mut().sections[1].value = "Loading local song".to_string();
+            }
         }
     }
 
@@ -244,7 +254,15 @@ fn wait_for_creation(
         let task = match **level_world {
             LevelWorld::Pending(ref mut task) => task,
             LevelWorld::World(_) => {
-                if level_download_task.is_none() && audio_download_task.is_none() {
+                if level_download_task.is_none()
+                    && (audio_download_task.is_none()
+                        || local_song_handle
+                            .map(|local_song_handle| {
+                                asset_server.load_state(local_song_handle.1.clone())
+                                    == LoadState::Loaded
+                            })
+                            .unwrap_or(true))
+                {
                     info!("Everything done. Starting execution...");
                     state.set(GameState::Level);
                 }
@@ -276,6 +294,9 @@ fn wait_for_creation(
 }
 
 fn prepare_cleanup(mut commands: Commands, query: Query<Entity, With<PrepareText>>) {
+    commands.remove_resource::<LocalSongHandle>();
+    commands.remove_resource::<LevelDownloadTask>();
+    commands.remove_resource::<AudioDownloadTask>();
     for entity in query.iter() {
         commands.entity(entity).despawn_recursive();
     }

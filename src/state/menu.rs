@@ -58,7 +58,7 @@ fn render_menu_gui(
                 }
 
                 ui.separator();
-                ui.checkbox(&mut browser_state.download_audio, "Download Song");
+                ui.checkbox(&mut browser_state.download_audio, "Use Song");
                 ui.checkbox(&mut browser_state.low_detail, "Low Detail");
             });
 
