@@ -13,14 +13,15 @@ use bevy::hierarchy::BuildChildren;
 use bevy::input::ButtonInput;
 use bevy::log::info;
 use bevy::prelude::{
-    Camera2dBundle, ClearColor, Color, Commands, Component, EventReader, KeyCode, NodeBundle,
-    OrthographicProjection, Query, Res, TextBundle, With,
+    Camera2dBundle, ClearColor, Color, Commands, Component, Entity, EventReader, KeyCode,
+    NodeBundle, NonSend, OrthographicProjection, Query, Res, TextBundle, With,
 };
 use bevy::render::camera::ScalingMode;
 use bevy::text::{Text, TextSection, TextStyle};
 use bevy::ui::{PositionType, Style, UiRect, Val, ZIndex};
 use bevy::utils::default;
 use bevy::window::{PresentMode, Window, WindowMode, WindowPlugin, WindowResized};
+use bevy::winit::WinitWindows;
 use bevy::DefaultPlugins;
 use bevy_egui::EguiPlugin;
 use bevy_kira_audio::AudioPlugin;
@@ -28,6 +29,7 @@ use directories::{BaseDirs, ProjectDirs};
 use native_dialog::{FileDialog, MessageDialog, MessageType};
 use serde::{Deserialize, Serialize};
 use steamlocate::SteamDir;
+use winit::window::Icon;
 
 use crate::asset::AssetPlugin;
 use crate::render::RenderPlugins;
@@ -218,7 +220,28 @@ fn setup_asset_dirs(app: &mut App) {
     );
 }
 
-fn setup(mut commands: Commands) {
+const ICON: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/assets/branding/icon.png"
+));
+
+fn setup(
+    mut commands: Commands,
+    window_entities: Query<Entity, With<Window>>,
+    winit_windows: NonSend<WinitWindows>,
+) {
+    let (icon_rgba, icon_width, icon_height) = {
+        let image = image::load_from_memory(ICON).unwrap().into_rgba8();
+        let (width, height) = image.dimensions();
+        let rgba = image.into_raw();
+        (rgba, width, height)
+    };
+    let icon = Icon::from_rgba(icon_rgba, icon_width, icon_height).unwrap();
+    for entity in &window_entities {
+        let winit_window = winit_windows.get_window(entity).unwrap();
+        winit_window.set_window_icon(Some(icon.clone()));
+    }
+
     let mut camera_bundle = Camera2dBundle::default();
     camera_bundle.tonemapping = Tonemapping::None;
     camera_bundle.deband_dither = DebandDither::Disabled;
