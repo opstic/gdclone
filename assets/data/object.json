@@ -302,7 +302,7 @@
     "swap_base_detail": true
   },
   "1019": {
-    "texture": "emptyFrame.png",
+    "texture": "d_flashRing_01_001.png",
     "default_z_layer": 3,
     "default_z_order": 9,
     "default_base_color_channel": 1005,
@@ -410,7 +410,7 @@
     "swap_base_detail": true
   },
   "1020": {
-    "texture": "emptyFrame.png",
+    "texture": "d_flashRing_02_001.png",
     "default_z_layer": 3,
     "default_z_order": 9,
     "default_base_color_channel": 1005,
@@ -518,7 +518,7 @@
     "swap_base_detail": true
   },
   "1021": {
-    "texture": "emptyFrame.png",
+    "texture": "d_flashRing_03_001.png",
     "default_z_layer": 3,
     "default_z_order": 9,
     "default_base_color_channel": 1005,
