@@ -37,6 +37,7 @@ bytemuck = { version = "1.14", features = ["derive"] }
 dashmap = { version = "5.5", features = ["raw-api"] }
 directories = "5.0"
 egui = "0.26"
+fastrand = "2.0"
 float_next_after = "1.0"
 futures-lite = "2.1"
 image = { version = "0.24", default-features = false, features = ["png"] }

@@ -14,6 +14,7 @@ use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
 use crate::asset::cocos2d_atlas::Cocos2dFrames;
+use crate::level::animation::update_animation;
 use crate::level::color::{GlobalColorChannelKind, HsvMod, Pulses};
 use crate::level::player::{update_player_pos, Player};
 use crate::level::transform::{GlobalTransform2d, Transform2d};
@@ -32,7 +33,7 @@ use crate::level::{
 };
 use crate::utils::{decompress, decrypt, str_to_bool, U64Hash};
 
-mod animate;
+mod animation;
 pub(crate) mod collision;
 pub(crate) mod color;
 pub(crate) mod de;
@@ -216,6 +217,7 @@ impl<'a> ParsedInnerLevel<'a> {
                     update_color_channel_calculated,
                     apply_group_delta,
                     update_sections.after(apply_group_delta),
+                    update_animation.after(update_sections),
                 )
                     .after(process_triggers),
             ),

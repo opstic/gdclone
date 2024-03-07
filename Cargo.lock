@@ -2019,6 +2019,7 @@ dependencies = [
  "directories",
  "egui",
  "embed-resource",
+ "fastrand",
  "float_next_after",
  "futures-lite",
  "image",

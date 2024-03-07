@@ -7,6 +7,7 @@ use bevy::utils::{default, HashMap};
 use indexmap::{IndexMap, IndexSet};
 
 use crate::asset::cocos2d_atlas::{Cocos2dFrame, Cocos2dFrames};
+use crate::level::animation::insert_animation_data;
 use crate::level::collision::{GlobalHitbox, Hitbox};
 use crate::level::color::{GlobalColorChannels, HsvMod, ObjectColorCalculated};
 use crate::level::color::{ObjectColor, ObjectColorKind};
@@ -288,6 +289,8 @@ pub(crate) fn spawn_object(
     }
 
     insert_trigger_data(&mut entity, object_id, object_data)?;
+
+    insert_animation_data(&mut entity, object_id, object_data)?;
 
     let entity = entity.id();
 
