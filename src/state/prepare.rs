@@ -57,7 +57,7 @@ fn prepare_setup(
     level_world: Option<ResMut<LevelWorld>>,
     song_players: Query<Entity, With<SongPlayer>>,
     level_to_download: Res<LevelToDownload>,
-    mut browser_state: ResMut<LevelBrowserState>,
+    browser_state: Res<LevelBrowserState>,
     audio: Res<Audio>,
 ) {
     for entity in &song_players {

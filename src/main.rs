@@ -108,7 +108,7 @@ fn setup_asset_dirs(app: &mut App) {
     let gd_path = if config_gd_path.join("Resources").is_dir() {
         config_gd_path
     } else if let Some(path) = match SteamDir::locate() {
-        Ok(mut steam_dir) => match steam_dir.find_app(GEOMETRY_DASH_APP_ID) {
+        Ok(steam_dir) => match steam_dir.find_app(GEOMETRY_DASH_APP_ID) {
             Ok(app) => app.map(|(app, library)| library.resolve_app_dir(&app)),
             Err(_) => None,
         },
