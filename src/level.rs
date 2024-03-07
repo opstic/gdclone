@@ -4,7 +4,7 @@ use std::time::Instant;
 use bevy::app::{App, PostUpdate, PreUpdate, Update};
 use bevy::core::FrameCountPlugin;
 use bevy::log::{info, warn};
-use bevy::math::Vec3;
+use bevy::math::{Vec3, Vec4};
 use bevy::prelude::{IntoSystemConfigs, Resource, World};
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::time::TimePlugin;
@@ -261,6 +261,40 @@ impl<'a> ParsedInnerLevel<'a> {
                 global_color_channels.0.insert(id, color_channel_entity);
             }
         }
+
+        global_color_channels.0.insert(
+            1005,
+            world
+                .spawn((
+                    GlobalColorChannel {
+                        id: 1005,
+                        kind: GlobalColorChannelKind::Base {
+                            color: Vec4::new(125. / u8::MAX as f32, 1., 0., 1.),
+                            blending: true,
+                        },
+                    },
+                    ColorChannelCalculated::default(),
+                    Pulses::default(),
+                ))
+                .id(),
+        );
+
+        global_color_channels.0.insert(
+            1006,
+            world
+                .spawn((
+                    GlobalColorChannel {
+                        id: 1006,
+                        kind: GlobalColorChannelKind::Base {
+                            color: Vec4::new(0., 1., 1., 1.),
+                            blending: true,
+                        },
+                    },
+                    ColorChannelCalculated::default(),
+                    Pulses::default(),
+                ))
+                .id(),
+        );
 
         global_color_channels.0.insert(
             1007,
