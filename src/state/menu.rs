@@ -23,15 +23,29 @@ impl Plugin for MenuStatePlugin {
     }
 }
 
-#[derive(Default, Resource)]
+#[derive(Resource)]
 pub(crate) struct LevelBrowserState {
     search: String,
     response: Vec<LevelInfo>,
     task: Option<Task<Result<(Vec<LevelInfo>, HashMap<u64, SongInfo>), anyhow::Error>>>,
-    pub(crate) download_audio: bool,
+    pub(crate) use_song: bool,
     pub(crate) song_infos: HashMap<u64, SongInfo>,
     pub(crate) stored_songs: HashMap<u64, Handle<AudioSource>>,
     pub(crate) low_detail: bool,
+}
+
+impl Default for LevelBrowserState {
+    fn default() -> Self {
+        Self {
+            search: "".to_string(),
+            response: Vec::new(),
+            task: None,
+            use_song: true,
+            song_infos: HashMap::new(),
+            stored_songs: HashMap::new(),
+            low_detail: false,
+        }
+    }
 }
 
 fn render_menu_gui(
@@ -58,7 +72,7 @@ fn render_menu_gui(
                 }
 
                 ui.separator();
-                ui.checkbox(&mut browser_state.download_audio, "Use Song");
+                ui.checkbox(&mut browser_state.use_song, "Use Song");
                 ui.separator();
                 ui.checkbox(&mut browser_state.low_detail, "Low Detail");
             });

@@ -122,7 +122,7 @@ fn prepare_setup(
         level_data
     })));
 
-    if !browser_state.download_audio {
+    if !browser_state.use_song {
         return;
     }
 
