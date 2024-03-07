@@ -255,13 +255,8 @@ fn wait_for_creation(
             LevelWorld::Pending(ref mut task) => task,
             LevelWorld::World(_) => {
                 if level_download_task.is_none()
-                    && (audio_download_task.is_none()
-                        || local_song_handle
-                            .map(|local_song_handle| {
-                                asset_server.load_state(local_song_handle.1.clone())
-                                    == LoadState::Loaded
-                            })
-                            .unwrap_or(true))
+                    && audio_download_task.is_none()
+                    && local_song_handle.is_none()
                 {
                     info!("Everything done. Starting execution...");
                     state.set(GameState::Level);
