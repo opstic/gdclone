@@ -32,6 +32,8 @@ use steamlocate::SteamDir;
 use winit::window::Icon;
 
 use crate::asset::AssetPlugin;
+use crate::level::section::GlobalSections;
+use crate::level::LevelWorld;
 use crate::render::RenderPlugins;
 use crate::state::StatePlugin;
 
@@ -75,8 +77,10 @@ fn main() {
         StatePlugin,
     ));
 
-    app.add_systems(Startup, setup)
-        .add_systems(Update, (update_fps, update_scale_factor, toggle_fullscreen));
+    app.add_systems(Startup, setup).add_systems(
+        Update,
+        (update_info, update_scale_factor, toggle_fullscreen),
+    );
 
     app.run()
 }
@@ -262,7 +266,7 @@ fn setup(
         })
         .id();
 
-    let fps_text = commands
+    let info_text = commands
         .spawn(TextBundle::from_sections([
             TextSection::new(
                 "FPS: ",
@@ -278,19 +282,54 @@ fn setup(
                     ..default()
                 },
             ),
+            TextSection::new("\n", TextStyle::default()),
+            TextSection::new(
+                "Resolution: ",
+                TextStyle {
+                    font_size: 15.,
+                    ..default()
+                },
+            ),
+            TextSection::new(
+                "",
+                TextStyle {
+                    font_size: 15.,
+                    ..default()
+                },
+            ),
+            TextSection::new("\n", TextStyle::default()),
+            TextSection::new(
+                "Active objects: ",
+                TextStyle {
+                    font_size: 15.,
+                    ..default()
+                },
+            ),
+            TextSection::new(
+                "0",
+                TextStyle {
+                    font_size: 15.,
+                    ..default()
+                },
+            ),
         ]))
-        .insert(FpsText)
+        .insert(InfoText)
         .id();
 
-    commands.entity(fps_container).add_child(fps_text);
+    commands.entity(fps_container).add_child(info_text);
 
     commands.insert_resource(ClearColor(Color::BLACK));
 }
 
 #[derive(Component)]
-struct FpsText;
+struct InfoText;
 
-fn update_fps(diagnostics: Res<DiagnosticsStore>, mut query: Query<&mut Text, With<FpsText>>) {
+fn update_info(
+    diagnostics: Res<DiagnosticsStore>,
+    windows: Query<&Window>,
+    level_world: Option<Res<LevelWorld>>,
+    mut query: Query<&mut Text, With<InfoText>>,
+) {
     let mut text = query.single_mut();
 
     if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
@@ -298,6 +337,26 @@ fn update_fps(diagnostics: Res<DiagnosticsStore>, mut query: Query<&mut Text, Wi
             text.sections[1].value = average.trunc().to_string();
         }
     };
+
+    let window = windows.single();
+    text.sections[4].value = format!("{}x{}", window.width(), window.height());
+
+    let Some(level_world) = level_world else {
+        return;
+    };
+
+    let LevelWorld::World(world) = &*level_world else {
+        return;
+    };
+
+    let global_sections = world.resource::<GlobalSections>();
+
+    let mut active_objects = 0;
+    for section in &global_sections.sections[global_sections.visible.clone()] {
+        active_objects += section.len();
+    }
+
+    text.sections[7].value = active_objects.to_string();
 }
 
 fn update_scale_factor(
