@@ -123,6 +123,7 @@ fn render_option_gui(
     mut options: ResMut<Options>,
     mut contexts: EguiContexts,
     mut state: ResMut<NextState<GameState>>,
+    mut projections: Query<&mut OrthographicProjection, With<Camera>>,
 ) {
     if !options.pause_player {
         return;
@@ -134,6 +135,11 @@ fn render_option_gui(
         ui.checkbox(&mut options.show_lines, "Display camera and player X (L)");
         ui.checkbox(&mut options.hide_triggers, "Hide triggers (T)");
         ui.checkbox(&mut options.pause_player, "Pause player (Esc)");
+        if ui.button("Reset zoom (R)").clicked() {
+            for mut projection in &mut projections {
+                projection.scale = 1.;
+            }
+        }
         ui.separator();
         if ui.button("Exit to menu").clicked() {
             state.set(GameState::Menu);
@@ -166,6 +172,11 @@ fn update_controls(
     }
     if keys.just_pressed(KeyCode::KeyT) {
         options.hide_triggers = !options.hide_triggers;
+    }
+    if keys.just_pressed(KeyCode::KeyR) {
+        for mut projection in &mut projections {
+            projection.scale = 1.;
+        }
     }
 
     let multiplier = time.delta_seconds() * 20.;

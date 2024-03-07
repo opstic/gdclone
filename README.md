@@ -26,6 +26,8 @@ L to (de)activate player and camera line rendering.
 
 T to (un)hide triggers.
 
+R to reset zoom.
+
 *Support for web and mobile platforms are planned.*
 
 ## Screenshots / GIFs
