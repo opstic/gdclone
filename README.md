@@ -18,15 +18,13 @@ WASD and arrow keys can also move the camera.
 
 Q and E to also zoom in and out.
 
-F7 to display options menu.
+Esc to pause the player.
 
 U to (un)link the camera from the simulated player.
 
 L to (de)activate player and camera line rendering.
 
 T to (un)hide triggers.
-
-Esc to pause the player.
 
 *Support for web and mobile platforms are planned.*
 
