@@ -4,18 +4,21 @@
 
 Built using Bevy engine and Rust.
 
-***2.2 support is planned and will (hopefully) be started and finished in the near future***
+***2.2 specific feature support is planned and will (hopefully) be started and finished soon.***
 
 ## Usage
 
-**The version currently available in [releases](https://github.com/opstic/gdclone/releases) is a legacy version compiled
-before the rewrite.**
+Grab the latest binary from [releases](https://github.com/opstic/gdclone/releases) then just run it.
 
-**No binaries for the rewritten version are available for now.**
+A GD install is required.
 
-Controls are WASD to move, use arrow keys to move slower.
+Drag mouse around to move. Scroll wheel to zoom in and out.
 
-Q and E to zoom in and out.
+WASD and arrow keys can also move the camera.
+
+Q and E to also zoom in and out.
+
+F7 to display options menu.
 
 U to (un)link the camera from the simulated player.
 
@@ -23,15 +26,9 @@ L to (de)activate player and camera line rendering.
 
 T to (un)hide triggers.
 
-~~Use Esc to exit out of a level.~~
+Esc to pause the player.
 
-~~Grab the latest binary from [releases](https://github.com/opstic/gdclone/releases) then just run it.~~
-
-~~A GD install and valid CCLocalLevels.dat are required.~~
-
-~~**Binaries for Linux aren't available, so you'll need to compile it yourself.**~~
-
-~~*Support for web and mobile platforms are planned.*~~
+*Support for web and mobile platforms are planned.*
 
 ## Screenshots / GIFs
 
