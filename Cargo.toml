@@ -41,7 +41,7 @@ float_next_after = "1.0"
 futures-lite = "2.1"
 image = { version = "0.24", default-features = false, features = ["png"] }
 indexmap = "2.1"
-kira = "0.8"
+kira = { version = "0.8", default-features = false, features = ["cpal", "mp3"] }
 libdeflater = "1.19"
 memchr = "2.6"
 native-dialog = "0.7"
