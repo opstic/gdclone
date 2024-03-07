@@ -359,6 +359,8 @@ pub(crate) fn insert_trigger_data(
                 if !str_to_bool(editor_preview) {
                     return Ok(());
                 }
+            } else {
+                return Ok(());
             }
         }
         _ => (),
