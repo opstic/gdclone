@@ -298,7 +298,7 @@ pub(crate) fn spawn_object(
         );
     }
 
-    let mut global_section = &mut global_sections.sections[section_index as usize];
+    let global_section = &mut global_sections.sections[section_index as usize];
 
     global_section.insert(entity);
 
@@ -323,7 +323,7 @@ pub(crate) fn spawn_object(
         base_hsv,
         detail_hsv,
         object_z_layer,
-        &mut global_section,
+        global_section,
         global_color_channels,
         cocos2d_frames,
         entity,

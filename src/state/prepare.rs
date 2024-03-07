@@ -284,7 +284,7 @@ fn wait_for_creation(
 
         info!("World created");
 
-        **level_world = LevelWorld::World(world);
+        **level_world = LevelWorld::World(Box::new(world));
     }
 }
 

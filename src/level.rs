@@ -32,6 +32,7 @@ use crate::level::{
 };
 use crate::utils::{decompress, decrypt, str_to_bool, U64Hash};
 
+mod animate;
 pub(crate) mod collision;
 pub(crate) mod color;
 pub(crate) mod de;
@@ -48,7 +49,7 @@ pub(crate) enum LevelWorld {
     #[default]
     None,
     Pending(Task<Result<World, anyhow::Error>>),
-    World(World),
+    World(Box<World>),
 }
 
 fn base64_decrypt<'de, D>(deserializer: D) -> Result<Option<Vec<u8>>, D::Error>

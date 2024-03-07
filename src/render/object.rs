@@ -531,7 +531,7 @@ pub struct ObjectBatch {
     pub(crate) ranges: Vec<(usize, Range<u32>)>,
 }
 
-const LAYER_IDENTIFIER: u32 = u32::MAX & 0x7FFF_FFFF | ((0u32) << 16);
+const LAYER_IDENTIFIER: u32 = u32::MAX & 0x7FFF_FFFF;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn queue_objects(

@@ -280,12 +280,10 @@ pub(crate) fn process_triggers(world: &mut World) {
                     if object_groups
                         .groups
                         .iter()
-                        .find(|group_id| *group_id == stopped_group)
-                        .is_some()
+                        .any(|group_id| group_id == stopped_group)
+                        && entity_index < stop_index
                     {
-                        if entity_index < stop_index {
-                            continue 'trigger_loop;
-                        }
+                        continue 'trigger_loop;
                     }
                 }
 

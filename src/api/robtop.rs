@@ -38,7 +38,7 @@ impl ServerApi for RobtopApi {
 
         let split: Vec<&str> = de::from_str(&body, '#')?;
 
-        let level_infos = if let Some(level_infos) = split.get(0) {
+        let level_infos = if let Some(level_infos) = split.first() {
             let level_info_strings: Vec<&str> = de::from_str(level_infos, '|')?;
             level_info_strings
                 .iter()
