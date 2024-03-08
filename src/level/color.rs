@@ -524,16 +524,13 @@ pub(crate) fn update_object_color(
 
                         calculated.enabled = true;
 
-                        let alpha =
-                            group_archetype.opacity * object_color.object_opacity * color[3];
-
                         let mut color = match object_color.object_color_kind {
                             ObjectColorKind::None => Vec4::ONE,
                             ObjectColorKind::Black => Vec4::ZERO,
                             _ => color,
                         };
 
-                        color[3] = alpha;
+                        color[3] *= group_archetype.opacity;
 
                         if object_color.object_color_kind != ObjectColorKind::Black {
                             let iter = pulses
