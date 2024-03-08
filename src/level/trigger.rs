@@ -422,6 +422,12 @@ pub(crate) fn insert_trigger_data(
             } else {
                 trigger.target_channel = 1;
             }
+            if trigger.target_channel > 999 {
+                match trigger.target_channel {
+                    1000 | 1001 | 1002 | 1003 | 1004 | 1009 => (),
+                    _ => return Ok(()),
+                }
+            }
             trigger.target_channel = match object_id {
                 221 => 1,
                 717 => 2,
