@@ -49,9 +49,20 @@ impl GlobalColorChannel {
             .get("6")
             .ok_or(anyhow::Error::msg("No index in color???"))?
             .parse()?;
-        let color = if color_data.contains_key("9") {
+        let player = if let Some(copied_player) = color_data.get("4") {
+            copied_player.parse()?
+        } else {
+            -1
+        };
+        let color = if color_data.contains_key("9") || player != -1 {
             let copied_index = if let Some(copied_index) = color_data.get("9") {
                 copied_index.parse()?
+            } else if player != -1 {
+                match player {
+                    1 => 1005,
+                    2 => 1006,
+                    _ => unreachable!(),
+                }
             } else {
                 u64::MAX
             };
