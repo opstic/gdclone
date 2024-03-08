@@ -1,10 +1,14 @@
 use std::f32::consts::PI;
 
-use bevy::prelude::{Component, EntityWorldMut, Query, Res};
+use bevy::ecs::query::{QueryData, QueryFilter};
+use bevy::hierarchy::Parent;
+use bevy::math::Vec2;
+use bevy::prelude::{Children, Component, EntityWorldMut, Mut, Query, Res, With, Without};
 use bevy::tasks::ComputeTaskPool;
 use bevy::time::Time;
 use bevy::utils::HashMap;
 
+use crate::level::color::{ObjectColor, ObjectColorCalculated};
 use crate::level::section::GlobalSections;
 use crate::level::transform::Transform2d;
 use crate::utils::str_to_bool;
@@ -12,6 +16,7 @@ use crate::utils::str_to_bool;
 #[derive(Component)]
 pub(crate) enum Animation {
     Rotation(f32),
+    ScaleAndFade(bool, f32, Vec2),
 }
 
 pub(crate) fn insert_animation_data(
@@ -39,13 +44,40 @@ pub(crate) fn insert_animation_data(
             entity_world_mut.insert(Animation::Rotation(amount));
             Ok(())
         }
+        1839 | 1840 | 1841 | 1842 => {
+            let mut animation_speed = 1.;
+            let mut randomize_start = false;
+            if let Some(randomize) = object_data.get("106") {
+                randomize_start = str_to_bool(randomize);
+            }
+            if let Some(speed) = object_data.get("107") {
+                animation_speed = speed.parse()?;
+            };
+
+            entity_world_mut.insert(Animation::ScaleAndFade(
+                randomize_start,
+                animation_speed,
+                Vec2::ZERO,
+            ));
+            Ok(())
+        }
         _ => Ok(()),
     }
 }
 
 pub(crate) fn update_animation(
     global_sections: Res<GlobalSections>,
-    animates: Query<(&mut Transform2d, &Animation)>,
+    animates: Query<
+        (
+            &ObjectColorCalculated,
+            &mut Transform2d,
+            &mut ObjectColor,
+            &mut Animation,
+            Option<&Children>,
+        ),
+        Without<Parent>,
+    >,
+    animates_children: Query<(&mut ObjectColor, Option<&Children>), With<Parent>>,
     time: Res<Time>,
 ) {
     let sections_to_update = &global_sections.sections[global_sections.visible.clone()];
@@ -56,16 +88,55 @@ pub(crate) fn update_animation(
 
     let time = &time;
     let animates = &animates;
+    let animates_children = &animates_children;
 
     compute_task_pool.scope(|scope| {
         for thread_chunk in sections_to_update.chunks(thread_chunk_size) {
             scope.spawn(async move {
                 for section in thread_chunk {
                     let mut iter = unsafe { animates.iter_many_unsafe(section) };
-                    while let Some((mut transform, animation)) = iter.fetch_next() {
-                        match animation {
+                    while let Some((
+                        calculated,
+                        mut transform,
+                        mut object_color,
+                        mut animation,
+                        children,
+                    )) = iter.fetch_next()
+                    {
+                        if !calculated.enabled {
+                            continue;
+                        }
+                        match &mut *animation {
                             Animation::Rotation(amount) => {
-                                transform.angle += amount * time.delta_seconds();
+                                transform.angle += *amount * time.delta_seconds();
+                            }
+                            Animation::ScaleAndFade(randomize_start, speed, original_scale) => {
+                                if *original_scale == Vec2::ZERO {
+                                    *original_scale = transform.scale;
+                                    if *randomize_start {
+                                        let start = fastrand::f32();
+                                        transform.scale *= start;
+                                    }
+                                }
+
+                                transform.scale += *original_scale * *speed * time.delta_seconds();
+
+                                transform.scale %= *original_scale;
+
+                                object_color.object_opacity =
+                                    1. - (transform.scale.x / original_scale.x);
+
+                                let Some(children) = children else {
+                                    continue;
+                                };
+
+                                unsafe {
+                                    propagate_opacity_recursive(
+                                        children,
+                                        animates_children,
+                                        object_color.object_opacity,
+                                    );
+                                }
                             }
                         }
                     }
@@ -73,4 +144,26 @@ pub(crate) fn update_animation(
             })
         }
     });
+}
+
+unsafe fn propagate_opacity_recursive<'w, 's, D: QueryData, F: QueryFilter>(
+    children: &Children,
+    children_query: &'w Query<'w, 's, D, F>,
+    opacity: f32,
+) where
+    D: QueryData<Item<'w> = (Mut<'w, ObjectColor>, Option<&'w Children>)>,
+{
+    for child in children {
+        let Ok((mut object_color, children)) = children_query.get_unchecked(*child) else {
+            continue;
+        };
+
+        object_color.object_opacity = opacity;
+
+        let Some(children) = children else {
+            continue;
+        };
+
+        propagate_opacity_recursive(children, children_query, opacity);
+    }
 }
