@@ -2,7 +2,7 @@ use std::hash::{Hash, Hasher};
 
 use bevy::ecs::query::{QueryData, QueryFilter};
 use bevy::hierarchy::{BuildChildren, BuildWorldChildren, Children, Parent};
-use bevy::math::{Vec3A, Vec4};
+use bevy::math::{Vec3, Vec3A, Vec4};
 use bevy::prelude::{
     Commands, Component, DetectChanges, DetectChangesMut, Entity, Mut, Query, Ref, Res, ResMut,
     Resource, With, Without, World,
@@ -537,7 +537,7 @@ pub(crate) fn update_object_color(
 
                         let mut color = match object_color.object_color_kind {
                             ObjectColorKind::None => Vec4::ONE,
-                            ObjectColorKind::Black => Vec4::ZERO,
+                            ObjectColorKind::Black => Vec3::ZERO.extend(1.),
                             _ => color,
                         };
 
