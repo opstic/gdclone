@@ -9,6 +9,7 @@ use bevy::time::Time;
 use bevy::utils::HashMap;
 
 use crate::level::color::{ObjectColor, ObjectColorCalculated};
+use crate::level::easing::Easing;
 use crate::level::section::GlobalSections;
 use crate::level::transform::Transform2d;
 use crate::utils::str_to_bool;
@@ -53,6 +54,8 @@ pub(crate) fn insert_animation_data(
             if let Some(speed) = object_data.get("107") {
                 animation_speed = speed.parse()?;
             };
+
+            animation_speed *= animation_speed;
 
             entity_world_mut.insert(Animation::ScaleAndFade(
                 randomize_start,
@@ -123,8 +126,8 @@ pub(crate) fn update_animation(
 
                                 transform.scale %= *original_scale;
 
-                                object_color.object_opacity =
-                                    1. - (transform.scale.x / original_scale.x);
+                                object_color.object_opacity = Easing::ExponentialOut
+                                    .sample(1. - (transform.scale.x / original_scale.x));
 
                                 let Some(children) = children else {
                                     continue;
