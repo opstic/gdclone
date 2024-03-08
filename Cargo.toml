@@ -31,7 +31,7 @@ bevy = { version = "0.13", default-features = false, features = [
     "x11",
 ] }
 bevy_egui = "0.25"
-bevy_kira_audio = "0.19"
+bevy_kira_audio = { version = "0.19", default-features = false, features = ["mp3"] }
 bitflags = "2.4"
 bytemuck = { version = "1.14", features = ["derive"] }
 dashmap = { version = "5.5", features = ["raw-api"] }
