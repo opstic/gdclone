@@ -76,11 +76,16 @@ impl ServerApi for RobtopApi {
     async fn get_level_data(&self, id: u64) -> Result<LevelData, anyhow::Error> {
         let request =
             ureq::post(&(self.server.clone() + "downloadGJLevel22.php")).set("User-Agent", "");
-        let body = request
-            .send_form(&[("secret", COMMON_SECRET), ("levelID", &id.to_string())])?
-            .into_string()?;
 
-        Ok(de::from_str(&body, ':')?)
+        let mut buffer = Vec::new();
+        request
+            .send_form(&[("secret", COMMON_SECRET), ("levelID", &id.to_string())])?
+            .into_reader()
+            .read_to_end(&mut buffer)?;
+
+        let body = simdutf8::basic::from_utf8(&buffer)?;
+
+        Ok(de::from_str(body, ':')?)
     }
 
     async fn get_song(&self, song_info: SongInfo) -> Result<AudioSource, anyhow::Error> {
