@@ -7242,7 +7242,7 @@
         "opacity": 0.2980392156862745
       },
       {
-        "texture": "block009c_color_06_001.png",
+        "texture": "emptyFrame.png",
         "anchor_x": 0.0,
         "anchor_y": 0.0,
         "scale_x": 1.0,
