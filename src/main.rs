@@ -10,17 +10,15 @@ use bevy::core::{TaskPoolOptions, TaskPoolPlugin, TaskPoolThreadAssignmentPolicy
 use bevy::core_pipeline::tonemapping::{DebandDither, Tonemapping};
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::hierarchy::BuildChildren;
-use bevy::input::ButtonInput;
-use bevy::log::info;
 use bevy::prelude::{
-    Camera2dBundle, ClearColor, Color, Commands, Component, Entity, EventReader, KeyCode,
-    NodeBundle, NonSend, OrthographicProjection, Query, Res, TextBundle, With,
+    Camera2dBundle, ClearColor, Color, Commands, Component, Entity, EventReader, NodeBundle,
+    NonSend, OrthographicProjection, Query, Res, TextBundle, With,
 };
 use bevy::render::camera::ScalingMode;
 use bevy::text::{Text, TextSection, TextStyle};
 use bevy::ui::{PositionType, Style, UiRect, Val, ZIndex};
 use bevy::utils::default;
-use bevy::window::{PresentMode, Window, WindowMode, WindowPlugin, WindowResized};
+use bevy::window::{PresentMode, Window, WindowPlugin, WindowResized};
 use bevy::winit::WinitWindows;
 use bevy::DefaultPlugins;
 use bevy_egui::EguiPlugin;
@@ -77,10 +75,8 @@ fn main() {
         StatePlugin,
     ));
 
-    app.add_systems(Startup, setup).add_systems(
-        Update,
-        (update_info, update_scale_factor, toggle_fullscreen),
-    );
+    app.add_systems(Startup, setup)
+        .add_systems(Update, (update_info, update_scale_factor));
 
     app.run()
 }
@@ -375,19 +371,5 @@ fn update_scale_factor(
         for mut projection in &mut projections {
             projection.scaling_mode = ScalingMode::WindowSize(scale_factor as f32);
         }
-    }
-}
-
-fn toggle_fullscreen(input: Res<ButtonInput<KeyCode>>, mut windows: Query<&mut Window>) {
-    if input.just_pressed(KeyCode::F11) {
-        let mut window = windows.single_mut();
-
-        window.mode = match window.mode {
-            WindowMode::Windowed => WindowMode::Fullscreen,
-            WindowMode::Fullscreen => WindowMode::Windowed,
-            _ => return,
-        };
-
-        info!("Switching window mode to {:?}", window.mode);
     }
 }

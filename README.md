@@ -28,8 +28,6 @@ T to (un)hide triggers.
 
 R to reset zoom.
 
-F11 to
-
 *Support for web and mobile platforms are planned.*
 
 ## Screenshots / GIFs
