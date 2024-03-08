@@ -7589,7 +7589,8 @@
   "1275": {
     "texture": "d_key01_001.png",
     "default_z_layer": 5,
-    "default_z_order": 9
+    "default_z_order": 9,
+    "color_type": "Base"
   },
   "1276": {
     "texture": "d_keyHole01_001.png",
@@ -12985,7 +12986,10 @@
   "1587": {
     "texture": "d_heart01_001.png",
     "default_z_layer": 5,
-    "default_z_order": 9
+    "default_z_order": 9,
+    "default_base_color_channel": 1,
+    "default_detail_color_channel": 1011,
+    "color_type": "Base"
   },
   "1588": {
     "texture": "d_heart01_match_001.png",
@@ -12998,7 +13002,10 @@
   "1589": {
     "texture": "d_potion01_001.png",
     "default_z_layer": 5,
-    "default_z_order": 9
+    "default_z_order": 9,
+    "default_base_color_channel": 1,
+    "default_detail_color_channel": 1011,
+    "color_type": "Base"
   },
   "159": {
     "texture": "d_wave_03_001.png",
@@ -13133,7 +13140,10 @@
   "1598": {
     "texture": "d_skull01_001.png",
     "default_z_layer": 5,
-    "default_z_order": 9
+    "default_z_order": 9,
+    "default_base_color_channel": 1,
+    "default_detail_color_channel": 1011,
+    "color_type": "Base"
   },
   "1599": {
     "texture": "d_skull01_match_001.png",
@@ -24717,7 +24727,7 @@
     }
   },
   "364": {
-    "texture": "pit_01_slope_02_001.png",
+    "texture": "emptyFrame.png",
     "default_z_layer": 5,
     "default_z_order": 1,
     "default_base_color_channel": 1004,
@@ -37684,7 +37694,10 @@
   "919": {
     "texture": "dA_blackSludge_01_001.png",
     "default_z_layer": 5,
-    "default_z_order": 2
+    "default_z_order": 2,
+    "default_base_color_channel": 1010,
+    "color_type": "Detail",
+    "swap_base_detail": true
   },
   "92": {
     "texture": "blockOutline_03_001.png",
