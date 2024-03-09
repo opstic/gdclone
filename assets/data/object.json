@@ -628,7 +628,14 @@
   "1022": {
     "texture": "gravJumpRing_01_001.png",
     "default_z_layer": 3,
-    "default_z_order": 12
+    "default_z_order": 12,
+    "hitbox": {
+      "type": "Box",
+      "width": 36.0,
+      "height": 36.0,
+      "x": 0.0,
+      "y": 0.0
+    }
   },
   "1024": {
     "texture": "emptyFrame.png",
@@ -9320,7 +9327,14 @@
   "1330": {
     "texture": "dropRing_01_001.png",
     "default_z_layer": 3,
-    "default_z_order": 12
+    "default_z_order": 12,
+    "hitbox": {
+      "type": "Box",
+      "width": 36.0,
+      "height": 36.0,
+      "x": 0.0,
+      "y": 0.0
+    }
   },
   "1331": {
     "texture": "portal_17_front_001.png",
@@ -9351,7 +9365,14 @@
   "1333": {
     "texture": "ring_02_001.png",
     "default_z_layer": 3,
-    "default_z_order": 12
+    "default_z_order": 12,
+    "hitbox": {
+      "type": "Box",
+      "width": 36.0,
+      "height": 36.0,
+      "x": 0.0,
+      "y": 0.0
+    }
   },
   "1334": {
     "texture": "boost_05_001.png",
@@ -10441,7 +10462,14 @@
   "141": {
     "texture": "ring_03_001.png",
     "default_z_layer": 3,
-    "default_z_order": 12
+    "default_z_order": 12,
+    "hitbox": {
+      "type": "Box",
+      "width": 36.0,
+      "height": 36.0,
+      "x": 0.0,
+      "y": 0.0
+    }
   },
   "142": {
     "texture": "secretCoin_01_001.png"
@@ -16458,7 +16486,14 @@
   "1704": {
     "texture": "dashRing_01_001.png",
     "default_z_layer": 3,
-    "default_z_order": 12
+    "default_z_order": 12,
+    "hitbox": {
+      "type": "Box",
+      "width": 36.0,
+      "height": 36.0,
+      "x": 0.0,
+      "y": 0.0
+    }
   },
   "1705": {
     "texture": "sawblade_01_001.png",
@@ -17544,7 +17579,14 @@
   "1751": {
     "texture": "dashRing_02_001.png",
     "default_z_layer": 3,
-    "default_z_order": 12
+    "default_z_order": 12,
+    "hitbox": {
+      "type": "Box",
+      "width": 36.0,
+      "height": 36.0,
+      "x": 0.0,
+      "y": 0.0
+    }
   },
   "1752": {
     "texture": "d_ringSpiral_01_001.png",
@@ -24731,7 +24773,14 @@
   "36": {
     "texture": "ring_01_001.png",
     "default_z_layer": 3,
-    "default_z_order": 12
+    "default_z_order": 12,
+    "hitbox": {
+      "type": "Box",
+      "width": 36.0,
+      "height": 36.0,
+      "x": 0.0,
+      "y": 0.0
+    }
   },
   "363": {
     "texture": "emptyFrame.png",
@@ -36010,7 +36059,14 @@
   "84": {
     "texture": "gravring_01_001.png",
     "default_z_layer": 3,
-    "default_z_order": 12
+    "default_z_order": 12,
+    "hitbox": {
+      "type": "Box",
+      "width": 36.0,
+      "height": 36.0,
+      "x": 0.0,
+      "y": 0.0
+    }
   },
   "841": {
     "texture": "block007b_01_001.png",
