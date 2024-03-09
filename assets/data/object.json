@@ -9357,7 +9357,14 @@
     "texture": "boost_05_001.png",
     "default_z_layer": 1,
     "default_z_order": -6,
-    "default_base_color_channel": 0
+    "default_base_color_channel": 0,
+    "hitbox": {
+      "type": "Box",
+      "width": 69.0,
+      "height": 56.0,
+      "x": 0.0,
+      "y": 0.0
+    }
   },
   "1338": {
     "texture": "blockOutline_14_001.png",
@@ -22118,25 +22125,53 @@
     "texture": "boost_01_001.png",
     "default_z_layer": 1,
     "default_z_order": -6,
-    "default_base_color_channel": 0
+    "default_base_color_channel": 0,
+    "hitbox": {
+      "type": "Box",
+      "width": 35.0,
+      "height": 44.0,
+      "x": 0.0,
+      "y": 0.0
+    }
   },
   "201": {
     "texture": "boost_02_001.png",
     "default_z_layer": 1,
     "default_z_order": -6,
-    "default_base_color_channel": 0
+    "default_base_color_channel": 0,
+    "hitbox": {
+      "type": "Box",
+      "width": 33.0,
+      "height": 56.0,
+      "x": 0.0,
+      "y": 0.0
+    }
   },
   "202": {
     "texture": "boost_03_001.png",
     "default_z_layer": 1,
     "default_z_order": -6,
-    "default_base_color_channel": 0
+    "default_base_color_channel": 0,
+    "hitbox": {
+      "type": "Box",
+      "width": 51.0,
+      "height": 56.0,
+      "x": 0.0,
+      "y": 0.0
+    }
   },
   "203": {
     "texture": "boost_04_001.png",
     "default_z_layer": 1,
     "default_z_order": -6,
-    "default_base_color_channel": 0
+    "default_base_color_channel": 0,
+    "hitbox": {
+      "type": "Box",
+      "width": 65.0,
+      "height": 56.0,
+      "x": 0.0,
+      "y": 0.0
+    }
   },
   "204": {
     "texture": "invis_plank_01_small_001.png",

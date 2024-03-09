@@ -10,12 +10,13 @@ use indexmap::IndexMap;
 use nested_intervals::IntervalSetGeneric;
 use ordered_float::OrderedFloat;
 
+use crate::level::collision::{GlobalHitbox, Hitbox};
 // use bevy::log::info_span;
 use crate::level::color::{ColorMod, HsvMod, ObjectColorCalculated};
 use crate::level::easing::Easing;
 use crate::level::group::ObjectGroups;
 use crate::level::player::Player;
-use crate::level::transform::Transform2d;
+use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::alpha::AlphaTrigger;
 use crate::level::trigger::color::ColorTrigger;
 use crate::level::trigger::pulse::PulseTrigger;
@@ -652,11 +653,13 @@ pub(crate) fn construct_trigger_index(world: &mut World) {
     let mut speed_changes = SpeedChanges::default();
 
     // Start by indexing speed changes
-    let mut speed_change_query = world.query::<(Entity, &SpeedChange, &Transform2d)>();
+    let mut speed_change_query = world.query::<(Entity, &SpeedChange, &Transform2d, &Hitbox)>();
 
-    for (entity, speed_change, transform) in speed_change_query.iter(world) {
+    for (entity, speed_change, transform, hitbox) in speed_change_query.iter(world) {
+        let global_transform = GlobalTransform2d::from(*transform);
+        let global_hitbox = GlobalHitbox::from((hitbox, transform, &global_transform));
         speed_changes.0.push((
-            OrderedFloat(transform.translation.x),
+            OrderedFloat(global_hitbox.aabb.x),
             SpeedChangeData {
                 speed_per_sec: speed_change.speed * speed_change.forward_velocity,
                 // Calculate time at pos in SpeedChanges::initialize()

@@ -20,9 +20,19 @@ pub(crate) enum Hitbox {
     },
 }
 
+impl Default for Hitbox {
+    fn default() -> Self {
+        Self::Box {
+            no_rotation: false,
+            offset: None,
+            half_extents: Vec2::splat(15.),
+        }
+    }
+}
+
 #[derive(Component, Copy, Clone)]
 pub(crate) struct GlobalHitbox {
-    aabb: Vec4,
+    pub(crate) aabb: Vec4,
     specific: Option<GlobalHitboxKind>,
 }
 

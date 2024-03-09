@@ -15,6 +15,7 @@ use serde::{Deserialize, Deserializer};
 
 use crate::asset::cocos2d_atlas::Cocos2dFrames;
 use crate::level::animation::update_animation;
+use crate::level::collision::Hitbox;
 use crate::level::color::{GlobalColorChannelKind, HsvMod, Pulses};
 use crate::level::player::{update_player_pos, Player};
 use crate::level::transform::{GlobalTransform2d, Transform2d};
@@ -463,6 +464,7 @@ impl<'a> ParsedInnerLevel<'a> {
                 forward_velocity: default_speed.0,
                 speed: default_speed.1,
             },
+            Hitbox::default(),
         ));
 
         start = Instant::now();
