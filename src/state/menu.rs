@@ -6,7 +6,7 @@ use bevy::prelude::{
 };
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::utils::HashMap;
-use bevy::window::WindowMode;
+use bevy::window::{PresentMode, WindowMode};
 use bevy_egui::EguiContexts;
 use bevy_kira_audio::AudioSource;
 use egui::{Button, Color32};
@@ -95,6 +95,18 @@ fn render_menu_gui(
                             "BorderlessFullscreen",
                         );
                     });
+                ui.separator();
+                let mut vsync = match window.present_mode {
+                    PresentMode::AutoVsync => true,
+                    PresentMode::AutoNoVsync => false,
+                    _ => false,
+                };
+                ui.checkbox(&mut vsync, "VSync");
+                window.present_mode = if vsync {
+                    PresentMode::AutoVsync
+                } else {
+                    PresentMode::AutoNoVsync
+                };
                 ui.separator();
                 if ui
                     .add(Button::new("Exit").fill(Color32::DARK_RED))
