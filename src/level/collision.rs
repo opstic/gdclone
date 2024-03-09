@@ -1,8 +1,11 @@
 use std::f32::consts::{FRAC_1_PI, FRAC_2_PI};
 
 use bevy::math::{Vec2, Vec2Swizzles, Vec3, Vec4, Vec4Swizzles};
-use bevy::prelude::{Color, Component, GizmoConfigGroup, GizmoPrimitive2d, Gizmos, Primitive2d};
+use bevy::prelude::{
+    Color, Component, Entity, GizmoConfigGroup, GizmoPrimitive2d, Gizmos, Primitive2d, Query, Res,
+};
 
+use crate::level::section::{GlobalSections, Section};
 use crate::level::transform::{GlobalTransform2d, Transform2d};
 
 #[derive(Component)]
@@ -204,6 +207,36 @@ impl<'w, 's, T: GizmoConfigGroup> GizmoPrimitive2d<GlobalHitbox> for Gizmos<'w, 
             }
             GlobalHitboxKind::Circle { center, radius } => {
                 drop(self.circle_2d(center, radius, color))
+            }
+        }
+    }
+}
+
+#[derive(Component, Default)]
+pub(crate) struct ActiveCollider {
+    pub(crate) collided: Vec<(Entity, GlobalHitbox, Option<Vec2>, bool)>,
+}
+
+pub(crate) fn update_collision(
+    sections: Res<GlobalSections>,
+    mut active_colliders: Query<(Entity, &mut ActiveCollider, &GlobalHitbox, &Section)>,
+    others: Query<(Entity, &GlobalHitbox)>,
+) {
+    for (collider_entity, mut active_collider, collider_hitbox, collider_section) in
+        &mut active_colliders
+    {
+        active_collider.collided.clear();
+
+        for (other_entity, other_hitbox) in others.iter_many(
+            sections.sections[collider_section.current as usize]
+                .iter()
+                .filter(|entity| **entity != collider_entity),
+        ) {
+            let (collided, collided_vector) = collider_hitbox.intersect(other_hitbox);
+            if collided {
+                active_collider
+                    .collided
+                    .push((other_entity, *other_hitbox, collided_vector, true));
             }
         }
     }

@@ -15,7 +15,7 @@ use serde::{Deserialize, Deserializer};
 
 use crate::asset::cocos2d_atlas::Cocos2dFrames;
 use crate::level::animation::update_animation;
-use crate::level::collision::Hitbox;
+use crate::level::collision::{update_collision, Hitbox};
 use crate::level::color::{GlobalColorChannelKind, HsvMod, Pulses};
 use crate::level::player::{update_player_pos, Player};
 use crate::level::transform::{GlobalTransform2d, Transform2d};
@@ -210,6 +210,7 @@ impl<'a> ParsedInnerLevel<'a> {
         sub_app.add_systems(
             Update,
             (
+                update_collision,
                 (update_player_pos, clear_pulses).before(process_triggers),
                 process_triggers.after(update_player_pos),
                 (
