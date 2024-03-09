@@ -5,7 +5,7 @@ use bevy::app::{
 };
 use bevy::asset::{Assets, Handle};
 use bevy::ecs::schedule::{ExecutorKind, ScheduleLabel};
-use bevy::hierarchy::DespawnRecursiveExt;
+use bevy::hierarchy::{DespawnRecursiveExt, Parent};
 use bevy::input::mouse::{MouseMotion, MouseScrollUnit, MouseWheel};
 use bevy::input::ButtonInput;
 use bevy::math::{Vec2, Vec3, Vec3Swizzles, Vec4Swizzles};
@@ -13,13 +13,14 @@ use bevy::prelude::{
     in_state, Camera, ClearColor, Color, Commands, Component, Entity, EventReader,
     GizmoPrimitive2d, Gizmos, GlobalTransform, IntoSystemConfigs, KeyCode, MouseButton, Mut,
     NextState, OnEnter, OnExit, OrthographicProjection, Query, Res, ResMut, Resource, Schedule,
-    Transform, With,
+    Transform, With, Without,
 };
 use bevy::time::Time;
 use bevy_egui::EguiContexts;
 use bevy_kira_audio::{AudioInstance, AudioTween, PlaybackState};
 
 use crate::level::color::{ColorChannelCalculated, GlobalColorChannels, ObjectColorCalculated};
+use crate::level::object::Object;
 use crate::level::player::Player;
 use crate::level::section::GlobalSections;
 use crate::level::transform::Transform2d;
@@ -69,6 +70,7 @@ pub(crate) struct Options {
     show_lines: bool,
     pub(crate) hide_triggers: bool,
     pause_player: bool,
+    camera_limit: f32,
 }
 
 impl Default for Options {
@@ -82,6 +84,7 @@ impl Default for Options {
             show_lines: false,
             hide_triggers: true,
             pause_player: false,
+            camera_limit: 570.,
         }
     }
 }
@@ -118,7 +121,18 @@ fn level_setup(
                 }
             }
         });
-    })
+    });
+
+    let mut objects = world.query_filtered::<&Transform2d, (With<Object>, Without<Parent>)>();
+    let global_sections = world.resource::<GlobalSections>();
+
+    if let Some(last_section) = global_sections.sections.last() {
+        for transform in objects.iter_many(world, last_section) {
+            options.camera_limit = options.camera_limit.max(transform.translation.x);
+        }
+    }
+
+    options.camera_limit += 60.;
 }
 
 fn render_option_gui(
@@ -339,7 +353,8 @@ fn update_level_world(
     let (_, player_transform) = players.single(world);
 
     if options.lock_camera_to_player {
-        camera_transform.translation.x = player_transform.translation.x + 75.;
+        camera_transform.translation.x =
+            (player_transform.translation.x + 75.).min(options.camera_limit);
         if options.show_lines {
             gizmos.line_2d(
                 Vec2::new(
