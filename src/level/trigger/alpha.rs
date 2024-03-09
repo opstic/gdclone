@@ -64,4 +64,8 @@ impl TriggerFunction for AlphaTrigger {
     fn exclusive(&self) -> bool {
         true
     }
+
+    fn post(&self) -> bool {
+        false
+    }
 }

@@ -122,4 +122,8 @@ impl TriggerFunction for ColorTrigger {
     fn exclusive(&self) -> bool {
         true
     }
+
+    fn post(&self) -> bool {
+        false
+    }
 }

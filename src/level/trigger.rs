@@ -22,6 +22,7 @@ use crate::level::player::Player;
 use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::alpha::AlphaTrigger;
 use crate::level::trigger::color::ColorTrigger;
+use crate::level::trigger::follow::FollowTrigger;
 use crate::level::trigger::pulse::PulseTrigger;
 use crate::level::trigger::r#move::MoveTrigger;
 use crate::level::trigger::rotate::RotateTrigger;
@@ -33,6 +34,7 @@ use crate::utils::{str_to_bool, U64Hash};
 mod alpha;
 mod color;
 mod empty;
+mod follow;
 mod r#move;
 mod pulse;
 mod rotate;
@@ -179,6 +181,8 @@ pub(crate) trait TriggerFunction: DynClone + Send + Sync + 'static {
 
     fn exclusive(&self) -> bool;
 
+    fn post(&self) -> bool;
+
     fn concrete_type_id(&self) -> TypeId {
         TypeId::of::<Self>()
     }
@@ -192,7 +196,7 @@ pub(crate) struct TriggerData {
     data: AHashMap<
         TypeId,
         (
-            hashbrown::HashMap<u64, u32, U64Hash>,
+            hashbrown::HashMap<u64, f32, U64Hash>,
             SyncUnsafeCell<Box<dyn Any + Send + Sync>>,
         ),
     >,
@@ -263,6 +267,8 @@ pub(crate) fn process_triggers(world: &mut World) {
         //         .query_overlapping(&activate_range)
         // });
 
+        let mut post_triggers = Vec::new();
+
         let query = global_trigger_channel
             .x
             .0
@@ -300,51 +306,32 @@ pub(crate) fn process_triggers(world: &mut World) {
                     }
                 }
 
+                let range = trigger_range.start.0..trigger_range.end.0;
+
+                if trigger.0.post() {
+                    post_triggers.push((
+                        trigger.clone(),
+                        trigger_entity,
+                        *entity_index,
+                        previous_progress,
+                        current_progress,
+                        range,
+                    ));
+                    continue;
+                }
+
                 // Very unsafe but works for now
                 let world_mut = unsafe { world_cell.world_mut() };
 
-                let trigger_system_state = if let Some((exclusive_data, system_state)) =
-                    trigger_data.data.get_mut(&trigger.0.concrete_type_id())
-                {
-                    if let Some(last_index) = exclusive_data.get_mut(&trigger.0.target_id()) {
-                        if entity_index < last_index {
-                            continue;
-                        }
-                        if trigger.0.exclusive() {
-                            *last_index = *entity_index;
-                        }
-                    } else if trigger.0.exclusive() {
-                        exclusive_data.insert(trigger.0.target_id(), *entity_index);
-                    }
-                    system_state
-                } else {
-                    let mut exclusive_data = hashbrown::HashMap::with_hasher(U64Hash);
-                    if trigger.0.exclusive() {
-                        exclusive_data.insert(trigger.0.target_id(), *entity_index);
-                    }
-                    trigger_data.data.insert(
-                        trigger.0.concrete_type_id(),
-                        (
-                            exclusive_data,
-                            SyncUnsafeCell::new(trigger.0.create_system_state(world_mut)),
-                        ),
-                    );
-
-                    &mut trigger_data
-                        .data
-                        .get_mut(&trigger.0.concrete_type_id())
-                        .unwrap()
-                        .1
-                };
-
-                trigger.0.execute(
+                run_trigger(
+                    trigger,
                     world_mut,
                     trigger_entity,
                     *entity_index,
-                    trigger_system_state.get_mut(),
                     previous_progress,
                     current_progress,
-                    trigger_range.start.0..trigger_range.end.0,
+                    range,
+                    &mut trigger_data,
                 );
 
                 // span_b.in_scope(|| {
@@ -369,10 +356,14 @@ pub(crate) fn process_triggers(world: &mut World) {
                 let trigger_data = unsafe { &mut **trigger_data_cell.get() };
 
                 let trigger_range_length = range.end - range.start;
-                let previous_progress =
+                let mut previous_progress =
                     ((last_translation.x - range.start) / trigger_range_length).clamp(0., 1.);
                 let current_progress =
                     ((transform.translation.x - range.start) / trigger_range_length).clamp(0., 1.);
+
+                if previous_progress == 1. && current_progress == 1. {
+                    previous_progress = 0.;
+                }
 
                 for (stopped_group, stop_index) in &trigger_data.stopped {
                     if groups.iter().any(|group_id| group_id == stopped_group)
@@ -382,57 +373,109 @@ pub(crate) fn process_triggers(world: &mut World) {
                     }
                 }
 
+                if trigger.0.post() {
+                    post_triggers.push((
+                        trigger.clone(),
+                        *entity,
+                        *entity_index,
+                        previous_progress,
+                        current_progress,
+                        range.clone(),
+                    ));
+                    return current_progress != 1.;
+                }
+
                 // Very unsafe but works for now
                 let world_mut = unsafe { world_cell.world_mut() };
 
-                let trigger_system_state = if let Some((exclusive_data, system_state)) =
-                    trigger_data.data.get_mut(&trigger.0.concrete_type_id())
-                {
-                    if let Some(last_index) = exclusive_data.get_mut(&trigger.0.target_id()) {
-                        if entity_index < last_index {
-                            return false;
-                        }
-                        if trigger.0.exclusive() {
-                            *last_index = *entity_index;
-                        }
-                    } else if trigger.0.exclusive() {
-                        exclusive_data.insert(trigger.0.target_id(), *entity_index);
-                    }
-                    system_state
-                } else {
-                    let mut exclusive_data = hashbrown::HashMap::with_hasher(U64Hash);
-                    if trigger.0.exclusive() {
-                        exclusive_data.insert(trigger.0.target_id(), *entity_index);
-                    }
-                    trigger_data.data.insert(
-                        trigger.0.concrete_type_id(),
-                        (
-                            exclusive_data,
-                            SyncUnsafeCell::new(trigger.0.create_system_state(world_mut)),
-                        ),
-                    );
-
-                    &mut trigger_data
-                        .data
-                        .get_mut(&trigger.0.concrete_type_id())
-                        .unwrap()
-                        .1
-                };
-
-                trigger.0.execute(
+                run_trigger(
+                    trigger,
                     world_mut,
                     *entity,
                     *entity_index,
-                    trigger_system_state.get_mut(),
                     previous_progress,
                     current_progress,
                     range.clone(),
+                    trigger_data,
                 );
 
                 current_progress != 1.
             },
         );
+
+        for (trigger, entity, entity_index, previous_progress, current_progress, range) in
+            post_triggers
+        {
+            // Very unsafe but works for now
+            let world_mut = unsafe { world_cell.world_mut() };
+
+            run_trigger(
+                &trigger,
+                world_mut,
+                entity,
+                entity_index,
+                previous_progress,
+                current_progress,
+                range,
+                &mut trigger_data,
+            );
+        }
     }
+}
+
+fn run_trigger(
+    trigger: &Trigger,
+    world: &mut World,
+    entity: Entity,
+    entity_index: u32,
+    previous_progress: f32,
+    current_progress: f32,
+    range: Range<f32>,
+    trigger_data: &mut TriggerData,
+) {
+    let trigger_system_state = if let Some((exclusive_data, system_state)) =
+        trigger_data.data.get_mut(&trigger.0.concrete_type_id())
+    {
+        if let Some(last_pos) = exclusive_data.get_mut(&trigger.0.target_id()) {
+            if range.start < *last_pos {
+                return;
+            }
+            if trigger.0.exclusive() {
+                *last_pos = range.start;
+            }
+        } else if trigger.0.exclusive() {
+            exclusive_data.insert(trigger.0.target_id(), range.start);
+        }
+        system_state
+    } else {
+        let mut exclusive_data = hashbrown::HashMap::with_hasher(U64Hash);
+        if trigger.0.exclusive() {
+            exclusive_data.insert(trigger.0.target_id(), range.start);
+        }
+        trigger_data.data.insert(
+            trigger.0.concrete_type_id(),
+            (
+                exclusive_data,
+                SyncUnsafeCell::new(trigger.0.create_system_state(world)),
+            ),
+        );
+
+        &mut trigger_data
+            .data
+            .get_mut(&trigger.0.concrete_type_id())
+            .unwrap()
+            .1
+    };
+
+    trigger.0.execute(
+        world,
+        entity,
+        entity_index,
+        trigger_system_state.get_mut(),
+        previous_progress,
+        current_progress,
+        range,
+    );
 }
 
 pub(crate) fn insert_trigger_data(
@@ -720,6 +763,28 @@ pub(crate) fn insert_trigger_data(
             }
             if let Some(lock_rotation) = object_data.get("70") {
                 trigger.lock_rotation = str_to_bool(lock_rotation);
+            }
+            entity_world_mut.insert(Trigger(Box::new(trigger)));
+        }
+        1347 => {
+            let mut trigger = FollowTrigger::default();
+            if let Some(duration) = object_data.get("10") {
+                trigger.duration = duration.parse()?;
+                if trigger.duration.is_sign_negative() {
+                    trigger.duration = 0.;
+                }
+            }
+            if let Some(target_group) = object_data.get("51") {
+                trigger.target_group = target_group.parse()?;
+            }
+            if let Some(follow_group) = object_data.get("71") {
+                trigger.follow_group = follow_group.parse()?;
+            }
+            if let Some(scale_x) = object_data.get("72") {
+                trigger.scale.x = scale_x.parse()?;
+            }
+            if let Some(scale_y) = object_data.get("73") {
+                trigger.scale.y = scale_y.parse()?;
             }
             entity_world_mut.insert(Trigger(Box::new(trigger)));
         }

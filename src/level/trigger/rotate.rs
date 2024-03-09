@@ -92,4 +92,8 @@ impl TriggerFunction for RotateTrigger {
     fn exclusive(&self) -> bool {
         false
     }
+
+    fn post(&self) -> bool {
+        false
+    }
 }

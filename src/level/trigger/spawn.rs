@@ -3,6 +3,7 @@ use std::ops::Range;
 
 use bevy::ecs::system::SystemState;
 use bevy::prelude::{Entity, Query, Res, ResMut, With, Without, World};
+use float_next_after::NextAfter;
 
 use crate::level::color::ObjectColorCalculated;
 use crate::level::group::{GlobalGroup, GlobalGroups, ObjectGroups};
@@ -77,9 +78,13 @@ impl TriggerFunction for SpawnTrigger {
                 return;
             }
 
-            let end_pos = global_triggers
+            let mut end_pos = global_triggers
                 .speed_changes
                 .pos_for_time(start_time + trigger.0.duration());
+
+            if end_pos == start_pos {
+                end_pos = end_pos.next_after(f32::INFINITY);
+            }
 
             trigger_data.to_spawn.push((
                 entity,
@@ -114,6 +119,10 @@ impl TriggerFunction for SpawnTrigger {
     }
 
     fn exclusive(&self) -> bool {
+        false
+    }
+
+    fn post(&self) -> bool {
         false
     }
 }

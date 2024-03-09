@@ -48,4 +48,8 @@ impl TriggerFunction for StopTrigger {
     fn exclusive(&self) -> bool {
         false
     }
+
+    fn post(&self) -> bool {
+        false
+    }
 }

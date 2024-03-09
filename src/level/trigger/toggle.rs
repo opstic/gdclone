@@ -60,4 +60,8 @@ impl TriggerFunction for ToggleTrigger {
     fn exclusive(&self) -> bool {
         false
     }
+
+    fn post(&self) -> bool {
+        false
+    }
 }

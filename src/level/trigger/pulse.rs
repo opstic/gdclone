@@ -139,4 +139,8 @@ impl TriggerFunction for PulseTrigger {
     fn exclusive(&self) -> bool {
         self.exclusive
     }
+
+    fn post(&self) -> bool {
+        false
+    }
 }

@@ -36,4 +36,8 @@ impl TriggerFunction for EmptyTrigger {
     fn exclusive(&self) -> bool {
         false
     }
+
+    fn post(&self) -> bool {
+        false
+    }
 }

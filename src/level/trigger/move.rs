@@ -94,4 +94,8 @@ impl TriggerFunction for MoveTrigger {
     fn exclusive(&self) -> bool {
         false
     }
+
+    fn post(&self) -> bool {
+        false
+    }
 }
