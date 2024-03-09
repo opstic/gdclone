@@ -165,7 +165,7 @@ fn setup_asset_dirs(app: &mut App) {
             .set_type(MessageType::Error)
             .set_title("Error when locating")
             .set_text(
-                "Cannot locate Geometry Dash's data directory. Please select the data directory manually.",
+                "Cannot locate Geometry Dash's data directory. Please select the data directory manually. (Optional)",
             )
             .show_alert()
             .unwrap();
