@@ -61,6 +61,7 @@ pub(crate) struct SongPlayer(pub(crate) Handle<AudioInstance>);
 
 #[derive(Resource)]
 pub(crate) struct Options {
+    show_options: bool,
     synchronize_cameras: bool,
     display_simulated_camera: bool,
     display_hitboxes: bool,
@@ -73,6 +74,7 @@ pub(crate) struct Options {
 impl Default for Options {
     fn default() -> Self {
         Self {
+            show_options: false,
             synchronize_cameras: true,
             display_simulated_camera: false,
             display_hitboxes: false,
@@ -125,11 +127,12 @@ fn render_option_gui(
     mut state: ResMut<NextState<GameState>>,
     mut projections: Query<&mut OrthographicProjection, With<Camera>>,
 ) {
-    if !options.pause_player {
+    if !options.show_options {
         return;
     }
 
     egui::Window::new("Level Options").show(contexts.ctx_mut(), |ui| {
+        ui.checkbox(&mut options.show_options, "Show options");
         ui.checkbox(&mut options.synchronize_cameras, "Synchronize cameras (U)");
         ui.checkbox(&mut options.display_hitboxes, "Display hitboxes (H)");
         ui.checkbox(&mut options.show_lines, "Display camera and player X (L)");
@@ -159,6 +162,9 @@ fn update_controls(
     time: Res<Time>,
 ) {
     if keys.just_pressed(KeyCode::Escape) {
+        if !options.pause_player {
+            options.show_options = true;
+        }
         options.pause_player = !options.pause_player;
     }
     if keys.just_pressed(KeyCode::KeyU) {
