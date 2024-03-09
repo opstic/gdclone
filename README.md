@@ -30,6 +30,9 @@ R to reset zoom.
 
 *Support for web and mobile platforms are planned.*
 
+**NOTE: Either [kdialog](https://invent.kde.org/utilities/kdialog) or [zenity](https://github.com/GNOME/zenity) is
+required on linux.**
+
 ## Screenshots / GIFs
 
 ![White Space](assets/screenshots/whitespace.gif)
