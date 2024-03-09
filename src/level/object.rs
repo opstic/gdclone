@@ -259,8 +259,15 @@ pub(crate) fn spawn_object(
         Section::from_section_index(section_index),
         transform,
         object_transform,
-        Handle::Weak(*image_asset_id),
     ));
+
+    if let Some(hide) = object_data.get("135") {
+        if !str_to_bool(hide) {
+            entity.insert(Handle::Weak(*image_asset_id));
+        }
+    } else {
+        entity.insert(Handle::Weak(*image_asset_id));
+    }
 
     if let Some(hitbox) = &object_default_data.hitbox {
         match *hitbox {
