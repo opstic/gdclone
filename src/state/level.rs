@@ -132,7 +132,6 @@ fn render_option_gui(
     }
 
     egui::Window::new("Level Options").show(contexts.ctx_mut(), |ui| {
-        ui.checkbox(&mut options.show_options, "Show options");
         ui.checkbox(
             &mut options.lock_camera_to_player,
             "Lock camera to player (U)",
@@ -141,15 +140,22 @@ fn render_option_gui(
         ui.checkbox(&mut options.show_lines, "Display camera and player X (L)");
         ui.checkbox(&mut options.hide_triggers, "Hide triggers (T)");
         ui.checkbox(&mut options.pause_player, "Pause player (Esc)");
-        if ui.button("Reset zoom (R)").clicked() {
-            for mut projection in &mut projections {
-                projection.scale = 1.;
-            }
-        }
         ui.separator();
-        if ui.button("Exit to menu").clicked() {
-            state.set(GameState::Menu);
-        }
+        ui.horizontal(|ui| {
+            if ui.button("Exit to menu").clicked() {
+                state.set(GameState::Menu);
+            }
+            ui.separator();
+            if ui.button("Hide options").clicked() {
+                options.show_options = false;
+            }
+            ui.separator();
+            if ui.button("Reset zoom (R)").clicked() {
+                for mut projection in &mut projections {
+                    projection.scale = 1.;
+                }
+            }
+        });
     });
 }
 
