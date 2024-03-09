@@ -62,7 +62,7 @@ pub(crate) struct SongPlayer(pub(crate) Handle<AudioInstance>);
 #[derive(Resource)]
 pub(crate) struct Options {
     show_options: bool,
-    synchronize_cameras: bool,
+    lock_camera_to_player: bool,
     display_simulated_camera: bool,
     display_hitboxes: bool,
     visible_sections_from_simulated: bool,
@@ -75,7 +75,7 @@ impl Default for Options {
     fn default() -> Self {
         Self {
             show_options: false,
-            synchronize_cameras: true,
+            lock_camera_to_player: true,
             display_simulated_camera: false,
             display_hitboxes: false,
             visible_sections_from_simulated: false,
@@ -133,7 +133,10 @@ fn render_option_gui(
 
     egui::Window::new("Level Options").show(contexts.ctx_mut(), |ui| {
         ui.checkbox(&mut options.show_options, "Show options");
-        ui.checkbox(&mut options.synchronize_cameras, "Synchronize cameras (U)");
+        ui.checkbox(
+            &mut options.lock_camera_to_player,
+            "Lock camera to player (U)",
+        );
         ui.checkbox(&mut options.display_hitboxes, "Display hitboxes (H)");
         ui.checkbox(&mut options.show_lines, "Display camera and player X (L)");
         ui.checkbox(&mut options.hide_triggers, "Hide triggers (T)");
@@ -170,7 +173,7 @@ fn update_controls(
         }
     }
     if keys.just_pressed(KeyCode::KeyU) {
-        options.synchronize_cameras = !options.synchronize_cameras;
+        options.lock_camera_to_player = !options.lock_camera_to_player;
     }
     if keys.just_pressed(KeyCode::KeyH) {
         options.display_hitboxes = !options.display_hitboxes;
@@ -189,7 +192,7 @@ fn update_controls(
 
     let multiplier = time.delta_seconds() * 20.;
     for mut transform in transforms.iter_mut() {
-        if !options.synchronize_cameras {
+        if !options.lock_camera_to_player {
             if keys.pressed(KeyCode::ArrowRight) {
                 transform.translation.x += 10.0 * multiplier;
             }
@@ -251,7 +254,7 @@ fn update_controls(
                 - transform.translation().xy();
             delta /= 1.75;
             for mut transform in transforms.iter_mut() {
-                if !options.synchronize_cameras {
+                if !options.lock_camera_to_player {
                     transform.translation.x -= delta.x;
                 }
                 transform.translation.y += delta.y;
@@ -329,7 +332,7 @@ fn update_level_world(
 
     let (_, player_transform) = players.single(world);
 
-    if options.synchronize_cameras {
+    if options.lock_camera_to_player {
         camera_transform.translation.x = player_transform.translation.x + 75.;
         if options.show_lines {
             gizmos.line_2d(

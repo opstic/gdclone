@@ -20,7 +20,7 @@ Q and E to also zoom in and out.
 
 Esc to pause the player.
 
-U to (un)link the camera from the simulated player.
+U to (un)lock the camera from the simulated player.
 
 L to (de)activate player and camera line rendering.
 
