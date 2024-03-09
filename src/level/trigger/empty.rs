@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::ops::Range;
 
 use bevy::prelude::{Entity, World};
 
@@ -16,6 +17,7 @@ impl TriggerFunction for EmptyTrigger {
         _: &mut Box<dyn Any + Send + Sync>,
         _: f32,
         _: f32,
+        _: Range<f32>,
     ) {
     }
 

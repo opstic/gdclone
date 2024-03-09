@@ -1,10 +1,13 @@
 use std::any::{Any, TypeId};
+use std::cell::UnsafeCell;
+use std::ops::Range;
 
 use bevy::ecs::system::SystemState;
 use bevy::math::Vec3A;
 use bevy::prelude::{Component, Entity, EntityWorldMut, Query, ResMut, Resource, With, World};
 use bevy::utils::syncunsafecell::SyncUnsafeCell;
 use bevy::utils::{default, hashbrown, HashMap as AHashMap};
+use dyn_clone::DynClone;
 use float_next_after::NextAfter;
 use indexmap::IndexMap;
 use nested_intervals::IntervalSetGeneric;
@@ -22,6 +25,7 @@ use crate::level::trigger::color::ColorTrigger;
 use crate::level::trigger::pulse::PulseTrigger;
 use crate::level::trigger::r#move::MoveTrigger;
 use crate::level::trigger::rotate::RotateTrigger;
+use crate::level::trigger::spawn::SpawnTrigger;
 use crate::level::trigger::stop::StopTrigger;
 use crate::level::trigger::toggle::ToggleTrigger;
 use crate::utils::{str_to_bool, U64Hash};
@@ -32,6 +36,7 @@ mod empty;
 mod r#move;
 mod pulse;
 mod rotate;
+mod spawn;
 mod stop;
 mod toggle;
 
@@ -39,7 +44,6 @@ mod toggle;
 pub(crate) struct GlobalTriggers {
     pub(crate) speed_changes: SpeedChanges,
     pos_triggers: IndexMap<u64, GlobalTriggerChannel, U64Hash>,
-    spawn_triggers: IndexMap<u64, Vec<Entity>, U64Hash>,
 }
 
 #[derive(Debug, Default)]
@@ -150,9 +154,12 @@ pub(crate) struct PosActivate;
 pub(crate) struct MultiActivate;
 
 #[derive(Component)]
+pub(crate) struct Activated;
+
+#[derive(Clone, Component)]
 pub(crate) struct Trigger(Box<dyn TriggerFunction>);
 
-pub(crate) trait TriggerFunction: Send + Sync + 'static {
+pub(crate) trait TriggerFunction: DynClone + Send + Sync + 'static {
     fn execute(
         &self,
         world: &mut World,
@@ -161,6 +168,7 @@ pub(crate) trait TriggerFunction: Send + Sync + 'static {
         system_state: &mut Box<dyn Any + Send + Sync>,
         previous_progress: f32,
         progress: f32,
+        range: Range<f32>,
     );
 
     fn create_system_state(&self, world: &mut World) -> Box<dyn Any + Send + Sync>;
@@ -176,6 +184,8 @@ pub(crate) trait TriggerFunction: Send + Sync + 'static {
     }
 }
 
+dyn_clone::clone_trait_object!(TriggerFunction);
+
 #[derive(Default, Resource)]
 pub(crate) struct TriggerData {
     stopped: IndexMap<u64, u32, U64Hash>,
@@ -186,6 +196,8 @@ pub(crate) struct TriggerData {
             SyncUnsafeCell<Box<dyn Any + Send + Sync>>,
         ),
     >,
+    to_spawn: Vec<(Entity, Trigger, Vec<u64>, u32, Range<f32>)>,
+    spawned: Vec<(Entity, Trigger, Vec<u64>, u32, Range<f32>)>,
 }
 
 pub(crate) fn process_triggers(world: &mut World) {
@@ -332,6 +344,7 @@ pub(crate) fn process_triggers(world: &mut World) {
                     trigger_system_state.get_mut(),
                     previous_progress,
                     current_progress,
+                    trigger_range.start.0..trigger_range.end.0,
                 );
 
                 // span_b.in_scope(|| {
@@ -344,6 +357,81 @@ pub(crate) fn process_triggers(world: &mut World) {
                 // });
             }
         }
+
+        let trigger_data_cell = UnsafeCell::new(&mut *trigger_data);
+
+        unsafe { &mut **trigger_data_cell.get() }
+            .spawned
+            .append(&mut unsafe { &mut **trigger_data_cell.get() }.to_spawn);
+
+        unsafe { &mut **trigger_data_cell.get() }.spawned.retain(
+            |(entity, trigger, groups, entity_index, range)| {
+                let trigger_data = unsafe { &mut **trigger_data_cell.get() };
+
+                let trigger_range_length = range.end - range.start;
+                let previous_progress =
+                    ((last_translation.x - range.start) / trigger_range_length).clamp(0., 1.);
+                let current_progress =
+                    ((transform.translation.x - range.start) / trigger_range_length).clamp(0., 1.);
+
+                for (stopped_group, stop_index) in &trigger_data.stopped {
+                    if groups.iter().any(|group_id| group_id == stopped_group)
+                        && entity_index < stop_index
+                    {
+                        return false;
+                    }
+                }
+
+                // Very unsafe but works for now
+                let world_mut = unsafe { world_cell.world_mut() };
+
+                let trigger_system_state = if let Some((exclusive_data, system_state)) =
+                    trigger_data.data.get_mut(&trigger.0.concrete_type_id())
+                {
+                    if let Some(last_index) = exclusive_data.get_mut(&trigger.0.target_id()) {
+                        if entity_index < last_index {
+                            return false;
+                        }
+                        if trigger.0.exclusive() {
+                            *last_index = *entity_index;
+                        }
+                    } else if trigger.0.exclusive() {
+                        exclusive_data.insert(trigger.0.target_id(), *entity_index);
+                    }
+                    system_state
+                } else {
+                    let mut exclusive_data = hashbrown::HashMap::with_hasher(U64Hash);
+                    if trigger.0.exclusive() {
+                        exclusive_data.insert(trigger.0.target_id(), *entity_index);
+                    }
+                    trigger_data.data.insert(
+                        trigger.0.concrete_type_id(),
+                        (
+                            exclusive_data,
+                            SyncUnsafeCell::new(trigger.0.create_system_state(world_mut)),
+                        ),
+                    );
+
+                    &mut trigger_data
+                        .data
+                        .get_mut(&trigger.0.concrete_type_id())
+                        .unwrap()
+                        .1
+                };
+
+                trigger.0.execute(
+                    world_mut,
+                    *entity,
+                    *entity_index,
+                    trigger_system_state.get_mut(),
+                    previous_progress,
+                    current_progress,
+                    range.clone(),
+                );
+
+                current_progress != 1.
+            },
+        );
     }
 }
 
@@ -592,6 +680,19 @@ pub(crate) fn insert_trigger_data(
             }
             entity_world_mut.insert(Trigger(Box::new(trigger)));
         }
+        1268 => {
+            let mut trigger = SpawnTrigger::default();
+            if let Some(delay) = object_data.get("63") {
+                trigger.delay = delay.parse()?;
+                if trigger.delay.is_sign_negative() {
+                    trigger.delay = 0.;
+                }
+            }
+            if let Some(target_group) = object_data.get("51") {
+                trigger.target_group = target_group.parse()?;
+            }
+            entity_world_mut.insert(Trigger(Box::new(trigger)));
+        }
         1346 => {
             let mut trigger = RotateTrigger::default();
             if let Some(duration) = object_data.get("10") {
@@ -631,6 +732,7 @@ pub(crate) fn insert_trigger_data(
         }
         _ => return Ok(()),
     }
+
     let touch_triggered = object_data
         .get("11")
         .map(|b| str_to_bool(b))
@@ -646,6 +748,13 @@ pub(crate) fn insert_trigger_data(
     } else {
         entity_world_mut.insert(PosActivate);
     }
+
+    if let Some(multi_activate) = object_data.get("87") {
+        if str_to_bool(multi_activate) {
+            entity_world_mut.insert(MultiActivate);
+        }
+    }
+
     Ok(())
 }
 

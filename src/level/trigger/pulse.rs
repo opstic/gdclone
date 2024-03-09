@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::ops::Range;
 
 use bevy::ecs::system::SystemState;
 use bevy::math::Vec3A;
@@ -40,6 +41,7 @@ impl TriggerFunction for PulseTrigger {
         system_state: &mut Box<dyn Any + Send + Sync>,
         _: f32,
         progress: f32,
+        _: Range<f32>,
     ) {
         if self.base_only && self.copied_color_id == 0 {
             return;

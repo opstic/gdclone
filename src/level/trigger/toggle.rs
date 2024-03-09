@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::ops::Range;
 
 use bevy::ecs::system::SystemState;
 use bevy::prelude::{Entity, Query, Res, World};
@@ -26,6 +27,7 @@ impl TriggerFunction for ToggleTrigger {
         system_state: &mut Box<dyn Any + Send + Sync>,
         _: f32,
         _: f32,
+        _: Range<f32>,
     ) {
         let system_state: &mut SystemState<ToggleTriggerSystemParam> =
             system_state.downcast_mut().unwrap();

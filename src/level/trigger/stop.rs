@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::ops::Range;
 
 use bevy::ecs::system::SystemState;
 use bevy::prelude::{Entity, ResMut, World};
@@ -21,6 +22,7 @@ impl TriggerFunction for StopTrigger {
         system_state: &mut Box<dyn Any + Send + Sync>,
         _: f32,
         _: f32,
+        _: Range<f32>,
     ) {
         let system_state: &mut SystemState<StopTriggerSystemParam> =
             system_state.downcast_mut().unwrap();

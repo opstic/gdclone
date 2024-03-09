@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::ops::Range;
 
 use bevy::ecs::system::SystemState;
 use bevy::math::Vec4;
@@ -42,6 +43,7 @@ impl TriggerFunction for ColorTrigger {
         system_state: &mut Box<dyn Any + Send + Sync>,
         previous_progress: f32,
         progress: f32,
+        _: Range<f32>,
     ) {
         let system_state: &mut SystemState<ColorTriggerSystemParam> =
             system_state.downcast_mut().unwrap();
