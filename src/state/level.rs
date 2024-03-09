@@ -132,7 +132,7 @@ fn level_setup(
         }
     }
 
-    options.camera_limit += 60.;
+    options.camera_limit += 56.;
 }
 
 fn render_option_gui(
