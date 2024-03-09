@@ -307,24 +307,23 @@ fn update_level_world(
     // Render player line
     let mut players = world.query::<(&Player, &Transform2d)>();
 
+    let (camera_projection, mut camera_transform) = camera.single_mut();
+
     if options.show_lines {
-        for (player, transform) in players.iter(world) {
-            let (player_line_start, player_line_end) = if player.vertical_is_x {
-                (
-                    Vec2::new(transform.translation.x - 500., transform.translation.y),
-                    Vec2::new(transform.translation.x + 500., transform.translation.y),
-                )
-            } else {
-                (
-                    Vec2::new(transform.translation.x, transform.translation.y - 500.),
-                    Vec2::new(transform.translation.x, transform.translation.y + 500.),
-                )
-            };
-            gizmos.line_2d(player_line_start, player_line_end, Color::ORANGE_RED)
+        for (_, transform) in players.iter(world) {
+            gizmos.line_2d(
+                Vec2::new(
+                    transform.translation.x,
+                    camera_transform.translation.y + camera_projection.area.min.y,
+                ),
+                Vec2::new(
+                    transform.translation.x,
+                    camera_transform.translation.y + camera_projection.area.max.y,
+                ),
+                Color::RED,
+            );
         }
     }
-
-    let (camera_projection, mut camera_transform) = camera.single_mut();
 
     let (_, player_transform) = players.single(world);
 
@@ -334,30 +333,19 @@ fn update_level_world(
             gizmos.line_2d(
                 Vec2::new(
                     camera_transform.translation.x,
-                    camera_transform.translation.y - 500.,
+                    camera_transform.translation.y + camera_projection.area.min.y,
                 ),
                 Vec2::new(
                     camera_transform.translation.x,
-                    camera_transform.translation.y + 500.,
+                    camera_transform.translation.y + camera_projection.area.max.y,
                 ),
                 Color::GREEN,
-            );
-            gizmos.line_2d(
-                Vec2::new(
-                    player_transform.translation.x,
-                    camera_transform.translation.y - 500.,
-                ),
-                Vec2::new(
-                    player_transform.translation.x,
-                    camera_transform.translation.y + 500.,
-                ),
-                Color::ORANGE_RED,
             );
         }
     }
 
-    let camera_min = camera_projection.area.min.x + camera_transform.translation.x;
-    let camera_max = camera_projection.area.max.x + camera_transform.translation.x;
+    let camera_min = camera_transform.translation.x + camera_projection.area.min.x;
+    let camera_max = camera_transform.translation.x + camera_projection.area.max.x;
 
     let min_section = section_index_from_x(camera_min) as usize;
     let max_section = section_index_from_x(camera_max) as usize;
