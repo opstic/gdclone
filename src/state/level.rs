@@ -162,10 +162,12 @@ fn update_controls(
     time: Res<Time>,
 ) {
     if keys.just_pressed(KeyCode::Escape) {
-        if !options.pause_player {
+        if options.pause_player && !options.show_options {
             options.show_options = true;
+        } else {
+            options.pause_player = !options.pause_player;
+            options.show_options = options.pause_player;
         }
-        options.pause_player = !options.pause_player;
     }
     if keys.just_pressed(KeyCode::KeyU) {
         options.synchronize_cameras = !options.synchronize_cameras;
