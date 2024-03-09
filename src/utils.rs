@@ -44,7 +44,7 @@ pub(crate) fn lerp_start<
     end: T,
     x: f32,
 ) -> T {
-    (current - end * x) / (1. - x)
+    (current - end * x) / (1. - x + 1e-45)
 }
 
 #[inline(always)]

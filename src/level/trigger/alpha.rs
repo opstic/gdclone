@@ -45,8 +45,8 @@ impl TriggerFunction for AlphaTrigger {
         };
 
         let original_opacity =
-            lerp_start(global_group.opacity, self.target_opacity, previous_progress);
-        global_group.opacity = lerp(original_opacity, self.target_opacity, progress);
+            lerp_start(global_group.opacity, self.target_opacity, previous_progress).clamp(0., 1.);
+        global_group.opacity = lerp(original_opacity, self.target_opacity, progress).clamp(0., 1.);
     }
 
     fn create_system_state(&self, world: &mut World) -> Box<dyn Any + Send + Sync> {
