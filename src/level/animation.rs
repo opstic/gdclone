@@ -33,7 +33,7 @@ pub(crate) fn insert_animation_data(
         | 396 | 997 | 1019 | 998 | 999 | 1020 | 1021 | 1055 | 1056 | 1057 | 1058 | 1059 | 1060
         | 1061 | 1752 | 1832 | 1831 | 1833 | 1022 | 1330 => {
             let mut amount =
-                PI * (fastrand::f32() * 0.25 + 1.) * if fastrand::bool() { 1. } else { -1. };
+                PI * (fastrand::f32() * 0.5 + 0.75) * if fastrand::bool() { 1. } else { -1. };
             if let Some(disable) = object_data.get("98") {
                 if str_to_bool(disable) {
                     return Ok(());
