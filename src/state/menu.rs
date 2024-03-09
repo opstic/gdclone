@@ -2,13 +2,14 @@ use bevy::app::{App, Plugin, Update};
 use bevy::asset::Handle;
 use bevy::log::info;
 use bevy::prelude::{
-    in_state, Commands, IntoSystemConfigs, NextState, Query, ResMut, Resource, Window,
+    in_state, Commands, Entity, IntoSystemConfigs, NextState, Query, ResMut, Resource, Window,
 };
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::utils::HashMap;
 use bevy::window::WindowMode;
 use bevy_egui::EguiContexts;
 use bevy_kira_audio::AudioSource;
+use egui::{Button, Color32};
 use futures_lite::future;
 
 use crate::api::robtop::RobtopApi;
@@ -56,7 +57,7 @@ fn render_menu_gui(
     mut browser_state: ResMut<LevelBrowserState>,
     mut contexts: EguiContexts,
     mut state: ResMut<NextState<GameState>>,
-    mut windows: Query<&mut Window>,
+    mut windows: Query<(Entity, &mut Window)>,
 ) {
     egui::Window::new("Level Browser")
         .vscroll(true)
@@ -81,7 +82,7 @@ fn render_menu_gui(
                 ui.checkbox(&mut browser_state.low_detail, "Low Detail");
                 ui.separator();
 
-                let mut window = windows.single_mut();
+                let (entity, mut window) = windows.single_mut();
 
                 egui::ComboBox::from_label("Window Mode")
                     .selected_text(format!("{:?}", window.mode))
@@ -94,6 +95,13 @@ fn render_menu_gui(
                             "BorderlessFullscreen",
                         );
                     });
+                ui.separator();
+                if ui
+                    .add(Button::new("Exit").fill(Color32::DARK_RED))
+                    .clicked()
+                {
+                    commands.entity(entity).despawn();
+                }
             });
 
             ui.separator();
