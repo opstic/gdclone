@@ -7,21 +7,34 @@ use float_next_after::NextAfter;
 
 use crate::level::color::ObjectColorCalculated;
 use crate::level::group::{GlobalGroup, GlobalGroups, ObjectGroups};
+use crate::level::trigger::pickup::PickupValues;
 use crate::level::trigger::{
     Activated, GlobalTriggers, MultiActivate, SpawnActivate, Trigger, TriggerData, TriggerFunction,
 };
 
 #[derive(Clone, Debug, Default)]
-pub(crate) struct SpawnTrigger {
+pub(crate) struct InstantCountTrigger {
+    pub(crate) item_id: u64,
+    pub(crate) target_count: i64,
+    pub(crate) mode: InstantCountMode,
     pub(crate) target_group: u64,
-    pub(crate) delay: f32,
+    pub(crate) activate: bool,
 }
 
-type SpawnTriggerSystemParam = (
+#[derive(Clone, Debug, Default)]
+pub(crate) enum InstantCountMode {
+    #[default]
+    Equal,
+    Larger,
+    Smaller,
+}
+
+type InstantCountTriggerSystemParam = (
     Res<'static, GlobalGroups>,
+    Res<'static, PickupValues>,
     Res<'static, GlobalTriggers>,
     ResMut<'static, TriggerData>,
-    Query<'static, 'static, &'static GlobalGroup>,
+    Query<'static, 'static, &'static mut GlobalGroup>,
     Query<
         'static,
         'static,
@@ -36,12 +49,12 @@ type SpawnTriggerSystemParam = (
     >,
 );
 
-impl TriggerFunction for SpawnTrigger {
+impl TriggerFunction for InstantCountTrigger {
     fn execute(
         &self,
         world: &mut World,
         _: Entity,
-        trigger_index: u32,
+        index: u32,
         system_state: &mut Box<dyn Any + Send + Sync>,
         _: f32,
         progress: f32,
@@ -51,23 +64,47 @@ impl TriggerFunction for SpawnTrigger {
             return;
         }
 
-        let system_state: &mut SystemState<SpawnTriggerSystemParam> =
-            &mut *system_state.downcast_mut().unwrap();
+        let system_state: &mut SystemState<InstantCountTriggerSystemParam> =
+            system_state.downcast_mut().unwrap();
 
-        let (global_groups, global_triggers, mut trigger_data, group_query, trigger_query) =
-            system_state.get_mut(world);
+        let (
+            global_groups,
+            pickup_values,
+            global_triggers,
+            mut trigger_data,
+            mut group_query,
+            trigger_query,
+        ) = system_state.get_mut(world);
+
+        let Some(entry) = pickup_values.0.get(self.item_id as usize) else {
+            return;
+        };
+
+        if !match self.mode {
+            InstantCountMode::Equal => *entry == self.target_count,
+            InstantCountMode::Larger => *entry > self.target_count,
+            InstantCountMode::Smaller => *entry < self.target_count,
+        } {
+            return;
+        }
+
+        let Some(group_entity) = global_groups.0.get(self.target_group as usize) else {
+            return;
+        };
+
+        let Ok(mut group) = group_query.get_mut(*group_entity) else {
+            return;
+        };
+
+        group.enabled = self.activate;
+
+        if !group.enabled {
+            return;
+        }
 
         let trigger_time = global_triggers.speed_changes.time_for_pos(range.start);
         let start_time = trigger_time + self.duration();
         let start_pos = global_triggers.speed_changes.pos_for_time(start_time);
-
-        let Some(target_group) = global_groups.0.get(self.target_group as usize) else {
-            return;
-        };
-
-        let Ok(group) = group_query.get(*target_group) else {
-            return;
-        };
 
         let mut activated = Vec::new();
 
@@ -90,7 +127,7 @@ impl TriggerFunction for SpawnTrigger {
                 entity,
                 trigger.clone(),
                 object_groups.groups.clone(),
-                trigger_index,
+                index,
                 start_pos..end_pos,
             ));
 
@@ -107,15 +144,15 @@ impl TriggerFunction for SpawnTrigger {
     }
 
     fn create_system_state(&self, world: &mut World) -> Box<dyn Any + Send + Sync> {
-        Box::new(SystemState::<SpawnTriggerSystemParam>::new(world))
+        Box::new(SystemState::<InstantCountTriggerSystemParam>::new(world))
     }
 
     fn target_id(&self) -> u64 {
-        0
+        self.target_group
     }
 
     fn duration(&self) -> f32 {
-        self.delay
+        0.
     }
 
     fn exclusive(&self) -> bool {

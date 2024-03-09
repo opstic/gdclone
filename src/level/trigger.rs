@@ -23,6 +23,8 @@ use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::alpha::AlphaTrigger;
 use crate::level::trigger::color::ColorTrigger;
 use crate::level::trigger::follow::FollowTrigger;
+use crate::level::trigger::instant_count::{InstantCountMode, InstantCountTrigger};
+use crate::level::trigger::pickup::{PickupTrigger, PickupValues};
 use crate::level::trigger::pulse::PulseTrigger;
 use crate::level::trigger::r#move::MoveTrigger;
 use crate::level::trigger::rotate::RotateTrigger;
@@ -35,7 +37,9 @@ mod alpha;
 mod color;
 mod empty;
 mod follow;
+mod instant_count;
 mod r#move;
+mod pickup;
 mod pulse;
 mod rotate;
 mod spawn;
@@ -795,6 +799,38 @@ pub(crate) fn insert_trigger_data(
             }
             entity_world_mut.insert(Trigger(Box::new(trigger)));
         }
+        1811 => {
+            let mut trigger = InstantCountTrigger::default();
+            if let Some(target_group) = object_data.get("51") {
+                trigger.target_group = target_group.parse()?;
+            }
+            if let Some(activate) = object_data.get("56") {
+                trigger.activate = str_to_bool(activate);
+            }
+            if let Some(target_count) = object_data.get("77") {
+                trigger.target_count = target_count.parse()?;
+            }
+            if let Some(item_id) = object_data.get("80") {
+                trigger.item_id = item_id.parse()?;
+            }
+            if let Some(mode) = object_data.get("88") {
+                trigger.mode = match mode.parse()? {
+                    0 => InstantCountMode::Equal,
+                    1 => InstantCountMode::Larger,
+                    2 => InstantCountMode::Smaller,
+                    _ => unreachable!(),
+                }
+            }
+        }
+        1817 => {
+            let mut trigger = PickupTrigger::default();
+            if let Some(count) = object_data.get("77") {
+                trigger.count = count.parse()?;
+            }
+            if let Some(item_id) = object_data.get("80") {
+                trigger.item_id = item_id.parse()?;
+            }
+        }
         _ => return Ok(()),
     }
 
@@ -905,4 +941,5 @@ pub(crate) fn construct_trigger_index(world: &mut World) {
     );
 
     world.insert_resource(global_triggers);
+    world.init_resource::<PickupValues>();
 }
