@@ -821,6 +821,7 @@ pub(crate) fn insert_trigger_data(
                     _ => unreachable!(),
                 }
             }
+            entity_world_mut.insert(Trigger(Box::new(trigger)));
         }
         1817 => {
             let mut trigger = PickupTrigger::default();
@@ -830,6 +831,7 @@ pub(crate) fn insert_trigger_data(
             if let Some(item_id) = object_data.get("80") {
                 trigger.item_id = item_id.parse()?;
             }
+            entity_world_mut.insert(Trigger(Box::new(trigger)));
         }
         _ => return Ok(()),
     }
