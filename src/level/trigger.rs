@@ -13,7 +13,7 @@ use indexmap::IndexMap;
 use nested_intervals::IntervalSetGeneric;
 use ordered_float::OrderedFloat;
 
-use crate::level::collision::{GlobalHitbox, Hitbox};
+use crate::level::collision::{ActiveCollider, GlobalHitbox, Hitbox};
 // use bevy::log::info_span;
 use crate::level::color::{ColorMod, HsvMod, ObjectColorCalculated};
 use crate::level::easing::Easing;
@@ -840,6 +840,14 @@ pub(crate) fn insert_trigger_data(
                 }
             }
             entity_world_mut.insert(Trigger(Box::new(trigger)));
+        }
+        1816 => {
+            if let Some(dynamic) = object_data.get("94") {
+                if str_to_bool(dynamic) {
+                    entity_world_mut.insert(ActiveCollider::default());
+                }
+            }
+            return Ok(());
         }
         1817 => {
             let mut trigger = PickupTrigger::default();

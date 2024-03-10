@@ -19733,7 +19733,14 @@
   "1816": {
     "texture": "edit_eCollisionBlock01_001.png",
     "default_z_layer": 5,
-    "default_z_order": 2
+    "default_z_order": 2,
+    "hitbox": {
+      "type": "Box",
+      "width": 30.0,
+      "height": 30.0,
+      "x": 0.0,
+      "y": 0.0
+    }
   },
   "1817": {
     "texture": "edit_ePickupBtn_001.png",
