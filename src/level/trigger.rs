@@ -22,6 +22,7 @@ use crate::level::player::Player;
 use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::alpha::AlphaTrigger;
 use crate::level::trigger::color::ColorTrigger;
+use crate::level::trigger::count::CountTrigger;
 use crate::level::trigger::follow::FollowTrigger;
 use crate::level::trigger::instant_count::{InstantCountMode, InstantCountTrigger};
 use crate::level::trigger::pickup::{PickupTrigger, PickupValues};
@@ -35,6 +36,7 @@ use crate::utils::{str_to_bool, U64Hash};
 
 mod alpha;
 mod color;
+mod count;
 mod empty;
 mod follow;
 mod instant_count;
@@ -789,6 +791,22 @@ pub(crate) fn insert_trigger_data(
             }
             if let Some(scale_y) = object_data.get("73") {
                 trigger.scale.y = scale_y.parse()?;
+            }
+            entity_world_mut.insert(Trigger(Box::new(trigger)));
+        }
+        1611 => {
+            let mut trigger = CountTrigger::default();
+            if let Some(target_group) = object_data.get("51") {
+                trigger.target_group = target_group.parse()?;
+            }
+            if let Some(activate) = object_data.get("56") {
+                trigger.activate = str_to_bool(activate);
+            }
+            if let Some(target_count) = object_data.get("77") {
+                trigger.target_count = target_count.parse()?;
+            }
+            if let Some(item_id) = object_data.get("80") {
+                trigger.item_id = item_id.parse()?;
             }
             entity_world_mut.insert(Trigger(Box::new(trigger)));
         }
