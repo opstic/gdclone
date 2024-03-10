@@ -160,6 +160,6 @@ impl TriggerFunction for InstantCountTrigger {
     }
 
     fn post(&self) -> bool {
-        false
+        true
     }
 }
