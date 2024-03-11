@@ -41,7 +41,6 @@ impl TriggerFunction for SpawnTrigger {
         &self,
         world: &mut World,
         _: Entity,
-        trigger_index: u32,
         system_state: &mut Box<dyn Any + Send + Sync>,
         _: f32,
         progress: f32,
@@ -90,7 +89,6 @@ impl TriggerFunction for SpawnTrigger {
                 entity,
                 trigger.clone(),
                 object_groups.groups.clone(),
-                trigger_index,
                 start_pos..end_pos,
             ));
 

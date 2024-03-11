@@ -2,29 +2,33 @@ use std::any::Any;
 use std::ops::Range;
 
 use bevy::ecs::system::SystemState;
-use bevy::prelude::{Entity, Query, Res, ResMut, With, Without, World};
+use bevy::prelude::{Component, Entity, Query, Res, ResMut, With, Without, World};
 use float_next_after::NextAfter;
 
+use crate::level::collision::ActiveCollider;
 use crate::level::color::ObjectColorCalculated;
 use crate::level::group::{GlobalGroup, GlobalGroups, ObjectGroups};
-use crate::level::trigger::pickup::PickupValues;
 use crate::level::trigger::{
     Activated, GlobalTriggers, MultiActivate, SpawnActivate, Trigger, TriggerData, TriggerFunction,
 };
 
 #[derive(Clone, Debug, Default)]
-pub(crate) struct CountTrigger {
-    pub(crate) item_id: u64,
-    pub(crate) target_count: i64,
+pub(crate) struct CollisionTrigger {
+    pub(crate) block1_id: u64,
+    pub(crate) block2_id: u64,
     pub(crate) target_group: u64,
     pub(crate) activate: bool,
 }
 
-type CountTriggerSystemParam = (
+#[derive(Component)]
+pub(crate) struct CollisionBlock(pub(crate) u64);
+
+type CollisionTriggerSystemParam = (
     Res<'static, GlobalGroups>,
-    Res<'static, PickupValues>,
     Res<'static, GlobalTriggers>,
     ResMut<'static, TriggerData>,
+    Query<'static, 'static, (&'static ActiveCollider, &'static CollisionBlock)>,
+    Query<'static, 'static, &'static CollisionBlock, Without<ActiveCollider>>,
     Query<'static, 'static, &'static mut GlobalGroup>,
     Query<
         'static,
@@ -40,7 +44,7 @@ type CountTriggerSystemParam = (
     >,
 );
 
-impl TriggerFunction for CountTrigger {
+impl TriggerFunction for CollisionTrigger {
     fn execute(
         &self,
         world: &mut World,
@@ -54,23 +58,59 @@ impl TriggerFunction for CountTrigger {
             return;
         }
 
-        let system_state: &mut SystemState<CountTriggerSystemParam> =
+        let system_state: &mut SystemState<CollisionTriggerSystemParam> =
             system_state.downcast_mut().unwrap();
 
         let (
             global_groups,
-            pickup_values,
             global_triggers,
             mut trigger_data,
+            collider_query,
+            collision_block_query,
             mut group_query,
             trigger_query,
         ) = system_state.get_mut(world);
 
-        let Some(entry) = pickup_values.0.get(self.item_id as usize) else {
+        let mut collider = None;
+
+        for (active_collider, collision_id) in &collider_query {
+            if collision_id.0 == self.block1_id {
+                collider = Some((active_collider, false));
+                break;
+            }
+            if collision_id.0 == self.block2_id {
+                collider = Some((active_collider, true));
+                break;
+            }
+        }
+
+        let Some((collider, is_block2)) = collider else {
             return;
         };
 
-        if *entry != self.target_count {
+        let mut collided = false;
+
+        if !is_block2 {
+            for collision in collision_block_query
+                .iter_many(collider.collided.iter().map(|(entity, _, _, _)| entity))
+            {
+                if collision.0 == self.block2_id {
+                    collided = true;
+                    break;
+                }
+            }
+        } else {
+            for collision in collision_block_query
+                .iter_many(collider.collided.iter().map(|(entity, _, _, _)| entity))
+            {
+                if collision.0 == self.block1_id {
+                    collided = true;
+                    break;
+                }
+            }
+        }
+
+        if !collided {
             trigger_data.to_spawn.push((
                 entity,
                 Trigger(Box::new(self.clone())),
@@ -135,7 +175,7 @@ impl TriggerFunction for CountTrigger {
     }
 
     fn create_system_state(&self, world: &mut World) -> Box<dyn Any + Send + Sync> {
-        Box::new(SystemState::<CountTriggerSystemParam>::new(world))
+        Box::new(SystemState::<CollisionTriggerSystemParam>::new(world))
     }
 
     fn target_id(&self) -> u64 {

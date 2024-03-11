@@ -28,7 +28,6 @@ impl TriggerFunction for FollowTrigger {
         &self,
         world: &mut World,
         _: Entity,
-        _: u32,
         system_state: &mut Box<dyn Any + Send + Sync>,
         _: f32,
         _: f32,

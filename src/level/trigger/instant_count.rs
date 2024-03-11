@@ -54,7 +54,6 @@ impl TriggerFunction for InstantCountTrigger {
         &self,
         world: &mut World,
         _: Entity,
-        index: u32,
         system_state: &mut Box<dyn Any + Send + Sync>,
         _: f32,
         progress: f32,
@@ -127,7 +126,6 @@ impl TriggerFunction for InstantCountTrigger {
                 entity,
                 trigger.clone(),
                 object_groups.groups.clone(),
-                index,
                 start_pos..end_pos,
             ));
 

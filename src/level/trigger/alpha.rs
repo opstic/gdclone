@@ -25,7 +25,6 @@ impl TriggerFunction for AlphaTrigger {
         &self,
         world: &mut World,
         _: Entity,
-        _: u32,
         system_state: &mut Box<dyn Any + Send + Sync>,
         previous_progress: f32,
         progress: f32,

@@ -3,7 +3,7 @@ use std::ops::{Add, Div, Mul, Sub};
 
 use bevy::ecs::entity::EntityHasher;
 use bevy::log::{info, warn};
-use bevy::math::Vec3A;
+use bevy::math::{Vec3A, Vec4, Vec4Swizzles};
 use bevy::tasks::AsyncComputeTaskPool;
 use libdeflater::Decompressor;
 
@@ -102,6 +102,11 @@ pub(crate) fn hsv_to_rgb([h, s, v]: [f32; 3]) -> [f32; 3] {
         5 => [v, pqt.x, pqt.y],
         _ => unreachable!(),
     }
+}
+
+#[inline]
+pub(crate) fn intersect_aabb(a: Vec4, b: Vec4) -> bool {
+    a.cmple(-b.zwxy()).all()
 }
 
 const SECTION_SIZE_POWER: u32 = 7;

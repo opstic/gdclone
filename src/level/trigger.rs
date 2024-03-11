@@ -21,6 +21,7 @@ use crate::level::group::ObjectGroups;
 use crate::level::player::Player;
 use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::alpha::AlphaTrigger;
+use crate::level::trigger::collision::{CollisionBlock, CollisionTrigger};
 use crate::level::trigger::color::ColorTrigger;
 use crate::level::trigger::count::CountTrigger;
 use crate::level::trigger::follow::FollowTrigger;
@@ -35,6 +36,7 @@ use crate::level::trigger::toggle::ToggleTrigger;
 use crate::utils::{str_to_bool, U64Hash};
 
 mod alpha;
+mod collision;
 mod color;
 mod count;
 mod empty;
@@ -172,7 +174,6 @@ pub(crate) trait TriggerFunction: DynClone + Send + Sync + 'static {
         &self,
         world: &mut World,
         entity: Entity,
-        trigger_index: u32,
         system_state: &mut Box<dyn Any + Send + Sync>,
         previous_progress: f32,
         progress: f32,
@@ -198,7 +199,7 @@ dyn_clone::clone_trait_object!(TriggerFunction);
 
 #[derive(Default, Resource)]
 pub(crate) struct TriggerData {
-    stopped: IndexMap<u64, u32, U64Hash>,
+    stopped: IndexMap<u64, f32, U64Hash>,
     data: AHashMap<
         TypeId,
         (
@@ -206,8 +207,8 @@ pub(crate) struct TriggerData {
             SyncUnsafeCell<Box<dyn Any + Send + Sync>>,
         ),
     >,
-    to_spawn: Vec<(Entity, Trigger, Vec<u64>, u32, Range<f32>)>,
-    spawned: Vec<(Entity, Trigger, Vec<u64>, u32, Range<f32>)>,
+    to_spawn: Vec<(Entity, Trigger, Vec<u64>, Range<f32>)>,
+    spawned: Vec<(Entity, Trigger, Vec<u64>, Range<f32>)>,
 }
 
 pub(crate) fn process_triggers(world: &mut World) {
@@ -301,12 +302,12 @@ pub(crate) fn process_triggers(world: &mut World) {
                     continue;
                 }
 
-                for (stopped_group, stop_index) in &trigger_data.stopped {
+                for (stopped_group, stop_pos) in &trigger_data.stopped {
                     if object_groups
                         .groups
                         .iter()
                         .any(|group_id| group_id == stopped_group)
-                        && entity_index < stop_index
+                        && trigger_range.start.0 < *stop_pos
                     {
                         continue 'trigger_loop;
                     }
@@ -318,7 +319,6 @@ pub(crate) fn process_triggers(world: &mut World) {
                     post_triggers.push((
                         trigger.clone(),
                         trigger_entity,
-                        *entity_index,
                         previous_progress,
                         current_progress,
                         range,
@@ -333,7 +333,6 @@ pub(crate) fn process_triggers(world: &mut World) {
                     trigger,
                     world_mut,
                     trigger_entity,
-                    *entity_index,
                     previous_progress,
                     current_progress,
                     range,
@@ -358,7 +357,7 @@ pub(crate) fn process_triggers(world: &mut World) {
             .append(&mut unsafe { &mut **trigger_data_cell.get() }.to_spawn);
 
         unsafe { &mut **trigger_data_cell.get() }.spawned.retain(
-            |(entity, trigger, groups, entity_index, range)| {
+            |(entity, trigger, groups, range)| {
                 let trigger_data = unsafe { &mut **trigger_data_cell.get() };
 
                 let trigger_range_length = range.end - range.start;
@@ -371,9 +370,9 @@ pub(crate) fn process_triggers(world: &mut World) {
                     previous_progress = 0.;
                 }
 
-                for (stopped_group, stop_index) in &trigger_data.stopped {
+                for (stopped_group, stop_pos) in &trigger_data.stopped {
                     if groups.iter().any(|group_id| group_id == stopped_group)
-                        && entity_index < stop_index
+                        && range.start < *stop_pos
                     {
                         return false;
                     }
@@ -383,7 +382,6 @@ pub(crate) fn process_triggers(world: &mut World) {
                     post_triggers.push((
                         trigger.clone(),
                         *entity,
-                        *entity_index,
                         previous_progress,
                         current_progress,
                         range.clone(),
@@ -398,7 +396,6 @@ pub(crate) fn process_triggers(world: &mut World) {
                     trigger,
                     world_mut,
                     *entity,
-                    *entity_index,
                     previous_progress,
                     current_progress,
                     range.clone(),
@@ -409,9 +406,7 @@ pub(crate) fn process_triggers(world: &mut World) {
             },
         );
 
-        for (trigger, entity, entity_index, previous_progress, current_progress, range) in
-            post_triggers
-        {
+        for (trigger, entity, previous_progress, current_progress, range) in post_triggers {
             // Very unsafe but works for now
             let world_mut = unsafe { world_cell.world_mut() };
 
@@ -419,7 +414,6 @@ pub(crate) fn process_triggers(world: &mut World) {
                 &trigger,
                 world_mut,
                 entity,
-                entity_index,
                 previous_progress,
                 current_progress,
                 range,
@@ -433,7 +427,6 @@ fn run_trigger(
     trigger: &Trigger,
     world: &mut World,
     entity: Entity,
-    entity_index: u32,
     previous_progress: f32,
     current_progress: f32,
     range: Range<f32>,
@@ -476,7 +469,6 @@ fn run_trigger(
     trigger.0.execute(
         world,
         entity,
-        entity_index,
         trigger_system_state.get_mut(),
         previous_progress,
         current_progress,
@@ -841,7 +833,26 @@ pub(crate) fn insert_trigger_data(
             }
             entity_world_mut.insert(Trigger(Box::new(trigger)));
         }
+        1815 => {
+            let mut trigger = CollisionTrigger::default();
+            if let Some(target_group) = object_data.get("51") {
+                trigger.target_group = target_group.parse()?;
+            }
+            if let Some(activate) = object_data.get("56") {
+                trigger.activate = str_to_bool(activate);
+            }
+            if let Some(block1_id) = object_data.get("80") {
+                trigger.block1_id = block1_id.parse()?;
+            }
+            if let Some(block2_id) = object_data.get("95") {
+                trigger.block2_id = block2_id.parse()?;
+            }
+            entity_world_mut.insert(Trigger(Box::new(trigger)));
+        }
         1816 => {
+            if let Some(id) = object_data.get("80") {
+                entity_world_mut.insert(CollisionBlock(id.parse()?));
+            }
             if let Some(dynamic) = object_data.get("94") {
                 if str_to_bool(dynamic) {
                     entity_world_mut.insert(ActiveCollider::default());

@@ -3,10 +3,12 @@ use std::f32::consts::{FRAC_1_PI, FRAC_2_PI};
 use bevy::math::{Vec2, Vec2Swizzles, Vec3, Vec4, Vec4Swizzles};
 use bevy::prelude::{
     Color, Component, Entity, GizmoConfigGroup, GizmoPrimitive2d, Gizmos, Primitive2d, Query, Res,
+    Without,
 };
 
 use crate::level::section::{GlobalSections, Section};
 use crate::level::transform::{GlobalTransform2d, Transform2d};
+use crate::utils::intersect_aabb;
 
 #[derive(Component)]
 pub(crate) enum Hitbox {
@@ -158,7 +160,7 @@ impl From<(&Hitbox, &Transform2d, &GlobalTransform2d)> for GlobalHitbox {
 impl GlobalHitbox {
     #[inline]
     pub(crate) fn intersect(&self, other: &GlobalHitbox) -> (bool, Option<Vec2>) {
-        if self.aabb.cmplt(-other.aabb.zwxy()).any() {
+        if !intersect_aabb(self.aabb, other.aabb) {
             return (false, None);
         }
 
@@ -220,23 +222,29 @@ pub(crate) struct ActiveCollider {
 pub(crate) fn update_collision(
     sections: Res<GlobalSections>,
     mut active_colliders: Query<(Entity, &mut ActiveCollider, &GlobalHitbox, &Section)>,
-    others: Query<(Entity, &GlobalHitbox)>,
+    others: Query<(Entity, &GlobalHitbox), Without<ActiveCollider>>,
 ) {
+    let others = &others;
+
     for (collider_entity, mut active_collider, collider_hitbox, collider_section) in
         &mut active_colliders
     {
         active_collider.collided.clear();
 
-        for (other_entity, other_hitbox) in others.iter_many(
-            sections.sections[collider_section.current as usize]
-                .iter()
-                .filter(|entity| **entity != collider_entity),
-        ) {
-            let (collided, collided_vector) = collider_hitbox.intersect(other_hitbox);
-            if collided {
-                active_collider
-                    .collided
-                    .push((other_entity, *other_hitbox, collided_vector, true));
+        let start = collider_section.current.saturating_sub(1) as usize;
+        let end = collider_section.current.saturating_add(1) as usize;
+        let sections = &sections.sections[start..end];
+        for section in sections {
+            for (other_entity, other_hitbox) in others.iter_many(section) {
+                let (collided, collided_vector) = collider_hitbox.intersect(other_hitbox);
+                if !collided {
+                    active_collider.collided.push((
+                        other_entity,
+                        *other_hitbox,
+                        collided_vector,
+                        true,
+                    ));
+                }
             }
         }
     }

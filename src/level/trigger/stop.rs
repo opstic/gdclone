@@ -18,19 +18,16 @@ impl TriggerFunction for StopTrigger {
         &self,
         world: &mut World,
         _: Entity,
-        trigger_index: u32,
         system_state: &mut Box<dyn Any + Send + Sync>,
         _: f32,
         _: f32,
-        _: Range<f32>,
+        range: Range<f32>,
     ) {
         let system_state: &mut SystemState<StopTriggerSystemParam> =
             system_state.downcast_mut().unwrap();
 
         let mut trigger_data = system_state.get_mut(world);
-        trigger_data
-            .stopped
-            .insert(self.target_group, trigger_index);
+        trigger_data.stopped.insert(self.target_group, range.start);
     }
 
     fn create_system_state(&self, world: &mut World) -> Box<dyn Any + Send + Sync> {
