@@ -18,19 +18,19 @@ use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::utils::{HashMap, Instant};
 use serde::{Deserialize, Deserializer};
 
-use crate::asset::compressed_image::CompressedImage;
 use crate::utils::fast_scale;
 
 #[derive(Asset, TypePath, Debug)]
 pub struct Cocos2dAtlas {
-    texture: Handle<CompressedImage>,
+    texture: Handle<Image>,
+    squared: Handle<Image>,
     frames: HashMap<String, Cocos2dFrame>,
 }
 
 #[derive(Clone, Resource, Default)]
 pub(crate) struct Cocos2dFrames {
     pub(crate) index: HashMap<String, usize>,
-    pub(crate) frames: Vec<(Cocos2dFrame, AssetId<CompressedImage>)>,
+    pub(crate) frames: Vec<(Cocos2dFrame, AssetId<Image>, AssetId<Image>)>,
 }
 
 pub(crate) fn move_frames_to_resource(
@@ -45,7 +45,9 @@ pub(crate) fn move_frames_to_resource(
                     for (texture_name, frame_info) in std::mem::take(&mut atlas.frames) {
                         let frame_index = frames.frames.len();
                         frames.index.insert(texture_name, frame_index);
-                        frames.frames.push((frame_info, atlas.texture.id()));
+                        frames
+                            .frames
+                            .push((frame_info, atlas.texture.id(), atlas.squared.id()));
                     }
                 }
             }
@@ -171,7 +173,7 @@ impl AssetLoader for Cocos2dAtlasLoader {
             )
             .await?;
 
-            let texture_future: Task<Result<CompressedImage, anyhow::Error>> =
+            let texture_future: Task<Result<(Image, Image), anyhow::Error>> =
                 async_compute.spawn(async move {
                     let mut thread_chunk_size = texture.data.len() / async_compute.thread_num();
                     if thread_chunk_size % 4 != 0 {
@@ -195,11 +197,28 @@ impl AssetLoader for Cocos2dAtlasLoader {
 
                     texture.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor::linear());
 
-                    Ok(CompressedImage::from(texture))
+                    let mut squared_alpha = texture.clone();
+                    async_compute.scope(|scope| {
+                        for chunk in squared_alpha.data.chunks_mut(thread_chunk_size) {
+                            scope.spawn(async move {
+                                for pixel in chunk.chunks_exact_mut(4) {
+                                    pixel[0] = fast_scale(pixel[0], pixel[3]);
+                                    pixel[1] = fast_scale(pixel[1], pixel[3]);
+                                    pixel[2] = fast_scale(pixel[2], pixel[3]);
+                                    pixel[3] = fast_scale(pixel[3], pixel[3]);
+                                }
+                            });
+                        }
+                    });
+
+                    Ok((texture, squared_alpha))
                 });
 
-            let texture_handle =
-                load_context.add_labeled_asset("texture".to_string(), texture_future.await?);
+            let (texture, squared) = texture_future.await?;
+
+            let texture_handle = load_context.add_labeled_asset("texture".to_string(), texture);
+
+            let squared_handle = load_context.add_labeled_asset("squared".to_string(), squared);
 
             info!(
                 "Loaded {}, took {:?}.",
@@ -214,6 +233,7 @@ impl AssetLoader for Cocos2dAtlasLoader {
             );
             Ok(Cocos2dAtlas {
                 texture: texture_handle,
+                squared: squared_handle,
                 frames: frames_future.await,
             })
         })
@@ -244,7 +264,7 @@ async fn load_texture<'a>(
         supported_compressed_formats,
         true,
         ImageSampler::Default,
-        RenderAssetUsages::default(),
+        RenderAssetUsages::RENDER_WORLD,
     )
     .unwrap())
 }

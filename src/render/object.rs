@@ -47,7 +47,6 @@ use bevy::tasks::ComputeTaskPool;
 use bevy::utils::{syncunsafecell::SyncUnsafeCell, FloatOrd};
 use indexmap::IndexMap;
 
-use crate::asset::compressed_image::CompressedImage;
 use crate::level::color::ObjectColorCalculated;
 use crate::level::transform::GlobalTransform2d;
 use crate::level::{object::Object, section::GlobalSections, LevelWorld};
@@ -208,9 +207,8 @@ bitflags::bitflags! {
     // MSAA uses the highest 3 bits for the MSAA log2(sample count) to support up to 128x MSAA.
     pub struct ObjectPipelineKey: u32 {
         const NONE                              = 0;
-        const SQUARE_TEXTURE_ALPHA              = 1 << 0;
-        const ADDITIVE_BLENDING                 = 1 << 1;
-        const NO_TEXTURE_ARRAY                  = 1 << 2;
+        const ADDITIVE_BLENDING                 = 1 << 0;
+        const NO_TEXTURE_ARRAY                  = 1 << 1;
         const MSAA_RESERVED_BITS                = Self::MSAA_MASK_BITS << Self::MSAA_SHIFT_BITS;
     }
 }
@@ -255,10 +253,6 @@ impl SpecializedRenderPipeline for ObjectPipeline {
         );
 
         let mut shader_defs = Vec::new();
-
-        if key.contains(ObjectPipelineKey::SQUARE_TEXTURE_ALPHA) {
-            shader_defs.push("SQUARE_TEXTURE_ALPHA".into());
-        }
 
         if key.contains(ObjectPipelineKey::ADDITIVE_BLENDING) {
             shader_defs.push("ADDITIVE_BLENDING".into());
@@ -317,7 +311,7 @@ pub struct ExtractedObject {
     custom_size: Option<Vec2>,
     /// Asset ID of the [`Image`] of this sprite
     /// PERF: storing an `AssetId` instead of `Handle<Image>` enables some optimizations (`ExtractedSprite` becomes `Copy` and doesn't need to be dropped)
-    image_handle_id: AssetId<CompressedImage>,
+    image_handle_id: AssetId<Image>,
     flip_x: bool,
     flip_y: bool,
     anchor: Vec2,
@@ -357,7 +351,7 @@ pub(crate) struct ExtractSystemStateCache {
                     &'static GlobalTransform2d,
                     &'static Object,
                     &'static ObjectColorCalculated,
-                    &'static Handle<CompressedImage>,
+                    &'static Handle<Image>,
                 ),
             >,
         )>,
@@ -406,7 +400,7 @@ pub(crate) fn extract_objects(
                     &GlobalTransform2d,
                     &Object,
                     &ObjectColorCalculated,
-                    &Handle<CompressedImage>,
+                    &Handle<Image>,
                 )>,
             )> = SystemState::new(world_mut);
 
@@ -555,7 +549,7 @@ pub(crate) fn queue_objects(
     let blending_pipeline = pipelines.specialize(
         &pipeline_cache,
         &object_pipeline,
-        view_key | ObjectPipelineKey::SQUARE_TEXTURE_ALPHA | ObjectPipelineKey::ADDITIVE_BLENDING,
+        view_key | ObjectPipelineKey::ADDITIVE_BLENDING,
     );
 
     for mut transparent_phase in &mut phases {
@@ -633,7 +627,7 @@ pub(crate) fn prepare_objects(
     view_uniforms: Res<ViewUniforms>,
     object_pipeline: Res<ObjectPipeline>,
     mut image_bind_groups: ResMut<ImageBindGroups>,
-    gpu_images: Res<RenderAssets<CompressedImage>>,
+    gpu_images: Res<RenderAssets<Image>>,
     extracted_layers: Res<ExtractedLayers>,
     mut phases: Query<&mut RenderPhase<Transparent2d>>,
     fallbacks: Res<Fallbacks>,
@@ -727,8 +721,7 @@ pub(crate) fn prepare_objects(
                                 Some(index) => {
                                     let y = index % fallbacks.texture_array_size;
                                     let x = (index - y) / fallbacks.texture_array_size;
-                                    let image_group_entry = images[index];
-                                    (x, y, image_group_entry.1)
+                                    (x, y, images[index].1)
                                 }
                                 None => {
                                     let Some(gpu_image) =
@@ -880,7 +873,7 @@ pub(crate) fn prepare_objects(
 }
 
 fn create_image_bind_group(
-    image_handles: &[(AssetId<CompressedImage>, Vec2, &TextureView, &Sampler)],
+    image_handles: &[(AssetId<Image>, Vec2, &TextureView, &Sampler)],
     image_bind_group_size: usize,
     object_pipeline: &ObjectPipeline,
     render_device: &RenderDevice,

@@ -1,11 +1,12 @@
 use std::hash::{Hash, Hasher};
 
+use bevy::asset::{AssetId, Handle};
 use bevy::ecs::query::{QueryData, QueryFilter};
 use bevy::hierarchy::{BuildChildren, BuildWorldChildren, Children, Parent};
 use bevy::math::{Vec3, Vec3A, Vec4};
 use bevy::prelude::{
-    Commands, Component, DetectChanges, DetectChangesMut, Entity, Mut, Query, Ref, Res, ResMut,
-    Resource, With, Without, World,
+    Commands, Component, DetectChanges, DetectChangesMut, Entity, Image, Mut, ParallelCommands,
+    Query, Ref, Res, ResMut, Resource, With, Without, World,
 };
 use bevy::reflect::Reflect;
 use bevy::tasks::ComputeTaskPool;
@@ -431,6 +432,7 @@ pub(crate) struct ObjectColor {
     pub(crate) hsv: Option<HsvMod>,
     pub(crate) object_opacity: f32,
     pub(crate) object_color_kind: ObjectColorKind,
+    pub(crate) texture_ids: (AssetId<Image>, AssetId<Image>),
 }
 
 impl Default for ObjectColor {
@@ -441,6 +443,7 @@ impl Default for ObjectColor {
             hsv: None,
             object_opacity: 1.,
             object_color_kind: ObjectColorKind::None,
+            texture_ids: (AssetId::invalid(), AssetId::invalid()),
         }
     }
 }
@@ -463,9 +466,15 @@ impl Default for ObjectColorCalculated {
 }
 
 pub(crate) fn update_object_color(
+    par_commands: ParallelCommands,
     global_sections: Res<GlobalSections>,
     group_archetypes: Query<(Ref<GroupArchetypeCalculated>, Ref<Pulses>)>,
-    objects: Query<(&ObjectGroups, &mut ObjectColor, &mut ObjectColorCalculated)>,
+    objects: Query<(
+        Entity,
+        &ObjectGroups,
+        &mut ObjectColor,
+        &mut ObjectColorCalculated,
+    )>,
     color_channels: Query<Ref<ColorChannelCalculated>>,
 ) {
     let sections_to_update = &global_sections.sections[global_sections.visible.clone()];
@@ -474,6 +483,7 @@ pub(crate) fn update_object_color(
 
     let thread_chunk_size = (sections_to_update.len() / compute_task_pool.thread_num()).max(1);
 
+    let par_commands = &par_commands;
     let objects = &objects;
     let color_channels = &color_channels;
     let group_archetypes = &group_archetypes;
@@ -484,7 +494,7 @@ pub(crate) fn update_object_color(
                 let mut color_cache = AHashMap::new();
                 for section in thread_chunk {
                     let mut iter = unsafe { objects.iter_many_unsafe(section) };
-                    while let Some((object_groups, object_color, mut calculated)) =
+                    while let Some((entity, object_groups, object_color, mut calculated)) =
                         iter.fetch_next()
                     {
                         if let Some(cached_calculated) = color_cache.get(&(
@@ -493,9 +503,23 @@ pub(crate) fn update_object_color(
                             object_color.channel_entity,
                             object_color.hsv,
                         )) {
-                            let Some(cached_calculated) = cached_calculated else {
+                            let Some(cached_calculated): &Option<ObjectColorCalculated> =
+                                cached_calculated
+                            else {
                                 continue;
                             };
+
+                            if calculated.blending != cached_calculated.blending {
+                                par_commands.command_scope(|mut commands| {
+                                    commands.entity(entity).insert(
+                                        if !cached_calculated.blending {
+                                            Handle::Weak(object_color.texture_ids.0)
+                                        } else {
+                                            Handle::Weak(object_color.texture_ids.1)
+                                        },
+                                    );
+                                });
+                            }
 
                             *calculated = *cached_calculated;
                             calculated.color[3] *= object_color.object_opacity;
@@ -566,6 +590,16 @@ pub(crate) fn update_object_color(
                                     hsv.apply_rgba(&mut color);
                                 }
                             }
+                        }
+
+                        if calculated.blending != blending {
+                            par_commands.command_scope(|mut commands| {
+                                commands.entity(entity).insert(if !blending {
+                                    Handle::Weak(object_color.texture_ids.0)
+                                } else {
+                                    Handle::Weak(object_color.texture_ids.1)
+                                });
+                            });
                         }
 
                         calculated.color = color;

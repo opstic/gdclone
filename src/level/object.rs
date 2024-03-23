@@ -243,9 +243,10 @@ pub(crate) fn spawn_object(
             cocos2d_frames.index.get("emptyFrame.png").unwrap()
         };
 
-    let (frame, image_asset_id) = &cocos2d_frames.frames[*frame_index];
+    let (frame, image_asset_id, squared_asset_id) = &cocos2d_frames.frames[*frame_index];
 
     object.frame = *frame;
+    object_color.texture_ids = (*image_asset_id, *squared_asset_id);
 
     let section_index = section_index_from_x(transform.translation.x);
 
@@ -423,9 +424,10 @@ fn recursive_spawn_children(
             continue;
         };
 
-        let (frame, image_asset_id) = &cocos2d_frames.frames[*frame_index];
+        let (frame, image_asset_id, squared_asset_id) = &cocos2d_frames.frames[*frame_index];
 
         object.frame = *frame;
+        object_color.texture_ids = (*image_asset_id, *squared_asset_id);
 
         let child_transform = parent_transform.mul_transform(transform);
 
