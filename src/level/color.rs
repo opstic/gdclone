@@ -5,15 +5,14 @@ use bevy::ecs::query::{QueryData, QueryFilter};
 use bevy::hierarchy::{BuildChildren, BuildWorldChildren, Children, Parent};
 use bevy::math::{Vec3, Vec3A, Vec4};
 use bevy::prelude::{
-    Commands, Component, DetectChanges, DetectChangesMut, Entity, Image, Mut, ParallelCommands,
-    Query, Ref, Res, ResMut, Resource, With, Without, World,
+    Component, DetectChanges, DetectChangesMut, Entity, Image, Mut, ParallelCommands, Query, Ref,
+    Res, Resource, With, Without, World,
 };
 use bevy::reflect::Reflect;
 use bevy::tasks::ComputeTaskPool;
 use bevy::utils::{default, hashbrown, HashMap as AHashMap};
 use dashmap::DashMap;
 use serde::Deserialize;
-use spin::Mutex;
 
 use crate::level::group::{GroupArchetypeCalculated, ObjectGroups};
 use crate::level::{de, section::GlobalSections};
@@ -202,8 +201,8 @@ pub(crate) struct ColorChannelCalculated {
 }
 
 pub(crate) fn update_color_channel_calculated(
-    commands: Commands,
-    mut global_color_channels: ResMut<GlobalColorChannels>,
+    par_commands: ParallelCommands,
+    global_color_channels: Res<GlobalColorChannels>,
     mut root_color_channels: Query<
         (
             Entity,
@@ -225,8 +224,6 @@ pub(crate) fn update_color_channel_calculated(
         With<Parent>,
     >,
 ) {
-    let mutex = Mutex::new((commands, &mut *global_color_channels));
-
     root_color_channels.par_iter_mut().for_each(
         |(entity, color_channel, pulses, mut calculated, children)| {
             let should_update =
@@ -281,27 +278,23 @@ pub(crate) fn update_color_channel_calculated(
                         calculated.deferred = false;
                     } else {
                         // Fix the hierarchy for the next iteration
-                        let (commands, global_color_channels) = &mut *mutex.lock();
-                        let mut parent_entity = if let Some(parent_entity) =
-                            global_color_channels.0.get(&copied_index)
-                        {
-                            if *parent_entity == entity {
-                                // Recursive color channel
-                                calculated.deferred = true;
-                                return;
-                            }
-                            commands.entity(*parent_entity)
-                        } else {
-                            let entity = commands.spawn((
-                                GlobalColorChannel::default(),
-                                ColorChannelCalculated::default(),
-                                Pulses::default(),
-                            ));
-                            global_color_channels.0.insert(copied_index, entity.id());
-                            entity
-                        };
+                        par_commands.command_scope(|mut commands| {
+                            let mut parent_entity = if let Some(parent_entity) =
+                                global_color_channels.0.get(&copied_index)
+                            {
+                                if *parent_entity == entity {
+                                    // Recursive color channel
+                                    calculated.deferred = true;
+                                    return;
+                                }
+                                commands.entity(*parent_entity)
+                            } else {
+                                // Use a placeholder
+                                commands.entity(*global_color_channels.0.get(&0).unwrap())
+                            };
 
-                        parent_entity.add_child(entity);
+                            parent_entity.add_child(entity);
+                        });
 
                         calculated.deferred = true;
                         return;
@@ -315,7 +308,7 @@ pub(crate) fn update_color_channel_calculated(
 
             unsafe {
                 recursive_propagate_color(
-                    &mutex,
+                    &par_commands,
                     children,
                     color_channel.id,
                     calculated.color,
@@ -328,7 +321,7 @@ pub(crate) fn update_color_channel_calculated(
 }
 
 unsafe fn recursive_propagate_color<'w, 's, D: QueryData, F: QueryFilter>(
-    mutex: &Mutex<(Commands, &mut GlobalColorChannels)>,
+    par_commands: &ParallelCommands,
     children: &Children,
     parent_id: u64,
     parent_color: Vec4,
@@ -367,18 +360,18 @@ unsafe fn recursive_propagate_color<'w, 's, D: QueryData, F: QueryFilter>(
         } = color_channel.kind
         else {
             // Fix the hierarchy for the next iteration
-            let (commands, _) = &mut *mutex.lock();
-
-            commands.entity(entity).remove_parent();
+            par_commands.command_scope(|mut commands| {
+                commands.entity(entity).remove_parent();
+            });
             calculated.deferred = true;
             continue;
         };
 
         if parent_id != copied_index {
             // Fix the hierarchy for the next iteration
-            let (commands, _) = &mut *mutex.lock();
-
-            commands.entity(entity).remove_parent();
+            par_commands.command_scope(|mut commands| {
+                commands.entity(entity).remove_parent();
+            });
             calculated.deferred = true;
             continue;
         }
@@ -414,7 +407,7 @@ unsafe fn recursive_propagate_color<'w, 's, D: QueryData, F: QueryFilter>(
 
         unsafe {
             recursive_propagate_color(
-                mutex,
+                par_commands,
                 children,
                 color_channel.id,
                 calculated.color,
