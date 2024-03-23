@@ -30,7 +30,7 @@ impl Transform2d {
     #[inline]
     pub(crate) fn translate_around_cos_sin(&mut self, point: Vec2, angle: Vec2) {
         self.translation =
-            (point + (self.translation.xy() - point).rotate(angle)).extend(self.translation.z)
+            (point + angle.rotate(self.translation.xy() - point)).extend(self.translation.z)
     }
 }
 
