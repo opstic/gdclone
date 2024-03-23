@@ -30,7 +30,7 @@ bevy = { version = "0.13", default-features = false, features = [
     "webgl2",
     "x11",
 ] }
-bevy_egui = "0.25"
+bevy_egui = "0.26"
 bevy_kira_audio = { version = "0.19", default-features = false, features = ["mp3"] }
 bitflags = "2.4"
 bytemuck = { version = "1.14", features = ["derive"] }
