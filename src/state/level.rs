@@ -15,7 +15,7 @@ use bevy::prelude::{
     NextState, OnEnter, OnExit, OrthographicProjection, Query, Res, ResMut, Resource, Schedule,
     Transform, With, Without,
 };
-use bevy::time::Time;
+use bevy::time::{Time, Virtual};
 use bevy_egui::EguiContexts;
 use bevy_kira_audio::{AudioInstance, AudioTween, PlaybackState};
 
@@ -295,6 +295,14 @@ fn update_level_world(
     let LevelWorld::World(ref mut world) = *level_world else {
         panic!("World is supposed to be created");
     };
+
+    world.resource_scope(|_, mut time: Mut<Time<Virtual>>| {
+        if options.pause_player {
+            time.pause();
+        } else {
+            time.unpause();
+        }
+    });
 
     world.run_schedule(First);
     world.run_schedule(PreUpdate);
