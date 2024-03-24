@@ -3,6 +3,7 @@ use std::ops::Range;
 
 use bevy::ecs::system::SystemState;
 use bevy::prelude::{Entity, Query, Res, ResMut, With, Without, World};
+use bevy::time::Time;
 use float_next_after::NextAfter;
 
 use crate::level::color::ObjectColorCalculated;
@@ -21,6 +22,7 @@ pub(crate) struct CountTrigger {
 }
 
 type CountTriggerSystemParam = (
+    Res<'static, Time>,
     Res<'static, GlobalGroups>,
     Res<'static, PickupValues>,
     Res<'static, GlobalTriggers>,
@@ -58,6 +60,7 @@ impl TriggerFunction for CountTrigger {
             system_state.downcast_mut().unwrap();
 
         let (
+            time,
             global_groups,
             pickup_values,
             global_triggers,
@@ -71,11 +74,14 @@ impl TriggerFunction for CountTrigger {
         };
 
         if *entry != self.target_count {
+            let next_pos = global_triggers
+                .speed_changes
+                .pos_for_time(time.elapsed_seconds());
             trigger_data.to_spawn.push((
                 entity,
                 Trigger(Box::new(self.clone())),
                 Vec::new(),
-                range,
+                next_pos..next_pos,
             ));
             return;
         }

@@ -3,6 +3,7 @@ use std::ops::Range;
 
 use bevy::ecs::system::SystemState;
 use bevy::prelude::{Component, Entity, Query, Res, ResMut, With, Without, World};
+use bevy::time::Time;
 use float_next_after::NextAfter;
 
 use crate::level::collision::ActiveCollider;
@@ -24,6 +25,7 @@ pub(crate) struct CollisionTrigger {
 pub(crate) struct CollisionBlock(pub(crate) u64);
 
 type CollisionTriggerSystemParam = (
+    Res<'static, Time>,
     Res<'static, GlobalGroups>,
     Res<'static, GlobalTriggers>,
     ResMut<'static, TriggerData>,
@@ -62,6 +64,7 @@ impl TriggerFunction for CollisionTrigger {
             system_state.downcast_mut().unwrap();
 
         let (
+            time,
             global_groups,
             global_triggers,
             mut trigger_data,
@@ -111,11 +114,14 @@ impl TriggerFunction for CollisionTrigger {
         }
 
         if !collided {
+            let next_pos = global_triggers
+                .speed_changes
+                .pos_for_time(time.elapsed_seconds());
             trigger_data.to_spawn.push((
                 entity,
                 Trigger(Box::new(self.clone())),
                 Vec::new(),
-                range,
+                next_pos..next_pos,
             ));
             return;
         }
