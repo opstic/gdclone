@@ -30,6 +30,7 @@ use crate::level::trigger::pickup::{PickupTrigger, PickupValues};
 use crate::level::trigger::pulse::PulseTrigger;
 use crate::level::trigger::r#move::MoveTrigger;
 use crate::level::trigger::rotate::RotateTrigger;
+use crate::level::trigger::shake::{ShakeData, ShakeTrigger};
 use crate::level::trigger::spawn::SpawnTrigger;
 use crate::level::trigger::stop::StopTrigger;
 use crate::level::trigger::toggle::ToggleTrigger;
@@ -46,6 +47,7 @@ mod r#move;
 mod pickup;
 mod pulse;
 mod rotate;
+pub(crate) mod shake;
 mod spawn;
 mod stop;
 mod toggle;
@@ -786,6 +788,22 @@ pub(crate) fn insert_trigger_data(
             }
             entity_world_mut.insert(Trigger(Box::new(trigger)));
         }
+        1520 => {
+            let mut trigger = ShakeTrigger::default();
+            if let Some(duration) = object_data.get("10") {
+                trigger.duration = duration.parse()?;
+                if trigger.duration.is_sign_negative() {
+                    trigger.duration = 0.;
+                }
+            }
+            if let Some(strength) = object_data.get("75") {
+                trigger.strength = strength.parse()?;
+            }
+            if let Some(interval) = object_data.get("84") {
+                trigger.interval = interval.parse()?;
+            }
+            entity_world_mut.insert(Trigger(Box::new(trigger)));
+        }
         1611 => {
             let mut trigger = CountTrigger::default();
             if let Some(target_group) = object_data.get("51") {
@@ -981,4 +999,5 @@ pub(crate) fn construct_trigger_index(world: &mut World) {
 
     world.insert_resource(global_triggers);
     world.init_resource::<PickupValues>();
+    world.init_resource::<ShakeData>();
 }

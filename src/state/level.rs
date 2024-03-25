@@ -24,6 +24,7 @@ use crate::level::object::Object;
 use crate::level::player::Player;
 use crate::level::section::GlobalSections;
 use crate::level::transform::Transform2d;
+use crate::level::trigger::shake::ShakeData;
 use crate::level::trigger::GlobalTriggers;
 use crate::level::{LevelWorld, SongOffset};
 use crate::state::GameState;
@@ -71,6 +72,7 @@ pub(crate) struct Options {
     pub(crate) hide_triggers: bool,
     pause_player: bool,
     camera_limit: f32,
+    disable_shake: bool,
 }
 
 impl Default for Options {
@@ -85,21 +87,29 @@ impl Default for Options {
             hide_triggers: true,
             pause_player: false,
             camera_limit: 570.,
+            disable_shake: false,
         }
     }
 }
 
+#[derive(Component)]
+struct ActualCameraTranslation(Vec2);
+
 fn level_setup(
+    mut commands: Commands,
     mut options: ResMut<Options>,
-    mut cameras: Query<(&mut Transform, &mut OrthographicProjection), With<Camera>>,
+    mut cameras: Query<(Entity, &mut Transform, &mut OrthographicProjection), With<Camera>>,
     mut level_world: ResMut<LevelWorld>,
     mut audio_instances: ResMut<Assets<AudioInstance>>,
     song_players: Query<&SongPlayer>,
 ) {
     *options = Options::default();
-    for (mut transform, mut projection) in &mut cameras {
+    for (entity, mut transform, mut projection) in &mut cameras {
         transform.translation = Vec3::ZERO;
         projection.scale = 1.;
+        commands
+            .entity(entity)
+            .insert(ActualCameraTranslation(Vec2::ZERO));
     }
     let LevelWorld::World(ref mut world) = *level_world else {
         panic!("World is supposed to be created");
@@ -153,6 +163,7 @@ fn render_option_gui(
         ui.checkbox(&mut options.display_hitboxes, "Display hitboxes (H)");
         ui.checkbox(&mut options.show_lines, "Display camera and player X (L)");
         ui.checkbox(&mut options.hide_triggers, "Hide triggers (T)");
+        ui.checkbox(&mut options.disable_shake, "Disable shake (K)");
         ui.checkbox(&mut options.pause_player, "Pause player (Esc)");
         ui.separator();
         ui.horizontal(|ui| {
@@ -175,7 +186,7 @@ fn render_option_gui(
 
 fn update_controls(
     mut projections: Query<&mut OrthographicProjection, With<Camera>>,
-    mut transforms: Query<&mut Transform, With<Camera>>,
+    mut transforms: Query<&mut ActualCameraTranslation, With<Camera>>,
     cameras: Query<(&Camera, &GlobalTransform)>,
     keys: Res<ButtonInput<KeyCode>>,
     mouse_button: Res<ButtonInput<MouseButton>>,
@@ -204,6 +215,9 @@ fn update_controls(
     if keys.just_pressed(KeyCode::KeyT) {
         options.hide_triggers = !options.hide_triggers;
     }
+    if keys.just_pressed(KeyCode::KeyK) {
+        options.disable_shake = !options.disable_shake;
+    }
     if keys.just_pressed(KeyCode::KeyR) {
         for mut projection in &mut projections {
             projection.scale = 1.;
@@ -214,29 +228,29 @@ fn update_controls(
     for mut transform in transforms.iter_mut() {
         if !options.lock_camera_to_player {
             if keys.pressed(KeyCode::ArrowRight) {
-                transform.translation.x += 10.0 * multiplier;
+                transform.0.x += 10.0 * multiplier;
             }
             if keys.pressed(KeyCode::ArrowLeft) {
-                transform.translation.x -= 10.0 * multiplier;
+                transform.0.x -= 10.0 * multiplier;
             }
             if keys.pressed(KeyCode::KeyA) {
-                transform.translation.x -= 20.0 * multiplier;
+                transform.0.x -= 20.0 * multiplier;
             }
             if keys.pressed(KeyCode::KeyD) {
-                transform.translation.x += 20.0 * multiplier;
+                transform.0.x += 20.0 * multiplier;
             }
         }
         if keys.pressed(KeyCode::ArrowUp) {
-            transform.translation.y += 10.0 * multiplier;
+            transform.0.y += 10.0 * multiplier;
         }
         if keys.pressed(KeyCode::ArrowDown) {
-            transform.translation.y -= 10.0 * multiplier;
+            transform.0.y -= 10.0 * multiplier;
         }
         if keys.pressed(KeyCode::KeyW) {
-            transform.translation.y += 20.0 * multiplier;
+            transform.0.y += 20.0 * multiplier;
         }
         if keys.pressed(KeyCode::KeyS) {
-            transform.translation.y -= 20.0 * multiplier;
+            transform.0.y -= 20.0 * multiplier;
         }
     }
     for mut projection in projections.iter_mut() {
@@ -275,9 +289,9 @@ fn update_controls(
             delta /= 1.75;
             for mut transform in transforms.iter_mut() {
                 if !options.lock_camera_to_player {
-                    transform.translation.x -= delta.x;
+                    transform.0.x -= delta.x;
                 }
-                transform.translation.y += delta.y;
+                transform.0.y += delta.y;
             }
         }
     }
@@ -285,7 +299,11 @@ fn update_controls(
 
 fn update_level_world(
     mut commands: Commands,
-    mut camera: Query<(&OrthographicProjection, &mut Transform)>,
+    mut camera: Query<(
+        &OrthographicProjection,
+        &mut Transform,
+        &mut ActualCameraTranslation,
+    )>,
     mut level_world: ResMut<LevelWorld>,
     options: ResMut<Options>,
     mut gizmos: Gizmos,
@@ -340,18 +358,19 @@ fn update_level_world(
     // Render player line
     let mut players = world.query::<(&Player, &Transform2d)>();
 
-    let (camera_projection, mut camera_transform) = camera.single_mut();
+    let (camera_projection, mut camera_transform, mut actual_camera_translation) =
+        camera.single_mut();
 
     if options.show_lines {
         for (_, transform) in players.iter(world) {
             gizmos.line_2d(
                 Vec2::new(
                     transform.translation.x,
-                    camera_transform.translation.y + camera_projection.area.min.y,
+                    actual_camera_translation.0.y + camera_projection.area.min.y,
                 ),
                 Vec2::new(
                     transform.translation.x,
-                    camera_transform.translation.y + camera_projection.area.max.y,
+                    actual_camera_translation.0.y + camera_projection.area.max.y,
                 ),
                 Color::RED,
             );
@@ -361,21 +380,30 @@ fn update_level_world(
     let (_, player_transform) = players.single(world);
 
     if options.lock_camera_to_player {
-        camera_transform.translation.x =
+        actual_camera_translation.0.x =
             (player_transform.translation.x + 75.).min(options.camera_limit);
         if options.show_lines {
             gizmos.line_2d(
                 Vec2::new(
-                    camera_transform.translation.x,
-                    camera_transform.translation.y + camera_projection.area.min.y,
+                    actual_camera_translation.0.x,
+                    actual_camera_translation.0.y + camera_projection.area.min.y,
                 ),
                 Vec2::new(
-                    camera_transform.translation.x,
-                    camera_transform.translation.y + camera_projection.area.max.y,
+                    actual_camera_translation.0.x,
+                    actual_camera_translation.0.y + camera_projection.area.max.y,
                 ),
                 Color::GREEN,
             );
         }
+    }
+
+    if !options.disable_shake {
+        world.resource_scope(|_, shake_data: Mut<ShakeData>| {
+            let offset = Vec2::from_angle(shake_data.1).rotate(Vec2::new(0., shake_data.0));
+            camera_transform.translation = (actual_camera_translation.0 + offset).extend(0.);
+        });
+    } else {
+        camera_transform.translation = actual_camera_translation.0.extend(0.);
     }
 
     let camera_min = camera_transform.translation.x + camera_projection.area.min.x;
