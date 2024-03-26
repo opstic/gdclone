@@ -92,6 +92,7 @@ opt-level = 1
 lto = "off"
 
 [profile.release]
+opt-level = "s"
 debug = true
 #lto = "fat"
 split-debuginfo = "packed"

@@ -4,7 +4,7 @@ body, html {
 }
 
 body {
-    background-color: lightgray;
+    background-color: black;
     margin: 0;
     display: flex;
     justify-content: center;
@@ -17,6 +17,36 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
+}
+
+.lds-dual-ring {
+    display: inline-block;
+    position: absolute;
+    left: 0;
+    right: 0;
+    margin: auto;
+    width: 80px;
+    height: 80px;
+}
+
+.lds-dual-ring:after {
+    content: " ";
+    display: block;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: 6px solid #fff;
+    border-color: #fff transparent #fff transparent;
+    animation: lds-dual-ring 1.2s linear infinite;
+}
+
+@keyframes lds-dual-ring {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 #canvas {
