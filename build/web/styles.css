@@ -1,0 +1,31 @@
+body, html {
+    width: 100%;
+    height: 100%;
+}
+
+body {
+    background-color: lightgray;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.game-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    z-index: 2;
+}
+
+*:focus {
+    outline: none;
+}

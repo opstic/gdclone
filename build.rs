@@ -51,10 +51,13 @@ struct Hitbox {
 }
 
 fn main() {
-    println!("cargo:rerun-if-changed=gdclone.manifest");
-    println!("cargo:rerun-if-changed=gdclone.rc");
+    #[cfg(target_env = "msvc")]
+    {
+        println!("cargo:rerun-if-changed=gdclone.manifest");
+        println!("cargo:rerun-if-changed=gdclone.rc");
 
-    embed_resource::compile("gdclone.rc", embed_resource::NONE);
+        embed_resource::compile("gdclone.rc", embed_resource::NONE);
+    }
 
     println!("cargo:rerun-if-changed=.git/logs/HEAD");
     println!("cargo:rerun-if-changed=assets/data/object.json");

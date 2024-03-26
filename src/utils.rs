@@ -5,7 +5,10 @@ use bevy::ecs::entity::EntityHasher;
 use bevy::log::{info, warn};
 use bevy::math::{Vec3A, Vec4, Vec4Swizzles};
 use bevy::tasks::AsyncComputeTaskPool;
+#[cfg(not(target_arch = "wasm32"))]
 use libdeflater::Decompressor;
+#[cfg(target_arch = "wasm32")]
+use zune_inflate::DeflateDecoder;
 
 /// A copy of [`bevy::utils::EntityHash`] with [`Clone`] derived
 ///
@@ -198,25 +201,41 @@ pub(crate) fn decrypt<const KEY: u8>(bytes: &[u8]) -> Result<Vec<u8>, anyhow::Er
 
 #[inline]
 pub(crate) fn decompress(bytes: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
-    let decompressed_size_data = &bytes[bytes.len() - 4..];
-    let mut decompressed_size: u32 = decompressed_size_data[0] as u32;
-    decompressed_size |= (decompressed_size_data[1] as u32) << 8;
-    decompressed_size |= (decompressed_size_data[2] as u32) << 16;
-    decompressed_size |= (decompressed_size_data[3] as u32) << 24;
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let decompressed_size_data = &bytes[bytes.len() - 4..];
+        let mut decompressed_size: u32 = decompressed_size_data[0] as u32;
+        decompressed_size |= (decompressed_size_data[1] as u32) << 8;
+        decompressed_size |= (decompressed_size_data[2] as u32) << 16;
+        decompressed_size |= (decompressed_size_data[3] as u32) << 24;
 
-    let mut decompressed = vec![0; decompressed_size as usize];
+        let mut decompressed = vec![0; decompressed_size as usize];
 
-    let mut decompressor = Decompressor::new();
+        let mut decompressor = Decompressor::new();
 
-    let gzip_decompress_result = decompressor.gzip_decompress(bytes, &mut decompressed);
+        let gzip_decompress_result = decompressor.gzip_decompress(bytes, &mut decompressed);
 
-    if let Err(decompression_error) = gzip_decompress_result {
-        warn!("Gzip decompression failed: {:?}", decompression_error);
-        info!("Attempting zlib decompression...");
-        decompressed.clear();
-        decompressed.resize(decompressed_size as usize, 0);
-        decompressor.zlib_decompress(bytes, &mut decompressed)?;
+        if let Err(decompression_error) = gzip_decompress_result {
+            warn!("Gzip decompression failed: {:?}", decompression_error);
+            info!("Attempting zlib decompression...");
+            decompressed.clear();
+            decompressed.resize(decompressed_size as usize, 0);
+            decompressor.zlib_decompress(bytes, &mut decompressed)?;
+        }
+
+        Ok(decompressed)
     }
+    #[cfg(target_arch = "wasm32")]
+    {
+        let mut decompressor = DeflateDecoder::new(bytes);
 
-    Ok(decompressed)
+        match decompressor.decode_gzip() {
+            Ok(decompressed) => Ok(decompressed),
+            Err(err) => {
+                warn!("Gzip decompression failed: {:?}", err);
+                info!("Attempting zlib decompression...");
+                Ok(decompressor.decode_zlib()?)
+            }
+        }
+    }
 }

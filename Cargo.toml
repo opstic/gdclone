@@ -35,18 +35,16 @@ bevy_kira_audio = { version = "0.19", default-features = false, features = ["mp3
 bitflags = "2.4"
 bytemuck = { version = "1.14", features = ["derive"] }
 dashmap = { version = "5.5", features = ["raw-api"] }
-directories = "5.0"
 dyn-clone = "1.0"
 egui = "0.26"
 fastrand = "2.0"
 float_next_after = "1.0"
 futures-lite = "2.1"
 image = { version = "0.24", default-features = false, features = ["png"] }
+instant = { version = "0.1", features = ["wasm-bindgen"] }
 indexmap = "2.1"
 kira = { version = "0.8", default-features = false, features = ["cpal", "mp3"] }
-libdeflater = "1.19"
 memchr = "2.6"
-native-dialog = "0.7"
 nested_intervals = { git = "https://github.com/opstic/nested_intervals" }
 ordered-float = "4.2"
 percent-encoding = "2.3"
@@ -58,15 +56,31 @@ serde = { version = "1.0", features = ['derive'] }
 serde_json = "1.0"
 simdutf8 = "0.1"
 smallvec = "1.11"
-steamlocate = "2.0.0-beta.2"
-ureq = "2.9"
 winit = "0.29"
 zstd = "0.13"
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+directories = "5.0"
+libdeflater = "1.19"
+native-dialog = "0.7"
+steamlocate = "2.0.0-beta.2"
+ureq = "2.9"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+crossbeam-channel = "0.5"
+gloo-net = "0.5"
+poll-promise = { version = "0.3", features = ["web"] }
+ring = { version = "0.17", features = ["wasm32_unknown_unknown_js"] }
+serde_urlencoded = "0.7"
+wasm-bindgen-futures = "0.4"
+zune-inflate = "0.2"
+
 [build-dependencies]
 phf_codegen = "0.11"
-serde = { version = "1.0", features = ['derive'] }
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+[target.'cfg(target_env = "msvc")'.build-dependencies]
 embed-resource = "2.4"
 
 [profile.dev.package."*"]

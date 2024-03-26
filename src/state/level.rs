@@ -1,4 +1,4 @@
-use std::time::Duration;
+use instant::Duration;
 
 use bevy::app::{
     App, First, Last, MainScheduleOrder, Plugin, PostUpdate, PreUpdate, RunFixedMainLoop, Update,

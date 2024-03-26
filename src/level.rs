@@ -1,5 +1,5 @@
+use instant::Instant;
 use std::marker::PhantomData;
-use std::time::Instant;
 
 use bevy::app::{App, PostUpdate, PreUpdate, Update};
 use bevy::core::FrameCountPlugin;

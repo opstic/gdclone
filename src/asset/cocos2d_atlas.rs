@@ -129,90 +129,26 @@ impl AssetLoader for Cocos2dAtlasLoader {
             reader.read_to_end(&mut manifest_bytes).await?;
             let manifest: AtlasFile = plist::from_bytes(&manifest_bytes)?;
 
+            #[cfg(not(target_arch = "wasm32"))]
             let async_compute = AsyncComputeTaskPool::get();
 
-            let frames_future = async_compute.spawn(async move {
-                let mut frames = HashMap::with_capacity(manifest.frames.len());
-                for (frame_name, frame) in manifest.frames {
-                    let frame_rect = if frame.texture_rotated {
-                        Rect {
-                            min: frame.texture_rect.min,
-                            max: Vec2 {
-                                x: frame.texture_rect.min.x + frame.sprite_size.y,
-                                y: frame.texture_rect.min.y + frame.sprite_size.x,
-                            },
-                        }
-                    } else {
-                        frame.texture_rect
-                    };
+            #[cfg(not(target_arch = "wasm32"))]
+            let frames_future =
+                async_compute.spawn(async move { compute_frames(manifest.frames).await });
+            #[cfg(target_arch = "wasm32")]
+            let frames_future = compute_frames(manifest.frames);
 
-                    let mut anchor = -(frame.sprite_offset / frame.sprite_size);
-                    if frame.texture_rotated {
-                        anchor = Vec2 {
-                            x: anchor.y,
-                            y: -anchor.x,
-                        };
-                    }
-
-                    frames.insert(
-                        frame_name,
-                        Cocos2dFrame {
-                            rect: frame_rect,
-                            anchor,
-                            rotated: frame.texture_rotated,
-                        },
-                    );
-                }
-                frames
-            });
-
-            let mut texture = load_texture(
+            let texture = load_texture(
                 load_context,
                 &manifest.metadata.real_texture_file_name,
                 self.supported_compressed_formats,
             )
             .await?;
 
-            let texture_future: Task<Result<(Image, Image), anyhow::Error>> =
-                async_compute.spawn(async move {
-                    let mut thread_chunk_size = texture.data.len() / async_compute.thread_num();
-                    if thread_chunk_size % 4 != 0 {
-                        thread_chunk_size += 4 - thread_chunk_size % 4;
-                    }
-
-                    async_compute.scope(|scope| {
-                        for chunk in texture.data.chunks_mut(thread_chunk_size) {
-                            scope.spawn(async move {
-                                for pixel in chunk.chunks_exact_mut(4) {
-                                    pixel[0] = fast_scale(pixel[0], pixel[3]);
-                                    pixel[1] = fast_scale(pixel[1], pixel[3]);
-                                    pixel[2] = fast_scale(pixel[2], pixel[3]);
-                                }
-                            });
-                        }
-                    });
-
-                    texture.texture_descriptor.format =
-                        texture.texture_descriptor.format.remove_srgb_suffix();
-
-                    texture.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor::linear());
-
-                    let mut squared_alpha = texture.clone();
-                    async_compute.scope(|scope| {
-                        for chunk in squared_alpha.data.chunks_mut(thread_chunk_size) {
-                            scope.spawn(async move {
-                                for pixel in chunk.chunks_exact_mut(4) {
-                                    pixel[0] = fast_scale(pixel[0], pixel[3]);
-                                    pixel[1] = fast_scale(pixel[1], pixel[3]);
-                                    pixel[2] = fast_scale(pixel[2], pixel[3]);
-                                    pixel[3] = fast_scale(pixel[3], pixel[3]);
-                                }
-                            });
-                        }
-                    });
-
-                    Ok((texture, squared_alpha))
-                });
+            #[cfg(not(target_arch = "wasm32"))]
+            let texture_future = async_compute.spawn(async move { process_image(texture).await });
+            #[cfg(target_arch = "wasm32")]
+            let texture_future = process_image(texture);
 
             let (texture, squared) = texture_future.await?;
 
@@ -242,6 +178,82 @@ impl AssetLoader for Cocos2dAtlasLoader {
     fn extensions(&self) -> &[&str] {
         &["plist"]
     }
+}
+
+async fn compute_frames(source_frames: HashMap<String, Frame>) -> HashMap<String, Cocos2dFrame> {
+    let mut frames = HashMap::with_capacity(source_frames.len());
+    for (frame_name, frame) in source_frames {
+        let frame_rect = if frame.texture_rotated {
+            Rect {
+                min: frame.texture_rect.min,
+                max: Vec2 {
+                    x: frame.texture_rect.min.x + frame.sprite_size.y,
+                    y: frame.texture_rect.min.y + frame.sprite_size.x,
+                },
+            }
+        } else {
+            frame.texture_rect
+        };
+
+        let mut anchor = -(frame.sprite_offset / frame.sprite_size);
+        if frame.texture_rotated {
+            anchor = Vec2 {
+                x: anchor.y,
+                y: -anchor.x,
+            };
+        }
+
+        frames.insert(
+            frame_name,
+            Cocos2dFrame {
+                rect: frame_rect,
+                anchor,
+                rotated: frame.texture_rotated,
+            },
+        );
+    }
+    frames
+}
+
+async fn process_image(mut texture: Image) -> Result<(Image, Image), anyhow::Error> {
+    let async_compute = AsyncComputeTaskPool::get();
+
+    let mut thread_chunk_size = texture.data.len() / async_compute.thread_num();
+    if thread_chunk_size % 4 != 0 {
+        thread_chunk_size += 4 - thread_chunk_size % 4;
+    }
+
+    async_compute.scope(|scope| {
+        for chunk in texture.data.chunks_mut(thread_chunk_size) {
+            scope.spawn(async move {
+                for pixel in chunk.chunks_exact_mut(4) {
+                    pixel[0] = fast_scale(pixel[0], pixel[3]);
+                    pixel[1] = fast_scale(pixel[1], pixel[3]);
+                    pixel[2] = fast_scale(pixel[2], pixel[3]);
+                }
+            });
+        }
+    });
+
+    texture.texture_descriptor.format = texture.texture_descriptor.format.remove_srgb_suffix();
+
+    texture.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor::linear());
+
+    let mut squared_alpha = texture.clone();
+    async_compute.scope(|scope| {
+        for chunk in squared_alpha.data.chunks_mut(thread_chunk_size) {
+            scope.spawn(async move {
+                for pixel in chunk.chunks_exact_mut(4) {
+                    pixel[0] = fast_scale(pixel[0], pixel[3]);
+                    pixel[1] = fast_scale(pixel[1], pixel[3]);
+                    pixel[2] = fast_scale(pixel[2], pixel[3]);
+                    pixel[3] = fast_scale(pixel[3], pixel[3]);
+                }
+            });
+        }
+    });
+
+    Ok((texture, squared_alpha))
 }
 
 async fn load_texture<'a>(

@@ -4,37 +4,31 @@ use bevy::utils::HashMap;
 use bevy_kira_audio::AudioSource;
 use kira::sound::static_sound::{StaticSoundData, StaticSoundSettings};
 
-use crate::api::{get, post_form, ServerApi};
+use crate::api::{get, get_query, ServerApi};
 use crate::level::{de, LevelData, LevelInfo, SongInfo};
 
-pub(crate) struct RobtopApi {
+pub(crate) struct ProxyApi {
     server: String,
 }
 
-impl RobtopApi {
+impl ProxyApi {
     fn new(server: String) -> Self {
         Self { server }
     }
 }
 
-impl Default for RobtopApi {
+impl Default for ProxyApi {
     fn default() -> Self {
-        Self::new("http://www.boomlings.com/database".to_string())
+        Self::new("https://gd-server-proxy.opstic.workers.dev".to_string())
     }
 }
 
-const COMMON_SECRET: &str = "Wmfd2893gb7";
-
-impl ServerApi for RobtopApi {
+impl ServerApi for ProxyApi {
     async fn search_levels(
         &self,
         query: String,
     ) -> Result<(Vec<LevelInfo>, HashMap<u64, SongInfo>), anyhow::Error> {
-        let body = post_form(
-            &format!("{}/getGJLevels21.php", self.server),
-            &[("secret", COMMON_SECRET), ("str", &query), ("type", "0")],
-        )
-        .await?;
+        let body = get_query(&format!("{}/search", self.server), &[("query", &query)]).await?;
 
         let split: Vec<&str> = de::from_str(simdutf8::basic::from_utf8(&body)?, '#')?;
 
@@ -74,17 +68,15 @@ impl ServerApi for RobtopApi {
     }
 
     async fn get_level_data(&self, id: u64) -> Result<LevelData, anyhow::Error> {
-        let body = post_form(
-            &format!("{}/downloadGJLevel22.php", self.server),
-            &[("secret", COMMON_SECRET), ("levelID", &id.to_string())],
-        )
-        .await?;
+        let body = get(&format!("{}/level/{}", self.server, id)).await?;
 
-        Ok(de::from_str(simdutf8::basic::from_utf8(&body)?, ':')?)
+        let body = simdutf8::basic::from_utf8(&body)?;
+
+        Ok(de::from_str(body, ':')?)
     }
 
     async fn get_song(&self, song_info: SongInfo) -> Result<AudioSource, anyhow::Error> {
-        let body = get(&song_info.url).await?;
+        let body = get_query(&format!("{}/song", self.server), &[("url", &song_info.url)]).await?;
         let sound_data =
             StaticSoundData::from_cursor(Cursor::new(body), StaticSoundSettings::new())?;
         Ok(AudioSource { sound: sound_data })
