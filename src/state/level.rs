@@ -1,5 +1,3 @@
-use instant::Duration;
-
 use bevy::app::{
     App, First, Last, MainScheduleOrder, Plugin, PostUpdate, PreUpdate, RunFixedMainLoop, Update,
 };
@@ -18,6 +16,7 @@ use bevy::prelude::{
 use bevy::time::{Time, Virtual};
 use bevy_egui::EguiContexts;
 use bevy_kira_audio::{AudioInstance, AudioTween, PlaybackState};
+use instant::Duration;
 
 use crate::level::color::{ColorChannelCalculated, GlobalColorChannels, ObjectColorCalculated};
 use crate::level::object::Object;
@@ -269,7 +268,7 @@ fn update_controls(
         };
 
         for mut projection in projections.iter_mut() {
-            projection.scale *= 1. + (-dy / 100.);
+            projection.scale *= f32::clamp(1. + (-dy / 1000.), 0.5, 1.5);
         }
     }
 
@@ -277,15 +276,14 @@ fn update_controls(
 
     if mouse_button.pressed(MouseButton::Left) {
         for mouse_motion_event in mouse_motion_events.read() {
-            let mut delta = camera
-                .ndc_to_world(
-                    transform,
-                    (mouse_motion_event.delta * 2. / camera.logical_viewport_size().unwrap())
-                        .extend(1.),
-                )
-                .unwrap()
-                .xy()
-                - transform.translation().xy();
+            let Some(world) = camera.ndc_to_world(
+                transform,
+                (mouse_motion_event.delta * 2. / camera.logical_viewport_size().unwrap())
+                    .extend(1.),
+            ) else {
+                continue;
+            };
+            let mut delta = world.xy() - transform.translation().xy();
             delta /= 1.75;
             for mut transform in transforms.iter_mut() {
                 if !options.lock_camera_to_player {
