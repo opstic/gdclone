@@ -104,22 +104,25 @@ fn render_menu_gui(
                 ui.checkbox(&mut browser_state.low_detail, "Low Detail");
                 ui.separator();
 
-                let (entity, mut window) = windows.single_mut();
-
-                egui::ComboBox::from_label("Window Mode")
-                    .selected_text(format!("{:?}", window.mode))
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut window.mode, WindowMode::Windowed, "Windowed");
-                        #[cfg(not(target_arch = "wasm32"))]
-                        ui.selectable_value(&mut window.mode, WindowMode::Fullscreen, "Fullscreen");
-                        ui.selectable_value(
-                            &mut window.mode,
-                            WindowMode::BorderlessFullscreen,
-                            "BorderlessFullscreen",
-                        );
-                    });
                 #[cfg(not(target_arch = "wasm32"))]
                 {
+                    let (entity, mut window) = windows.single_mut();
+                    egui::ComboBox::from_label("Window Mode")
+                        .selected_text(format!("{:?}", window.mode))
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut window.mode, WindowMode::Windowed, "Windowed");
+                            #[cfg(not(target_arch = "wasm32"))]
+                            ui.selectable_value(
+                                &mut window.mode,
+                                WindowMode::Fullscreen,
+                                "Fullscreen",
+                            );
+                            ui.selectable_value(
+                                &mut window.mode,
+                                WindowMode::BorderlessFullscreen,
+                                "BorderlessFullscreen",
+                            );
+                        });
                     ui.separator();
                     let mut vsync = match window.present_mode {
                         PresentMode::AutoVsync => true,
@@ -140,6 +143,9 @@ fn render_menu_gui(
                         commands.entity(entity).despawn();
                     }
                 }
+
+                #[cfg(target_arch = "wasm32")]
+                ui.label("Use F11 for fullscreen toggle");
             });
 
             ui.separator();
