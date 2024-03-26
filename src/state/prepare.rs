@@ -1,5 +1,3 @@
-use instant::Instant;
-
 use bevy::app::{App, Plugin, Update};
 use bevy::asset::io::AssetSourceId;
 use bevy::asset::{AssetPath, AssetServer, Handle, LoadState};
@@ -7,13 +5,15 @@ use bevy::hierarchy::{BuildChildren, DespawnRecursiveExt};
 use bevy::log::{error, info};
 use bevy::prelude::{
     default, in_state, AlignItems, ButtonInput, Color, Commands, Component, Entity,
-    IntoSystemConfigs, JustifyContent, KeyCode, NextState, NodeBundle, OnEnter, OnExit, Query, Res,
-    ResMut, Resource, Style, Text, TextBundle, TextSection, TextStyle, Val, With, World,
+    IntoSystemConfigs, JustifyContent, KeyCode, Local, NextState, NodeBundle, OnEnter, OnExit,
+    Query, Res, ResMut, Resource, Style, Text, TextBundle, TextSection, TextStyle, Val, With,
+    World,
 };
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::ui::FlexDirection;
 use bevy_kira_audio::{Audio, AudioControl, AudioSource};
 use futures_lite::future;
+use instant::Instant;
 
 use crate::api::{DefaultApi, ServerApi};
 use crate::asset::cocos2d_atlas::Cocos2dFrames;
@@ -324,38 +324,68 @@ fn wait_for_creation(
     mut text_query: Query<&mut Text, With<PrepareText>>,
     mut browser_state: ResMut<LevelBrowserState>,
     audio: Res<Audio>,
+    mut flag: Local<bool>,
 ) {
     if let Some(ref mut level_download_task) = level_download_task {
         if let Ok(downloaded) = level_download_task.0.try_recv() {
-            let level_data = match downloaded {
-                Ok(level_data) => level_data,
-                Err(err) => {
-                    error!("Level download failed. {}", err);
-                    state.set(GameState::Menu);
-                    return;
-                }
-            };
+            if !*flag {
+                let level_data = match &downloaded {
+                    Ok(level_data) => {
+                        if level_data
+                            .inner_level
+                            .as_ref()
+                            .map(|inner| inner.len() > 4e+6 as usize)
+                            .unwrap_or_default()
+                        {
+                            text_query.single_mut().sections[0].value =
+                                "Processing level (WARNING: Large level, may take a while...)\n"
+                                    .to_string();
+                        } else {
+                            text_query.single_mut().sections[0].value =
+                                "Processing level\n".to_string();
+                        }
+                    }
+                    Err(err) => {
+                        error!("Level download failed. {}", err);
+                        state.set(GameState::Menu);
+                        return;
+                    }
+                };
 
-            info!("Starting world creation...");
+                let (tx, rx) = crossbeam_channel::bounded(1);
+                let _ = tx.send(downloaded);
+                level_download_task.0 = rx;
+                *flag = true;
+            } else {
+                let level_data = match downloaded {
+                    Ok(level_data) => level_data,
+                    Err(err) => {
+                        error!("Level download failed. {}", err);
+                        state.set(GameState::Menu);
+                        return;
+                    }
+                };
 
-            let cocos2d_frames = cocos2d_frames.clone();
-            let low_detail = browser_state.low_detail;
+                info!("Starting world creation...");
 
-            let start_all = Instant::now();
-            let mut start = Instant::now();
-            let decompressed = level_data.decompress_inner_level().unwrap().unwrap();
-            info!("Decompressing took {:?}", start.elapsed());
-            start = Instant::now();
-            let parsed = decompressed.parse().unwrap();
-            info!("Parsing took {:?}", start.elapsed());
-            let world = parsed.create_world(&cocos2d_frames, low_detail);
-            info!("Total time: {:?}", start_all.elapsed());
+                let cocos2d_frames = cocos2d_frames.clone();
+                let low_detail = browser_state.low_detail;
 
-            commands.insert_resource(LevelWorld::World(Box::new(world)));
-            commands.remove_resource::<LevelDownloadTask>();
+                let start_all = Instant::now();
+                let mut start = Instant::now();
+                let decompressed = level_data.decompress_inner_level().unwrap().unwrap();
+                info!("Decompressing took {:?}", start.elapsed());
+                start = Instant::now();
+                let parsed = decompressed.parse().unwrap();
+                info!("Parsing took {:?}", start.elapsed());
+                let world = parsed.create_world(&cocos2d_frames, low_detail);
+                info!("Total time: {:?}", start_all.elapsed());
+
+                commands.insert_resource(LevelWorld::World(Box::new(world)));
+                commands.remove_resource::<LevelDownloadTask>();
+            }
         } else {
-            text_query.single_mut().sections[0].value =
-                "Downloading & processing level\n".to_string();
+            text_query.single_mut().sections[0].value = "Downloading level\n".to_string();
         };
     }
 
