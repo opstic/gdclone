@@ -11,6 +11,26 @@
 </head>
 <body>
 <link data-trunk href="build/web/sound.js" rel="inline"/>
+<script type="text/javascript">
+    (function () {
+        setTimeout(function () {
+            var note1 = document.getElementById("note1");
+            note1.className = "show"
+            setTimeout(function () {
+                var note1 = document.getElementById("note1");
+                var note2 = document.getElementById("note2");
+                note1.className = ""
+                note2.className = "show"
+                setTimeout(function () {
+                    var note2 = document.getElementById("note2");
+                    note2.className = ""
+                }, 4500);
+            }, 4500);
+        }, 3000);
+    })();
+</script>
+<div id="note1">WARNING: This is an early version of GDClone for browser, things might break!</div>
+<div id="note2">Tip: Pause and unpause the player to re-sync the audio</div>
 <div class="game-container">
     <div class="lds-dual-ring"></div>
     <canvas autofocus id="canvas">
