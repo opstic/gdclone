@@ -338,11 +338,11 @@ fn wait_for_creation(
                             .unwrap_or_default()
                         {
                             text_query.single_mut().sections[0].value =
-                                "Processing level (WARNING: Large level, may take a while...)\n"
+                                "Processing level data (WARNING: Large level, may take a while...)\n"
                                     .to_string();
                         } else {
                             text_query.single_mut().sections[0].value =
-                                "Processing level\n".to_string();
+                                "Processing level data\n".to_string();
                         }
                     }
                     Err(err) => {
