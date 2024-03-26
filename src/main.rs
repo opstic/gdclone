@@ -19,7 +19,7 @@ use bevy::text::{Text, TextSection, TextStyle};
 use bevy::ui::{PositionType, Style, UiRect, Val, ZIndex};
 use bevy::utils::default;
 use bevy::window::{PresentMode, Window, WindowPlugin, WindowResized};
-use bevy::winit::WinitWindows;
+use bevy::winit::{WinitSettings, WinitWindows};
 use bevy::DefaultPlugins;
 use bevy_egui::EguiPlugin;
 use bevy_kira_audio::AudioPlugin;
@@ -47,12 +47,15 @@ fn main() {
 
     setup_asset_dirs(&mut app);
 
+    app.insert_resource(WinitSettings::game());
+
     app.add_plugins((
         DefaultPlugins
             .set(WindowPlugin {
                 primary_window: Some(Window {
                     title: concat!("GDClone ", env!("VERSION")).into(),
                     present_mode: PresentMode::AutoNoVsync,
+
                     ..default()
                 }),
                 ..default()
