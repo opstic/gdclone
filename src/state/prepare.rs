@@ -329,7 +329,7 @@ fn wait_for_creation(
     if let Some(ref mut level_download_task) = level_download_task {
         if let Ok(downloaded) = level_download_task.0.try_recv() {
             if !*flag {
-                let level_data = match &downloaded {
+                match &downloaded {
                     Ok(level_data) => {
                         if level_data
                             .inner_level
@@ -338,8 +338,8 @@ fn wait_for_creation(
                             .unwrap_or_default()
                         {
                             text_query.single_mut().sections[0].value =
-                                "Processing level data (WARNING: Large level, may take a while...)\n"
-                                    .to_string();
+                                format!("Processing level data (WARNING: Large level, may take a while...) (Size: {})\n", level_data
+                                    .inner_level.as_ref().unwrap().len());
                         } else {
                             text_query.single_mut().sections[0].value =
                                 "Processing level data\n".to_string();
@@ -350,13 +350,15 @@ fn wait_for_creation(
                         state.set(GameState::Menu);
                         return;
                     }
-                };
+                }
 
                 let (tx, rx) = crossbeam_channel::bounded(1);
                 let _ = tx.send(downloaded);
                 level_download_task.0 = rx;
                 *flag = true;
             } else {
+                *flag = false;
+                text_query.single_mut().sections[0].value = "".to_string();
                 let level_data = match downloaded {
                     Ok(level_data) => level_data,
                     Err(err) => {
