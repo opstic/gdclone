@@ -37,9 +37,10 @@ required on linux.**
 
 ## Screenshots / GIFs
 
-![White Space](assets/screenshots/whitespace.gif)
 ![Omorfia](assets/screenshots/omorfia.gif)
-![Acu](assets/screenshots/acu.gif)
+![Quaoar](assets/screenshots/quaoar.gif)
+![The Eschaton](assets/screenshots/eschaton.gif)
+![KOCMOC](assets/screenshots/kocmoc.gif)
 
 ### Credits
 
