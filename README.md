@@ -35,7 +35,7 @@ R to reset zoom.
 **NOTE: Either [kdialog](https://invent.kde.org/utilities/kdialog) or [zenity](https://github.com/GNOME/zenity) is
 required on linux.**
 
-## Screenshots / GIFs
+## Screenshots / GIFs (GIFs are large, please wait for it to load)
 
 ![Omorfia](assets/screenshots/omorfia.gif)
 ![Quaoar](assets/screenshots/quaoar.gif)
