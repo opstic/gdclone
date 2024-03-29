@@ -49,8 +49,8 @@ impl TriggerFunction for ShakeTrigger {
             return;
         }
 
-        shake_data.0 = (0.5 + fastrand::f32() * 0.5) * self.strength;
-        shake_data.1 = fastrand::f32() * TAU;
+        shake_data.0 = self.strength * 1.5 * fastrand::f32();
+        shake_data.1 = TAU * fastrand::f32();
     }
 
     fn create_system_state(&self, world: &mut World) -> Box<dyn Any + Send + Sync> {
