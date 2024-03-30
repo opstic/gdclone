@@ -1,11 +1,16 @@
+use std::borrow::Borrow;
 use std::hash::BuildHasher;
+use std::marker::PhantomData;
 use std::ops::{Add, Div, Mul, Sub};
 
+use arrayvec::ArrayVec;
 use bevy::ecs::entity::EntityHasher;
 use bevy::log::{info, warn};
 use bevy::math::{Vec3A, Vec4, Vec4Swizzles};
 use bevy::tasks::AsyncComputeTaskPool;
 use libdeflater::Decompressor;
+use serde::de::{MapAccess, Visitor};
+use serde::{Deserialize, Deserializer};
 
 /// A copy of [`bevy::utils::EntityHash`] with [`Clone`] derived
 ///
@@ -21,6 +26,97 @@ impl BuildHasher for U64Hash {
         EntityHasher::default()
     }
 }
+
+/// A *very* limited map based on ['ArrayVec'] that only works with inserts of unique elements
+/// Anything else would break it
+#[derive(Clone, Debug)]
+pub(crate) struct ArrayMap<K, V, const N: usize> {
+    storage: ArrayVec<(K, V), N>,
+}
+
+impl<K, V, const N: usize> ArrayMap<K, V, N>
+where
+    K: Eq,
+{
+    #[inline]
+    pub(crate) const fn new() -> Self {
+        Self {
+            storage: ArrayVec::new_const(),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn insert(&mut self, key: K, value: V) {
+        self.storage.try_push((key, value)).unwrap()
+    }
+
+    #[inline]
+    pub(crate) fn get<Q>(&self, key: &Q) -> Option<&V>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq,
+    {
+        match self
+            .storage
+            .iter()
+            .find(|(stored_key, _)| stored_key.borrow() == key)
+        {
+            Some((_, v)) => Some(v),
+            None => None,
+        }
+    }
+}
+
+impl<'de, K, V, const N: usize> Deserialize<'de> for ArrayMap<K, V, N>
+where
+    K: Eq + Deserialize<'de>,
+    V: Deserialize<'de>,
+{
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<ArrayMap<K, V, N>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_any(HashMapVisitor {
+            marker: PhantomData,
+        })
+    }
+}
+
+struct HashMapVisitor<K, V, const N: usize>
+where
+    K: Eq,
+{
+    marker: PhantomData<ArrayMap<K, V, N>>,
+}
+
+impl<'de, K, V, const N: usize> Visitor<'de> for HashMapVisitor<K, V, N>
+where
+    K: Eq + Deserialize<'de>,
+    V: Deserialize<'de>,
+{
+    type Value = ArrayMap<K, V, N>;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("an Object/Map structure")
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        let mut m = ArrayMap::new();
+        while let Some(k) = map.next_key()? {
+            let v = map.next_value()?;
+            m.insert(k, v);
+        }
+        Ok(m)
+    }
+}
+
+pub(crate) type StartObjectStorage<'decompressed> =
+    ArrayMap<&'decompressed str, &'decompressed str, 48>;
+pub(crate) type ObjectStorage<'decompressed> = ArrayMap<&'decompressed str, &'decompressed str, 28>;
 
 #[inline]
 pub(crate) fn str_to_bool(string: &str) -> bool {

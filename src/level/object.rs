@@ -3,7 +3,7 @@ use bevy::hierarchy::BuildWorldChildren;
 use bevy::log::debug;
 use bevy::math::{Vec2, Vec3, Vec3Swizzles};
 use bevy::prelude::{Component, Entity, World};
-use bevy::utils::{default, HashMap};
+use bevy::utils::default;
 use indexmap::{IndexMap, IndexSet};
 
 use crate::asset::cocos2d_atlas::{Cocos2dFrame, Cocos2dFrames};
@@ -15,7 +15,7 @@ use crate::level::de;
 use crate::level::section::{GlobalSections, Section};
 use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::insert_trigger_data;
-use crate::utils::{section_index_from_x, str_to_bool, U64Hash};
+use crate::utils::{section_index_from_x, str_to_bool, ObjectStorage, U64Hash};
 
 struct ObjectDefaultData {
     texture: &'static str,
@@ -108,7 +108,7 @@ pub(crate) struct Object {
     pub(crate) z_layer: i32,
 }
 
-pub(crate) fn get_object_pos(object_data: &HashMap<&str, &str>) -> Result<Vec3, anyhow::Error> {
+pub(crate) fn get_object_pos(object_data: &ObjectStorage) -> Result<Vec3, anyhow::Error> {
     let mut translation = Vec3::ZERO;
     if let Some(x) = object_data.get("2") {
         translation.x = x.parse()?;
@@ -124,7 +124,7 @@ pub(crate) fn get_object_pos(object_data: &HashMap<&str, &str>) -> Result<Vec3, 
 
 pub(crate) fn spawn_object(
     world: &mut World,
-    object_data: &HashMap<&str, &str>,
+    object_data: &ObjectStorage,
     global_sections: &mut GlobalSections,
     global_groups: &mut IndexMap<u64, (Vec<Entity>, Vec<Entity>), U64Hash>,
     group_archetypes: &mut IndexMap<Vec<u64>, Vec<Entity>>,

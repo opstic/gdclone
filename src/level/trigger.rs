@@ -34,7 +34,7 @@ use crate::level::trigger::shake::{ShakeData, ShakeTrigger};
 use crate::level::trigger::spawn::SpawnTrigger;
 use crate::level::trigger::stop::StopTrigger;
 use crate::level::trigger::toggle::ToggleTrigger;
-use crate::utils::{str_to_bool, U64Hash};
+use crate::utils::{str_to_bool, ObjectStorage, U64Hash};
 
 mod alpha;
 mod collision;
@@ -481,7 +481,7 @@ fn run_trigger(
 pub(crate) fn insert_trigger_data(
     entity_world_mut: &mut EntityWorldMut,
     object_id: u64,
-    object_data: &AHashMap<&str, &str>,
+    object_data: &ObjectStorage,
 ) -> Result<(), anyhow::Error> {
     match object_id {
         200 | 201 | 202 | 203 | 1334 => {

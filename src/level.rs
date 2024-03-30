@@ -8,7 +8,7 @@ use bevy::math::{Vec3, Vec4};
 use bevy::prelude::{IntoSystemConfigs, Resource, World};
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::time::TimePlugin;
-use bevy::utils::{default, HashMap};
+use bevy::utils::default;
 use indexmap::IndexMap;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
@@ -32,7 +32,7 @@ use crate::level::{
     section::{limit_sections, update_sections, GlobalSections, Section},
     transform::update_transform,
 };
-use crate::utils::{decompress, decrypt, str_to_bool, U64Hash};
+use crate::utils::{decompress, decrypt, str_to_bool, ObjectStorage, StartObjectStorage, U64Hash};
 
 mod animation;
 pub(crate) mod collision;
@@ -146,15 +146,15 @@ impl DecompressedInnerLevel {
 
         if object_strings.is_empty() {
             return Ok(ParsedInnerLevel {
-                start_object: HashMap::default(),
-                objects: Vec::default(),
+                start_object: StartObjectStorage::new(),
+                objects: vec![],
                 phantom: PhantomData,
             });
         }
 
-        let start_object: HashMap<&str, &str> = de::from_str(object_strings[0], ',')?;
+        let start_object: StartObjectStorage = de::from_str(object_strings[0], ',')?;
 
-        let mut objects = vec![HashMap::new(); object_strings.len() - 1];
+        let mut objects = vec![ObjectStorage::new(); object_strings.len() - 1];
 
         let async_compute = AsyncComputeTaskPool::get();
 
@@ -191,8 +191,8 @@ impl DecompressedInnerLevel {
 
 #[derive(Debug)]
 pub(crate) struct ParsedInnerLevel<'a> {
-    start_object: HashMap<&'a str, &'a str>,
-    objects: Vec<HashMap<&'a str, &'a str>>,
+    start_object: StartObjectStorage<'a>,
+    objects: Vec<ObjectStorage<'a>>,
     phantom: PhantomData<&'a DecompressedInnerLevel>,
 }
 

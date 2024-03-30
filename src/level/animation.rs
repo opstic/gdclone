@@ -6,13 +6,12 @@ use bevy::math::Vec2;
 use bevy::prelude::{Children, Component, EntityWorldMut, Mut, Query, Res, With, Without};
 use bevy::tasks::ComputeTaskPool;
 use bevy::time::Time;
-use bevy::utils::HashMap;
 
 use crate::level::color::{ObjectColor, ObjectColorCalculated};
 use crate::level::easing::Easing;
 use crate::level::section::GlobalSections;
 use crate::level::transform::Transform2d;
-use crate::utils::str_to_bool;
+use crate::utils::{str_to_bool, ObjectStorage};
 
 #[derive(Component)]
 pub(crate) enum Animation {
@@ -23,7 +22,7 @@ pub(crate) enum Animation {
 pub(crate) fn insert_animation_data(
     entity_world_mut: &mut EntityWorldMut,
     object_id: u64,
-    object_data: &HashMap<&str, &str>,
+    object_data: &ObjectStorage,
 ) -> Result<(), anyhow::Error> {
     match object_id {
         740 | 1705 | 741 | 742 | 1706 | 675 | 676 | 678 | 1707 | 679 | 1708 | 680 | 1709 | 1619
