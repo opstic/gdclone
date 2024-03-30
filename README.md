@@ -10,6 +10,8 @@ Built using Bevy engine and Rust.
 
 Grab the latest binary from [releases](https://github.com/opstic/gdclone/releases) then just run it.
 
+A web version is also available at https://opstic.github.io/gdclone/
+
 A GD install is required.
 
 Drag mouse around to move. Scroll wheel to zoom in and out.
@@ -28,16 +30,17 @@ T to (un)hide triggers.
 
 R to reset zoom.
 
-*Support for web and mobile platforms are planned.*
+*Support for mobile platforms are planned.*
 
 **NOTE: Either [kdialog](https://invent.kde.org/utilities/kdialog) or [zenity](https://github.com/GNOME/zenity) is
 required on linux.**
 
-## Screenshots / GIFs
+## Screenshots / GIFs (GIFs are large, please wait for it to load)
 
-![White Space](assets/screenshots/whitespace.gif)
 ![Omorfia](assets/screenshots/omorfia.gif)
-![Acu](assets/screenshots/acu.gif)
+![Quaoar](assets/screenshots/quaoar.gif)
+![The Eschaton](assets/screenshots/eschaton.gif)
+![KOCMOC](assets/screenshots/kocmoc.gif)
 
 ### Credits
 
