@@ -43,6 +43,7 @@ pub(crate) struct LevelBrowserState {
     pub(crate) song_infos: HashMap<u64, SongInfo>,
     pub(crate) stored_songs: HashMap<u64, Handle<AudioSource>>,
     pub(crate) low_detail: bool,
+    pub(crate) start_paused: bool,
 }
 
 impl Default for LevelBrowserState {
@@ -58,6 +59,7 @@ impl Default for LevelBrowserState {
             song_infos: HashMap::new(),
             stored_songs: HashMap::new(),
             low_detail: false,
+            start_paused: false,
         }
     }
 }
@@ -102,6 +104,8 @@ fn render_menu_gui(
                 ui.checkbox(&mut browser_state.use_song, "Use Song");
                 ui.separator();
                 ui.checkbox(&mut browser_state.low_detail, "Low Detail");
+                ui.separator();
+                ui.checkbox(&mut browser_state.start_paused, "Start Paused");
                 ui.separator();
 
                 #[cfg(not(target_arch = "wasm32"))]

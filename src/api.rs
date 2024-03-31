@@ -19,8 +19,9 @@ pub(crate) trait ServerApi {
         &self,
         query: String,
     ) -> Result<(Vec<LevelInfo>, HashMap<u64, SongInfo>), anyhow::Error>;
-    async fn get_level_data(&self, id: u64) -> Result<LevelData, anyhow::Error>;
-    async fn get_song(&self, song_info: SongInfo) -> Result<AudioSource, anyhow::Error>;
+    async fn download_level(&self, id: u64) -> Result<LevelData, anyhow::Error>;
+    async fn get_song(&self, id: u64) -> Result<SongInfo, anyhow::Error>;
+    async fn download_song(&self, song_info: SongInfo) -> Result<AudioSource, anyhow::Error>;
 }
 
 async fn get(url: &str) -> Result<Vec<u8>, anyhow::Error> {

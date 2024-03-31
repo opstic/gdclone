@@ -70,9 +70,13 @@ ureq = "2.9"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 crossbeam-channel = "0.5"
 gloo-net = "0.5"
+js-sys = "0.3"
 ring = { version = "0.17", features = ["wasm32_unknown_unknown_js"] }
 serde_urlencoded = "0.7"
+url = "2.5"
+wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["Location", "Window"] }
 zune-inflate = "0.2"
 
 [build-dependencies]

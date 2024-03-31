@@ -1,3 +1,4 @@
+use anyhow::Error;
 use std::io::Cursor;
 
 use bevy::utils::HashMap;
@@ -73,7 +74,7 @@ impl ServerApi for RobtopApi {
         Ok((level_infos, song_infos))
     }
 
-    async fn get_level_data(&self, id: u64) -> Result<LevelData, anyhow::Error> {
+    async fn download_level(&self, id: u64) -> Result<LevelData, anyhow::Error> {
         let body = post_form(
             &format!("{}/downloadGJLevel22.php", self.server),
             &[("secret", COMMON_SECRET), ("levelID", &id.to_string())],
@@ -83,7 +84,11 @@ impl ServerApi for RobtopApi {
         Ok(de::from_str(simdutf8::basic::from_utf8(&body)?, ':')?)
     }
 
-    async fn get_song(&self, song_info: SongInfo) -> Result<AudioSource, anyhow::Error> {
+    async fn get_song(&self, id: u64) -> Result<SongInfo, Error> {
+        todo!()
+    }
+
+    async fn download_song(&self, song_info: SongInfo) -> Result<AudioSource, anyhow::Error> {
         let body = get(&song_info.url).await?;
         let sound_data =
             StaticSoundData::from_cursor(Cursor::new(body), StaticSoundSettings::new())?;

@@ -124,7 +124,7 @@ fn prepare_setup(
             info!("Downloading {}, ID: {}", level_info.name, level_info.id);
             let start = Instant::now();
             let api = DefaultApi::default();
-            let level_data = api.get_level_data(level_info.id).await;
+            let level_data = api.download_level(level_info.id).await;
             info!("Download took {:?}", start.elapsed());
             level_data
         })));
@@ -138,7 +138,7 @@ fn prepare_setup(
             info!("Downloading {}, ID: {}", level_info.name, level_info.id);
             let start = Instant::now();
             let api = DefaultApi::default();
-            let level_data = api.get_level_data(level_info.id).await;
+            let level_data = api.download_level(level_info.id).await;
             info!("Download took {:?}", start.elapsed());
             let _ = tx.send(level_data);
         });
@@ -241,7 +241,7 @@ fn wait_for_creation(
                     info!("Downloading song {}, ID: {}", song_info.name, song_info.id);
                     let start = Instant::now();
                     let api = DefaultApi::default();
-                    let audio_source = api.get_song(song_info.clone()).await?;
+                    let audio_source = api.download_song(song_info.clone()).await?;
                     info!("Song download took {:?}", start.elapsed());
                     Ok((song_info.id, audio_source))
                 })));
@@ -410,7 +410,7 @@ fn wait_for_creation(
                     info!("Downloading song {}, ID: {}", song_info.name, song_info.id);
                     let start = Instant::now();
                     let api = DefaultApi::default();
-                    let audio_source = api.get_song(song_info.clone()).await;
+                    let audio_source = api.download_song(song_info.clone()).await;
                     info!("Song download took {:?}", start.elapsed());
                     let _ = tx.send(audio_source.map(|audio_source| (song_info.id, audio_source)));
                 });

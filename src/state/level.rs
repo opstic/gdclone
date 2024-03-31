@@ -26,6 +26,7 @@ use crate::level::transform::Transform2d;
 use crate::level::trigger::shake::ShakeData;
 use crate::level::trigger::GlobalTriggers;
 use crate::level::{LevelWorld, SongOffset};
+use crate::state::menu::LevelBrowserState;
 use crate::state::GameState;
 use crate::utils::section_index_from_x;
 
@@ -97,12 +98,15 @@ struct ActualCameraTranslation(Vec2);
 fn level_setup(
     mut commands: Commands,
     mut options: ResMut<Options>,
+    browser_state: Res<LevelBrowserState>,
     mut cameras: Query<(Entity, &mut Transform, &mut OrthographicProjection), With<Camera>>,
     mut level_world: ResMut<LevelWorld>,
     mut audio_instances: ResMut<Assets<AudioInstance>>,
     song_players: Query<&SongPlayer>,
 ) {
     *options = Options::default();
+    options.pause_player = browser_state.start_paused;
+    options.show_options = browser_state.start_paused;
     for (entity, mut transform, mut projection) in &mut cameras {
         transform.translation = Vec3::ZERO;
         projection.scale = 1.;

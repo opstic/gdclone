@@ -67,16 +67,31 @@ impl ServerApi for ProxyApi {
         Ok((level_infos, song_infos))
     }
 
-    async fn get_level_data(&self, id: u64) -> Result<LevelData, anyhow::Error> {
-        let body = get(&format!("{}/level/{}", self.server, id)).await?;
+    async fn download_level(&self, id: u64) -> Result<LevelData, anyhow::Error> {
+        let body = get(&format!("{}/levels/{}", self.server, id)).await?;
 
         let body = simdutf8::basic::from_utf8(&body)?;
 
         Ok(de::from_str(body, ':')?)
     }
 
-    async fn get_song(&self, song_info: SongInfo) -> Result<AudioSource, anyhow::Error> {
-        let body = get_query(&format!("{}/song", self.server), &[("url", &song_info.url)]).await?;
+    async fn get_song(&self, id: u64) -> Result<SongInfo, anyhow::Error> {
+        let body = get(&format!("{}/songs/{}", self.server, id)).await?;
+
+        let body = simdutf8::basic::from_utf8(&body)?;
+
+        Ok(de::from_str_str::<SongInfo>(
+            body.trim_matches('~'),
+            "~|~".to_string(),
+        )?)
+    }
+
+    async fn download_song(&self, song_info: SongInfo) -> Result<AudioSource, anyhow::Error> {
+        let body = get_query(
+            &format!("{}/song/download", self.server),
+            &[("url", &song_info.url)],
+        )
+        .await?;
         let sound_data =
             StaticSoundData::from_cursor(Cursor::new(body), StaticSoundSettings::new())?;
         Ok(AudioSource { sound: sound_data })
