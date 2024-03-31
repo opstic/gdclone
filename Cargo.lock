@@ -2047,6 +2047,7 @@ name = "gdclone"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "arrayvec",
  "base64-simd",
  "bevy",
  "bevy_egui",
