@@ -9,7 +9,7 @@ use bevy::input::ButtonInput;
 use bevy::math::{Vec2, Vec3, Vec3Swizzles, Vec4Swizzles};
 use bevy::prelude::{
     in_state, Camera, ClearColor, Color, Commands, Component, Entity, EventReader,
-    GizmoPrimitive2d, Gizmos, GlobalTransform, IntoSystemConfigs, KeyCode, MouseButton, Mut,
+    GizmoPrimitive2d, Gizmos, GlobalTransform, IntoSystemConfigs, KeyCode, Local, MouseButton, Mut,
     NextState, OnEnter, OnExit, OrthographicProjection, Query, Res, ResMut, Resource, Schedule,
     Transform, With, Without,
 };
@@ -311,6 +311,7 @@ fn update_level_world(
     mut gizmos: Gizmos,
     song_players: Query<&SongPlayer>,
     mut audio_instances: ResMut<Assets<AudioInstance>>,
+    mut last_sync: Local<f32>,
 ) {
     let LevelWorld::World(ref mut world) = *level_world else {
         panic!("World is supposed to be created");
@@ -330,6 +331,29 @@ fn update_level_world(
 
     if !options.pause_player {
         world.run_schedule(Update);
+        world.resource_scope(|world, time: Mut<Time>| {
+            const SYNC_PERIOD: f32 = 1.;
+            if time.elapsed_seconds() - *last_sync > SYNC_PERIOD {
+                if let Ok(song_player) = song_players.get_single() {
+                    if let Some(instance) = audio_instances.get_mut(&song_player.0) {
+                        let mut players = world.query_filtered::<&Transform2d, With<Player>>();
+                        world.resource_scope(|world, song_offset: Mut<SongOffset>| {
+                            world.resource_scope(|world, global_triggers: Mut<GlobalTriggers>| {
+                                let transform = players.single(world);
+                                let mut time = global_triggers
+                                    .speed_changes
+                                    .time_for_pos(transform.translation.x);
+
+                                time += song_offset.0;
+
+                                instance.seek_to(time as f64);
+                            });
+                        });
+                    }
+                }
+                *last_sync = time.elapsed_seconds();
+            }
+        });
     }
 
     if let Ok(song_player) = song_players.get_single() {

@@ -65,7 +65,7 @@ body {
 }
 
 /* The snackbar - position it at the bottom and in the middle of the screen */
-#note1 {
+#note {
     visibility: hidden; /* Hidden by default. Visible on click */
     background-color: #8B0000; /* Black background color */
     color: #fff; /* White text color */
@@ -78,31 +78,8 @@ body {
     bottom: 30px; /* 30px from the bottom */
 }
 
-/* The snackbar - position it at the bottom and in the middle of the screen */
-#note2 {
-    visibility: hidden; /* Hidden by default. Visible on click */
-    background-color: #1b1b1b; /* Black background color */
-    color: #fff; /* White text color */
-    text-align: center; /* Centered text */
-    border-radius: 2px; /* Rounded borders */
-    padding: 16px; /* Padding */
-    position: fixed; /* Sit on top of the screen */
-    z-index: 3; /* Add a z-index if needed */
-    left: 30px; /* Center the snackbar */
-    bottom: 30px; /* 30px from the bottom */
-}
-
 /* Show the snackbar when clicking on a button (class added with JavaScript) */
-#note1.show {
-    visibility: visible; /* Show the snackbar */
-    /* Add animation: Take 0.5 seconds to fade in and out the snackbar.
-    However, delay the fade out process for 2.5 seconds */
-    -webkit-animation: fadein 0.5s, fadeout 0.5s 4s;
-    animation: fadein 0.5s, fadeout 0.5s 4s;
-}
-
-/* Show the snackbar when clicking on a button (class added with JavaScript) */
-#note2.show {
+#note.show {
     visibility: visible; /* Show the snackbar */
     /* Add animation: Take 0.5 seconds to fade in and out the snackbar.
     However, delay the fade out process for 2.5 seconds */
