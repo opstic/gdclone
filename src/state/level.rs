@@ -6,7 +6,7 @@ use bevy::ecs::schedule::{ExecutorKind, ScheduleLabel};
 use bevy::hierarchy::{DespawnRecursiveExt, Parent};
 use bevy::input::mouse::{MouseMotion, MouseScrollUnit, MouseWheel};
 use bevy::input::ButtonInput;
-use bevy::math::{Vec2, Vec3, Vec3Swizzles, Vec4Swizzles};
+use bevy::math::{Vec2, Vec3Swizzles, Vec4Swizzles};
 use bevy::prelude::{
     in_state, Camera, ClearColor, Color, Commands, Component, Entity, EventReader,
     GizmoPrimitive2d, Gizmos, GlobalTransform, IntoSystemConfigs, KeyCode, Local, MouseButton, Mut,
@@ -108,11 +108,14 @@ fn level_setup(
     options.pause_player = browser_state.start_paused;
     options.show_options = browser_state.start_paused;
     for (entity, mut transform, mut projection) in &mut cameras {
-        transform.translation = Vec3::ZERO;
-        projection.scale = 1.;
+        transform.translation = Vec2::new(0., browser_state.start_y).extend(0.);
+        projection.scale = browser_state.start_scale;
         commands
             .entity(entity)
-            .insert(ActualCameraTranslation(Vec2::ZERO));
+            .insert(ActualCameraTranslation(Vec2::new(
+                0.,
+                browser_state.start_y,
+            )));
     }
     let LevelWorld::World(ref mut world) = *level_world else {
         panic!("World is supposed to be created");

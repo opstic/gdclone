@@ -1,4 +1,3 @@
-use crate::api::{DefaultApi, ServerApi};
 use bevy::asset::io::AssetSourceId;
 use bevy::asset::{AssetPath, LoadState};
 use bevy::prelude::*;
@@ -6,6 +5,7 @@ use bevy::utils::HashMap;
 use instant::Instant;
 use wasm_bindgen::JsCast;
 
+use crate::api::{DefaultApi, ServerApi};
 use crate::asset::GlobalAssets;
 use crate::level::{LevelInfo, SongInfo};
 use crate::state::menu::LevelBrowserState;
@@ -106,6 +106,18 @@ fn startup_setup(mut commands: Commands, server: Res<AssetServer>) {
                     }
                     if let Some(start_paused) = parsed_query.get("start_paused") {
                         options.start_paused = str_to_bool(start_paused);
+                    }
+                    if let Some(start_y) = parsed_query
+                        .get("start_y")
+                        .and_then(|start_y| start_y.parse().ok())
+                    {
+                        options.start_y = start_y;
+                    }
+                    if let Some(start_scale) = parsed_query
+                        .get("start_scale")
+                        .and_then(|start_scale| start_scale.parse().ok())
+                    {
+                        options.start_scale = start_scale;
                     }
                     commands.insert_resource(options);
                     if let Some(preload) = parsed_query.get("preload") {

@@ -2,7 +2,8 @@ use bevy::app::{App, Plugin, Update};
 use bevy::asset::Handle;
 use bevy::log::info;
 use bevy::prelude::{
-    in_state, Commands, Entity, IntoSystemConfigs, NextState, Query, ResMut, Resource, Window,
+    in_state, Commands, Entity, IntoSystemConfigs, NextState, OnEnter, Query, ResMut, Resource,
+    Window,
 };
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::utils::HashMap;
@@ -23,6 +24,7 @@ pub(crate) struct MenuStatePlugin;
 impl Plugin for MenuStatePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LevelBrowserState>()
+            .add_systems(OnEnter(GameState::Menu), menu_setup)
             .add_systems(Update, render_menu_gui.run_if(in_state(GameState::Menu)));
     }
 }
@@ -44,6 +46,8 @@ pub(crate) struct LevelBrowserState {
     pub(crate) stored_songs: HashMap<u64, Handle<AudioSource>>,
     pub(crate) low_detail: bool,
     pub(crate) start_paused: bool,
+    pub(crate) start_y: f32,
+    pub(crate) start_scale: f32,
 }
 
 impl Default for LevelBrowserState {
@@ -60,8 +64,15 @@ impl Default for LevelBrowserState {
             stored_songs: HashMap::new(),
             low_detail: false,
             start_paused: false,
+            start_y: 0.,
+            start_scale: 1.,
         }
     }
+}
+
+fn menu_setup(mut browser_state: ResMut<LevelBrowserState>) {
+    browser_state.start_y = 0.;
+    browser_state.start_scale = 1.;
 }
 
 fn render_menu_gui(
