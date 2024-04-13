@@ -383,6 +383,8 @@ impl<'a> ParsedInnerLevel<'a> {
 
         radsort::sort_by_key(&mut temp_objects, |temp| temp.0);
 
+        unsafe { world.entities_mut() }.reserve(self.objects.len() as u32);
+
         if low_detail {
             for (_, index) in temp_objects {
                 let object_data = &self.objects[index as usize];
