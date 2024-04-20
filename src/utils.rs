@@ -116,7 +116,7 @@ where
 
 pub(crate) type StartObjectStorage<'decompressed> =
     ArrayMap<&'decompressed str, &'decompressed str, 48>;
-pub(crate) type ObjectStorage<'decompressed> = ArrayMap<&'decompressed str, &'decompressed str, 28>;
+pub(crate) type ObjectStorage<'decompressed> = ArrayMap<&'decompressed str, &'decompressed str, 45>;
 
 #[inline]
 pub(crate) fn str_to_bool(string: &str) -> bool {
