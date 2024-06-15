@@ -61,9 +61,9 @@ impl Plugin for RemoveSrgbPlugin {
                 // Specify the node ordering.
                 // This will automatically create all required node edges to enforce the given ordering.
                 (
-                    Node2d::EndMainPassPostProcessing,
+                    Node2d::Tonemapping,
                     RemoveSrgbLabel,
-                    Node2d::Upscaling,
+                    Node2d::Fxaa,
                 ),
             );
     }
