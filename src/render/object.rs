@@ -47,7 +47,7 @@ use bevy::tasks::ComputeTaskPool;
 use bevy::utils::{syncunsafecell::SyncUnsafeCell, FloatOrd};
 use indexmap::IndexMap;
 
-use crate::level::color::ObjectColorCalculated;
+use crate::level::color::{HsvMod, ObjectColor, ObjectColorCalculated, ObjectColorKind};
 use crate::level::transform::GlobalTransform2d;
 use crate::level::{object::Object, section::GlobalSections, LevelWorld};
 use crate::state::level::Options;
@@ -249,6 +249,10 @@ impl SpecializedRenderPipeline for ObjectPipeline {
                 VertexFormat::Float32x4,
                 // @location(5) i_texture_index: u32
                 VertexFormat::Uint32,
+                // @location(6) i_hsv: vec3<f32>
+                VertexFormat::Float32x3,
+                // @location(7) i_hsv_flags: u32
+                VertexFormat::Uint32,
             ],
         );
 
@@ -305,15 +309,14 @@ impl SpecializedRenderPipeline for ObjectPipeline {
 pub struct ExtractedObject {
     transform: GlobalTransform2d,
     color: Vec4,
+    hsv: Option<HsvMod>,
     /// Select an area of the texture
-    rect: Option<Rect>,
-    /// Change the on-screen size of the sprite
-    custom_size: Option<Vec2>,
+    rect: Rect,
     /// Asset ID of the [`Image`] of this sprite
     /// PERF: storing an `AssetId` instead of `Handle<Image>` enables some optimizations (`ExtractedSprite` becomes `Copy` and doesn't need to be dropped)
     image_handle_id: AssetId<Image>,
-    flip_x: bool,
-    flip_y: bool,
+    // flip_x: bool,
+    // flip_y: bool,
     anchor: Vec2,
     rotated: bool,
     entity: Entity,
@@ -350,6 +353,7 @@ pub(crate) struct ExtractSystemStateCache {
                     Entity,
                     &'static GlobalTransform2d,
                     &'static Object,
+                    &'static ObjectColor,
                     &'static ObjectColorCalculated,
                     &'static Handle<Image>,
                 ),
@@ -399,6 +403,7 @@ pub(crate) fn extract_objects(
                     Entity,
                     &GlobalTransform2d,
                     &Object,
+                    &ObjectColor,
                     &ObjectColorCalculated,
                     &Handle<Image>,
                 )>,
@@ -420,8 +425,10 @@ pub(crate) fn extract_objects(
     }
 
     for section in &global_sections.sections[global_sections.visible.clone()] {
-        for (entity, transform, object, object_color, image_handle) in objects.iter_many(section) {
-            if !object_color.enabled {
+        for (entity, transform, object, object_color, object_color_calc, image_handle) in
+            objects.iter_many(section)
+        {
+            if !object_color_calc.enabled {
                 continue;
             }
 
@@ -441,7 +448,7 @@ pub(crate) fn extract_objects(
             }
 
             let z_layer = object.z_layer
-                - if object_color.blending ^ (object.z_layer % 2 == 0) {
+                - if object_color_calc.blending ^ (object.z_layer % 2 == 0) {
                     1
                 } else {
                     0
@@ -462,14 +469,17 @@ pub(crate) fn extract_objects(
                 &mut extracted_layers.layers[layer_index].1
             };
 
+            let hsv = match object_color.object_color_kind {
+                ObjectColorKind::None | ObjectColorKind::Black => None,
+                _ => object_color.hsv,
+            };
+
             extracted_layer.get_mut().push(ExtractedObject {
                 transform: *transform,
-                color: object_color.color,
-                rect: Some(object.frame.rect),
-                custom_size: None,
+                color: object_color_calc.color,
+                hsv,
+                rect: object.frame.rect,
                 image_handle_id: image_handle.id(),
-                flip_x: false,
-                flip_y: false,
                 anchor: object.frame.anchor + object.anchor,
                 rotated: object.frame.rotated,
                 entity,
@@ -485,11 +495,23 @@ struct ObjectInstance {
     i_color: [f32; 4],
     i_uv_offset_scale: [f32; 4],
     i_texture_index: u32,
+    i_hsv: [f32; 3],
+    i_hsv_flags: u32,
 }
 
 impl ObjectInstance {
     #[inline]
-    fn from(transform: &Affine2, color: Vec4, uv_offset_scale: &Vec4, texture_index: u32) -> Self {
+    fn from(
+        transform: &Affine2,
+        color: Vec4,
+        uv_offset_scale: &Vec4,
+        texture_index: u32,
+        hsv_mod: Option<HsvMod>,
+    ) -> Self {
+        let (i_hsv, i_hsv_flags) = match hsv_mod {
+            Some(hsv_mod) => hsv_mod.into(),
+            None => ([0.; 3], HSV_FLAGS_DISABLED),
+        };
         Self {
             i_model: [
                 transform.matrix2.x_axis,
@@ -499,7 +521,26 @@ impl ObjectInstance {
             i_color: color.to_array(),
             i_uv_offset_scale: uv_offset_scale.to_array(),
             i_texture_index: texture_index,
+            i_hsv,
+            i_hsv_flags,
         }
+    }
+}
+
+const HSV_FLAGS_DISABLED: u32 = 1 << 0;
+const HSV_FLAGS_S_ABSOLUTE: u32 = 1 << 1;
+const HSV_FLAGS_V_ABSOLUTE: u32 = 1 << 2;
+
+impl From<HsvMod> for ([f32; 3], u32) {
+    fn from(hsv: HsvMod) -> Self {
+        let mut flags = 0;
+        if hsv.s_absolute {
+            flags |= HSV_FLAGS_S_ABSOLUTE;
+        }
+        if hsv.v_absolute {
+            flags |= HSV_FLAGS_V_ABSOLUTE;
+        }
+        ([hsv.h, hsv.s, hsv.v], flags)
     }
 }
 
@@ -700,7 +741,7 @@ pub(crate) fn prepare_objects(
                     instance_mut_ref.split_at_mut(extracted_layer.len());
                 instance_mut_ref = other_chunk;
 
-                assert_eq!(extracted_layer.len(), this_chunk.len());
+                debug_assert_eq!(extracted_layer.len(), this_chunk.len());
 
                 let layer_batches = unsafe { &mut *layers_batches.get() }
                     .entry(item_index)
@@ -763,33 +804,23 @@ pub(crate) fn prepare_objects(
                         // Calculate vertex data for this item
                         let mut uv_offset_scale: Vec4;
 
-                        // If a rect is specified, adjust UVs and the size of the quad
-                        if let Some(rect) = extracted_object.rect {
-                            let rect_size = rect.size();
-                            uv_offset_scale = Vec4::new(
-                                rect.min.x / current_image_size.x,
-                                rect.max.y / current_image_size.y,
-                                rect_size.x / current_image_size.x,
-                                -rect_size.y / current_image_size.y,
-                            );
-                            quad_size = rect_size;
-                        } else {
-                            uv_offset_scale = Vec4::new(0.0, 1.0, 1.0, -1.0);
-                        }
+                        let rect_size = extracted_object.rect.size();
+                        uv_offset_scale = Vec4::new(
+                            extracted_object.rect.min.x / current_image_size.x,
+                            extracted_object.rect.max.y / current_image_size.y,
+                            rect_size.x / current_image_size.x,
+                            -rect_size.y / current_image_size.y,
+                        );
+                        quad_size = rect_size;
 
-                        if extracted_object.flip_x {
-                            uv_offset_scale.x += uv_offset_scale.z;
-                            uv_offset_scale.z *= -1.0;
-                        }
-                        if extracted_object.flip_y {
-                            uv_offset_scale.y += uv_offset_scale.w;
-                            uv_offset_scale.w *= -1.0;
-                        }
-
-                        // Override the size if a custom one is specified
-                        if let Some(custom_size) = extracted_object.custom_size {
-                            quad_size = custom_size;
-                        }
+                        // if extracted_object.flip_x {
+                        //     uv_offset_scale.x += uv_offset_scale.z;
+                        //     uv_offset_scale.z *= -1.0;
+                        // }
+                        // if extracted_object.flip_y {
+                        //     uv_offset_scale.y += uv_offset_scale.w;
+                        //     uv_offset_scale.w *= -1.0;
+                        // }
 
                         // Texture atlas scale factor
                         quad_size /= 4.;
@@ -814,6 +845,7 @@ pub(crate) fn prepare_objects(
                             extracted_object.color,
                             &uv_offset_scale,
                             texture_index as u32,
+                            extracted_object.hsv,
                         );
 
                         batch_range.end += 1;
