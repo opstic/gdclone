@@ -1,4 +1,4 @@
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 
 use bevy::asset::{AssetId, Handle};
 use bevy::ecs::query::{QueryData, QueryFilter};

@@ -45,7 +45,6 @@ use bevy::render::{
 };
 use bevy::tasks::ComputeTaskPool;
 use bevy::utils::{syncunsafecell::SyncUnsafeCell, FloatOrd};
-use indexmap::IndexMap;
 
 use crate::level::color::{HsvMod, ObjectColor, ObjectColorCalculated, ObjectColorKind};
 use crate::level::transform::GlobalTransform2d;
@@ -207,8 +206,7 @@ bitflags::bitflags! {
     // MSAA uses the highest 3 bits for the MSAA log2(sample count) to support up to 128x MSAA.
     pub struct ObjectPipelineKey: u32 {
         const NONE                              = 0;
-        const ADDITIVE_BLENDING                 = 1 << 0;
-        const NO_TEXTURE_ARRAY                  = 1 << 1;
+        const NO_TEXTURE_ARRAY                  = 1 << 0;
         const MSAA_RESERVED_BITS                = Self::MSAA_MASK_BITS << Self::MSAA_SHIFT_BITS;
     }
 }
@@ -251,16 +249,12 @@ impl SpecializedRenderPipeline for ObjectPipeline {
                 VertexFormat::Uint32,
                 // @location(6) i_hsv: vec3<f32>
                 VertexFormat::Float32x3,
-                // @location(7) i_hsv_flags: u32
+                // @location(7) i_flags: u32
                 VertexFormat::Uint32,
             ],
         );
 
         let mut shader_defs = Vec::new();
-
-        if key.contains(ObjectPipelineKey::ADDITIVE_BLENDING) {
-            shader_defs.push("ADDITIVE_BLENDING".into());
-        }
 
         if key.contains(ObjectPipelineKey::NO_TEXTURE_ARRAY) {
             shader_defs.push("NO_TEXTURE_ARRAY".into());
@@ -310,6 +304,7 @@ pub struct ExtractedObject {
     transform: GlobalTransform2d,
     color: Vec4,
     hsv: Option<HsvMod>,
+    blending: bool,
     /// Select an area of the texture
     rect: Rect,
     /// Asset ID of the [`Image`] of this sprite
@@ -322,22 +317,9 @@ pub struct ExtractedObject {
     entity: Entity,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
-struct LayerIndex(i32);
-
-impl LayerIndex {
-    fn from_u32(value: u32) -> Self {
-        Self(unsafe { std::mem::transmute(value) })
-    }
-
-    fn to_u32(self) -> u32 {
-        unsafe { std::mem::transmute(self.0) }
-    }
-}
-
 #[derive(Default, Resource)]
 pub(crate) struct ExtractedLayers {
-    layers: Vec<(LayerIndex, SyncUnsafeCell<Vec<ExtractedObject>>)>,
+    layers: Vec<(i32, SyncUnsafeCell<Vec<ExtractedObject>>)>,
     total_size: usize,
 }
 
@@ -457,13 +439,13 @@ pub(crate) fn extract_objects(
             let extracted_layer = if let Some((_, extracted_layer)) = extracted_layers
                 .layers
                 .iter_mut()
-                .find(|(layer_index, _)| layer_index.0 == z_layer)
+                .find(|(layer_index, _)| *layer_index == z_layer)
             {
                 extracted_layer
             } else {
                 let layer_index = extracted_layers.layers.len();
                 extracted_layers.layers.push((
-                    LayerIndex(z_layer),
+                    z_layer,
                     SyncUnsafeCell::new(Vec::with_capacity(10000)),
                 ));
                 &mut extracted_layers.layers[layer_index].1
@@ -478,6 +460,7 @@ pub(crate) fn extract_objects(
                 transform: *transform,
                 color: object_color_calc.color,
                 hsv,
+                blending: object_color_calc.blending,
                 rect: object.frame.rect,
                 image_handle_id: image_handle.id(),
                 anchor: object.frame.anchor + object.anchor,
@@ -496,7 +479,7 @@ struct ObjectInstance {
     i_uv_offset_scale: [f32; 4],
     i_texture_index: u32,
     i_hsv: [f32; 3],
-    i_hsv_flags: u32,
+    i_flags: u32,
 }
 
 impl ObjectInstance {
@@ -507,11 +490,17 @@ impl ObjectInstance {
         uv_offset_scale: &Vec4,
         texture_index: u32,
         hsv_mod: Option<HsvMod>,
+        blending: bool,
     ) -> Self {
-        let (i_hsv, i_hsv_flags) = match hsv_mod {
+        let (i_hsv, mut i_flags) = match hsv_mod {
             Some(hsv_mod) => hsv_mod.into(),
-            None => ([0.; 3], HSV_FLAGS_DISABLED),
+            None => ([0.; 3], FLAGS_HSV_DISABLED),
         };
+
+        if blending {
+            i_flags |= FLAGS_BLENDING;
+        }
+
         Self {
             i_model: [
                 transform.matrix2.x_axis,
@@ -522,23 +511,24 @@ impl ObjectInstance {
             i_uv_offset_scale: uv_offset_scale.to_array(),
             i_texture_index: texture_index,
             i_hsv,
-            i_hsv_flags,
+            i_flags,
         }
     }
 }
 
-const HSV_FLAGS_DISABLED: u32 = 1 << 0;
-const HSV_FLAGS_S_ABSOLUTE: u32 = 1 << 1;
-const HSV_FLAGS_V_ABSOLUTE: u32 = 1 << 2;
+const FLAGS_BLENDING: u32 = 1 << 0;
+const FLAGS_HSV_DISABLED: u32 = 1 << 1;
+const FLAGS_HSV_S_ABSOLUTE: u32 = 1 << 2;
+const FLAGS_HSV_V_ABSOLUTE: u32 = 1 << 3;
 
 impl From<HsvMod> for ([f32; 3], u32) {
     fn from(hsv: HsvMod) -> Self {
         let mut flags = 0;
         if hsv.s_absolute {
-            flags |= HSV_FLAGS_S_ABSOLUTE;
+            flags |= FLAGS_HSV_S_ABSOLUTE;
         }
         if hsv.v_absolute {
-            flags |= HSV_FLAGS_V_ABSOLUTE;
+            flags |= FLAGS_HSV_V_ABSOLUTE;
         }
         ([hsv.h, hsv.s, hsv.v], flags)
     }
@@ -566,75 +556,17 @@ pub struct ObjectBatch {
     pub(crate) ranges: Vec<(usize, Range<u32>)>,
 }
 
-const LAYER_IDENTIFIER: u32 = u32::MAX & 0x7FFF_FFFF;
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn queue_objects(
-    draw_functions: Res<DrawFunctions<Transparent2d>>,
-    object_pipeline: Res<ObjectPipeline>,
-    fallbacks: Res<Fallbacks>,
-    mut pipelines: ResMut<SpecializedRenderPipelines<ObjectPipeline>>,
-    pipeline_cache: Res<PipelineCache>,
-    msaa: Res<Msaa>,
-    mut extracted_layers: ResMut<ExtractedLayers>,
-    mut phases: Query<&mut RenderPhase<Transparent2d>>,
-) {
-    let mut view_key = ObjectPipelineKey::from_msaa_samples(msaa.samples());
-    if fallbacks.texture_array_size == 1 {
-        view_key |= ObjectPipelineKey::NO_TEXTURE_ARRAY;
-    }
-
-    let draw_object_function = draw_functions.read().id::<DrawObject>();
-
-    let pipeline = pipelines.specialize(&pipeline_cache, &object_pipeline, view_key);
-    let blending_pipeline = pipelines.specialize(
-        &pipeline_cache,
-        &object_pipeline,
-        view_key | ObjectPipelineKey::ADDITIVE_BLENDING,
-    );
-
-    for mut transparent_phase in &mut phases {
-        transparent_phase
-            .items
-            .reserve(extracted_layers.layers.len());
-
-        let mut total_size = 0;
-
-        for (layer_index, extracted_layer) in &mut extracted_layers.layers {
-            let extracted_layer = extracted_layer.get_mut();
-
-            if extracted_layer.is_empty() {
-                continue;
-            }
-
-            total_size += extracted_layer.len();
-
-            let entity_bits = (LAYER_IDENTIFIER as u64) << 32 | (layer_index.to_u32() as u64);
-            transparent_phase.add(Transparent2d {
-                draw_function: draw_object_function,
-                pipeline: if layer_index.0 % 2 == 0 {
-                    blending_pipeline
-                } else {
-                    pipeline
-                },
-                // Instead of passing an `Entity`, use this field to pass the index of this layer
-                entity: Entity::from_bits(entity_bits),
-                sort_key: FloatOrd(layer_index.0 as f32),
-                batch_range: 0..1,
-                dynamic_offset: None,
-            });
-        }
-
-        extracted_layers.total_size = total_size;
-    }
-
+pub(crate) fn queue_objects(mut extracted_layers: ResMut<ExtractedLayers>) {
     let compute_task_pool = ComputeTaskPool::get();
+
+    let mut total_size = 0;
 
     // Sort the layers
     compute_task_pool.scope(|scope| {
-        for (layer_index, extracted_layer) in extracted_layers.layers.iter() {
+        for (layer_index, extracted_layer) in &extracted_layers.layers {
             // let a = info_span!("queue_objects: layer sort task");
-            if (layer_index.0 % 2).abs() == 0 {
+            total_size += unsafe { &*extracted_layer.get() }.len();
+            if (layer_index % 2).abs() == 0 {
                 // Sorting additive blending sprites aren't needed
                 continue;
             }
@@ -652,6 +584,8 @@ pub(crate) fn queue_objects(
             });
         }
     });
+
+    extracted_layers.total_size = total_size;
 }
 
 #[derive(Resource, Default)]
@@ -669,9 +603,13 @@ pub(crate) fn prepare_objects(
     object_pipeline: Res<ObjectPipeline>,
     mut image_bind_groups: ResMut<ImageBindGroups>,
     gpu_images: Res<RenderAssets<Image>>,
-    extracted_layers: Res<ExtractedLayers>,
+    mut extracted_layers: ResMut<ExtractedLayers>,
     mut phases: Query<&mut RenderPhase<Transparent2d>>,
     fallbacks: Res<Fallbacks>,
+    msaa: Res<Msaa>,
+    draw_functions: Res<DrawFunctions<Transparent2d>>,
+    mut pipelines: ResMut<SpecializedRenderPipelines<ObjectPipeline>>,
+    pipeline_cache: Res<PipelineCache>,
 ) {
     image_bind_groups.values.clear();
 
@@ -691,192 +629,208 @@ pub(crate) fn prepare_objects(
 
     let mut index = 0;
 
-    for mut transparent_phase in &mut phases {
-        let mut instance_mut_ref = &mut instance_buffer_values[..];
+    let mut instance_mut_ref = &mut instance_buffer_values[..];
+    let layers_batches: SyncUnsafeCell<Vec<Vec<(usize, Range<u32>)>>> =
+        SyncUnsafeCell::new(Vec::with_capacity(extracted_layers.layers.len()));
+    let dummy_image = &object_pipeline.dummy_white_gpu_image;
+    let mut images_index = AtomicUsize::new(0);
+    let images = SyncUnsafeCell::new(
+        [(
+            AssetId::invalid(),
+            dummy_image.size,
+            &dummy_image.texture_view,
+            &dummy_image.sampler,
+        ); 16],
+    );
 
-        let mut layers_batches: SyncUnsafeCell<IndexMap<usize, ObjectBatch>> =
-            SyncUnsafeCell::new(IndexMap::with_capacity(extracted_layers.layers.len()));
-        let dummy_image = &object_pipeline.dummy_white_gpu_image;
-        let mut images_index = AtomicUsize::new(0);
-        let images = SyncUnsafeCell::new(
-            [(
-                AssetId::invalid(),
-                dummy_image.size,
-                &dummy_image.texture_view,
-                &dummy_image.sampler,
-            ); 16],
-        );
+    let compute_task_pool = ComputeTaskPool::get();
 
-        let compute_task_pool = ComputeTaskPool::get();
+    compute_task_pool.scope(|scope| {
+        let fallbacks = &fallbacks;
+        let images_index = &images_index;
+        let images = &images;
+        let gpu_images = &gpu_images;
+        // Iterate through the phase items and detect when successive sprites that can be batched.
+        // Spawn an entity with a `SpriteBatch` component for each possible batch.
+        // Compatible items share the same entity.
 
-        compute_task_pool.scope(|scope| {
-            let layers_batches = &layers_batches;
-            let fallbacks = &fallbacks;
-            let images_index = &images_index;
-            let images = &images;
-            let gpu_images = &gpu_images;
-            // Iterate through the phase items and detect when successive sprites that can be batched.
-            // Spawn an entity with a `SpriteBatch` component for each possible batch.
-            // Compatible items share the same entity.
-            for item_index in 0..transparent_phase.items.len() {
-                let item = &transparent_phase.items[item_index];
+        radsort::sort_by_cached_key(&mut extracted_layers.layers, |(layer_index, _)| *layer_index);
 
-                if item.entity.generation() != LAYER_IDENTIFIER {
-                    continue;
-                }
+        for (_, extracted_layer) in &mut extracted_layers.layers {
+            let extracted_layer = unsafe { &*extracted_layer.get() };
 
-                let item_layer_index = LayerIndex::from_u32(item.entity.index());
+            if extracted_layer.is_empty() {
+                continue;
+            }
 
-                let Some((_, extracted_layer)) = extracted_layers
-                    .layers
-                    .iter()
-                    .find(|(layer_index, _)| layer_index.0 == item_layer_index.0)
-                else {
-                    continue;
-                };
+            let (this_chunk, other_chunk) = instance_mut_ref.split_at_mut(extracted_layer.len());
+            instance_mut_ref = other_chunk;
 
-                let extracted_layer = unsafe { &*extracted_layer.get() };
+            let layer_batches_mut = unsafe { &mut *layers_batches.get() };
+            let layer_batches_index = layer_batches_mut.len();
+            layer_batches_mut.push(Vec::new());
 
-                let (this_chunk, other_chunk) =
-                    instance_mut_ref.split_at_mut(extracted_layer.len());
-                instance_mut_ref = other_chunk;
+            let layer_batches = &layers_batches;
 
-                debug_assert_eq!(extracted_layer.len(), this_chunk.len());
-
-                let layer_batches = unsafe { &mut *layers_batches.get() }
-                    .entry(item_index)
-                    .or_default();
-
-                // let a = info_span!("prepare_objects: layer task");
-                scope.spawn(async move {
-                    // let _a = a.enter();
-                    let mut previous_image_group_index = 0;
-                    let mut batch_ranges = Vec::new();
-                    let mut batch_range = index..index;
-                    let images = unsafe { &mut *images.get() };
-                    for (extracted_object, buffer_entry) in extracted_layer.iter().zip(this_chunk) {
-                        let (image_group_index, texture_index, current_image_size) =
-                            match images.iter().position(|(asset_id, _, _, _)| {
-                                *asset_id == extracted_object.image_handle_id
-                            }) {
-                                Some(index) => {
-                                    let y = index % fallbacks.texture_array_size;
-                                    let x = (index - y) / fallbacks.texture_array_size;
-                                    (x, y, images[index].1)
-                                }
-                                None => {
-                                    let Some(gpu_image) =
-                                        gpu_images.get(extracted_object.image_handle_id)
-                                    else {
-                                        // Texture isn't ready yet
-                                        continue;
-                                    };
-
-                                    let new_index = images_index.fetch_add(1, Ordering::Relaxed);
-
-                                    images[new_index] = (
-                                        extracted_object.image_handle_id,
-                                        gpu_image.size,
-                                        &gpu_image.texture_view,
-                                        &gpu_image.sampler,
-                                    );
-
-                                    let y = new_index % fallbacks.texture_array_size;
-                                    let x = (new_index - y) / fallbacks.texture_array_size;
-                                    (x, y, gpu_image.size)
-                                }
+            // let a = info_span!("prepare_objects: layer task");
+            scope.spawn(async move {
+                // let _a = a.enter();
+                let mut previous_image_group_index = 0;
+                let mut batch_ranges = Vec::new();
+                let mut batch_range = index..index;
+                let images = unsafe { &mut *images.get() };
+                for (extracted_object, buffer_entry) in extracted_layer.iter().zip(this_chunk) {
+                    let (image_group_index, texture_index, current_image_size) = match images
+                        .iter()
+                        .position(|(asset_id, _, _, _)| {
+                            *asset_id == extracted_object.image_handle_id
+                        }) {
+                        Some(index) => {
+                            let y = index % fallbacks.texture_array_size;
+                            let x = (index - y) / fallbacks.texture_array_size;
+                            (x, y, images[index].1)
+                        }
+                        None => {
+                            let Some(gpu_image) = gpu_images.get(extracted_object.image_handle_id)
+                            else {
+                                // Texture isn't ready yet
+                                continue;
                             };
 
-                        if image_group_index != previous_image_group_index
-                            && !batch_range.is_empty()
-                        {
-                            let new_range = batch_range.end..batch_range.end;
-                            batch_ranges.push((
-                                previous_image_group_index,
-                                std::mem::replace(&mut batch_range, new_range),
-                            ));
+                            let new_index = images_index.fetch_add(1, Ordering::Relaxed);
+
+                            images[new_index] = (
+                                extracted_object.image_handle_id,
+                                gpu_image.size,
+                                &gpu_image.texture_view,
+                                &gpu_image.sampler,
+                            );
+
+                            let y = new_index % fallbacks.texture_array_size;
+                            let x = (new_index - y) / fallbacks.texture_array_size;
+                            (x, y, gpu_image.size)
                         }
-                        previous_image_group_index = image_group_index;
+                    };
 
-                        // By default, the size of the quad is the size of the texture
-                        let mut quad_size = current_image_size;
+                    if image_group_index != previous_image_group_index && !batch_range.is_empty() {
+                        let new_range = batch_range.end..batch_range.end;
+                        batch_ranges.push((
+                            previous_image_group_index,
+                            std::mem::replace(&mut batch_range, new_range),
+                        ));
+                    }
+                    previous_image_group_index = image_group_index;
 
-                        // Calculate vertex data for this item
-                        let mut uv_offset_scale: Vec4;
+                    // Calculate vertex data for this item
+                    let rect_size = extracted_object.rect.size();
+                    let uv_offset_scale = Vec4::new(
+                        extracted_object.rect.min.x / current_image_size.x,
+                        extracted_object.rect.max.y / current_image_size.y,
+                        rect_size.x / current_image_size.x,
+                        -rect_size.y / current_image_size.y,
+                    );
+                    let mut quad_size = rect_size;
 
-                        let rect_size = extracted_object.rect.size();
-                        uv_offset_scale = Vec4::new(
-                            extracted_object.rect.min.x / current_image_size.x,
-                            extracted_object.rect.max.y / current_image_size.y,
-                            rect_size.x / current_image_size.x,
-                            -rect_size.y / current_image_size.y,
-                        );
-                        quad_size = rect_size;
+                    // if extracted_object.flip_x {
+                    //     uv_offset_scale.x += uv_offset_scale.z;
+                    //     uv_offset_scale.z *= -1.0;
+                    // }
+                    // if extracted_object.flip_y {
+                    //     uv_offset_scale.y += uv_offset_scale.w;
+                    //     uv_offset_scale.w *= -1.0;
+                    // }
 
-                        // if extracted_object.flip_x {
-                        //     uv_offset_scale.x += uv_offset_scale.z;
-                        //     uv_offset_scale.z *= -1.0;
-                        // }
-                        // if extracted_object.flip_y {
-                        //     uv_offset_scale.y += uv_offset_scale.w;
-                        //     uv_offset_scale.w *= -1.0;
-                        // }
+                    // Texture atlas scale factor
+                    quad_size /= 4.;
 
-                        // Texture atlas scale factor
-                        quad_size /= 4.;
+                    let mut transform = extracted_object.transform.affine();
 
-                        let mut transform = extracted_object.transform.affine();
-
-                        if extracted_object.rotated {
-                            let y_axis = -transform.x_axis;
-                            transform.x_axis = transform.y_axis;
-                            transform.y_axis = y_axis;
-                        }
-
-                        transform *= Affine2::from_scale_angle_translation(
-                            quad_size,
-                            0.,
-                            quad_size * (-extracted_object.anchor - Vec2::splat(0.5)),
-                        );
-
-                        // Store the vertex data and add the item to the render phase
-                        *buffer_entry = ObjectInstance::from(
-                            &transform,
-                            extracted_object.color,
-                            &uv_offset_scale,
-                            texture_index as u32,
-                            extracted_object.hsv,
-                        );
-
-                        batch_range.end += 1;
+                    if extracted_object.rotated {
+                        let y_axis = -transform.x_axis;
+                        transform.x_axis = transform.y_axis;
+                        transform.y_axis = y_axis;
                     }
 
-                    batch_ranges.push((previous_image_group_index, batch_range));
+                    transform *= Affine2::from_scale_angle_translation(
+                        quad_size,
+                        0.,
+                        quad_size * (-extracted_object.anchor - Vec2::splat(0.5)),
+                    );
 
-                    *layer_batches = ObjectBatch {
-                        ranges: batch_ranges,
-                    };
-                });
+                    // Store the vertex data and add the item to the render phase
+                    *buffer_entry = ObjectInstance::from(
+                        &transform,
+                        extracted_object.color,
+                        &uv_offset_scale,
+                        texture_index as u32,
+                        extracted_object.hsv,
+                        extracted_object.blending,
+                    );
 
-                index += extracted_layer.len() as u32;
-            }
-        });
+                    batch_range.end += 1;
+                }
 
-        for (item_index, batch) in &mut layers_batches.get_mut().iter_mut() {
-            let batch_id = commands.spawn(std::mem::take(batch)).id();
-            transparent_phase.items[*item_index].entity = batch_id;
+                batch_ranges.push((previous_image_group_index, batch_range));
+
+                let layer_batch = &mut unsafe { &mut *layer_batches.get() }[layer_batches_index];
+                *layer_batch = batch_ranges;
+            });
+
+            index += extracted_layer.len() as u32;
         }
+    });
 
-        for image_chunk in
-            images.into_inner()[..*images_index.get_mut()].chunks(fallbacks.texture_array_size)
+    let mut ranges: Vec<(usize, Range<u32>)> = Vec::with_capacity(50);
+
+    for mut batch in layers_batches.into_inner() {
+        if ranges
+            .last()
+            .and_then(|last| {
+                batch
+                    .first()
+                    .and_then(|first| if last.0 == first.0 { Some(()) } else { None })
+            })
+            .is_some()
         {
-            image_bind_groups.values.push(create_image_bind_group(
-                image_chunk,
-                fallbacks.texture_array_size,
-                &object_pipeline,
-                &render_device,
-            ))
+            ranges.last_mut().unwrap().1.end = batch.first().unwrap().1.end;
+            ranges.append(&mut batch[1..].to_vec());
+        } else {
+            ranges.append(&mut batch);
         }
+    }
+
+    if !ranges.is_empty() {
+        let batch_id = commands.spawn(ObjectBatch { ranges }).id();
+        let mut view_key = ObjectPipelineKey::from_msaa_samples(msaa.samples());
+        if fallbacks.texture_array_size == 1 {
+            view_key |= ObjectPipelineKey::NO_TEXTURE_ARRAY;
+        }
+
+        let draw_object_function = draw_functions.read().id::<DrawObject>();
+
+        let pipeline = pipelines.specialize(&pipeline_cache, &object_pipeline, view_key);
+        for mut phase in &mut phases {
+            phase.add(Transparent2d {
+                draw_function: draw_object_function,
+                pipeline,
+                // Instead of passing an `Entity`, use this field to pass the index of this layer
+                entity: batch_id,
+                sort_key: FloatOrd(0.),
+                batch_range: 0..1,
+                dynamic_offset: None,
+            });
+        }
+    }
+
+    for image_chunk in
+        images.into_inner()[..*images_index.get_mut()].chunks(fallbacks.texture_array_size)
+    {
+        image_bind_groups.values.push(create_image_bind_group(
+            image_chunk,
+            fallbacks.texture_array_size,
+            &object_pipeline,
+            &render_device,
+        ))
     }
 
     object_meta

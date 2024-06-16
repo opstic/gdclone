@@ -22,7 +22,7 @@ struct VertexInput {
     @location(4) i_uv_offset_scale: vec4<f32>,
     @location(5) i_texture_index: u32,
     @location(6) i_hsv: vec3<f32>,
-    @location(7) i_hsv_flags: u32,
+    @location(7) i_flags: u32,
     @builtin(vertex_index) index: u32,
 }
 
@@ -84,8 +84,10 @@ fn vertex(in: VertexInput) -> VertexOutput {
         hsv.z + in.i_hsv.z,
     );
     let absolute_flags = vec2<f32>(
-        f32((in.i_hsv_flags >> 1) & 1),
-        f32((in.i_hsv_flags >> 2) & 1),
+        // Flag: hsv_s_absolute
+        f32((in.i_flags >> 2) & 1),
+        // Flag: hsv_v_absolute
+        f32((in.i_flags >> 3) & 1),
     );
 
     let sv = mix(normal_sv, absolute_sv, absolute_flags);
@@ -94,14 +96,13 @@ fn vertex(in: VertexInput) -> VertexOutput {
 
     let hsv_rgb = hsv2rgb(hsv);
 
-    rgb = mix(hsv_rgb, rgb, vec3<f32>(f32((in.i_hsv_flags >> 0) & 1)));
+    // Flag: hsv_disabled
+    rgb = mix(hsv_rgb, rgb, vec3<f32>(f32((in.i_flags >> 1) & 1)));
 
-#ifndef ADDITIVE_BLENDING
-    out.color = vec4<f32>(rgb * in.i_color.a, in.i_color.a);
-#else
-    let alpha = in.i_color.a * in.i_color.a;
-    out.color = vec4<f32>(rgb * alpha, 0.0);
-#endif
+    let squared_alpha = in.i_color.a * in.i_color.a;
+    // Flag: blending
+    let blending = f32((in.i_flags >> 0) & 1);
+    out.color = vec4<f32>(rgb * mix(in.i_color.a, squared_alpha, blending), mix(in.i_color.a, 0.0, blending));
 
 #ifndef NO_TEXTURE_ARRAY
     out.texture_index = in.i_texture_index;
