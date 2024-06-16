@@ -60,11 +60,7 @@ impl Plugin for RemoveSrgbPlugin {
                 Core2d,
                 // Specify the node ordering.
                 // This will automatically create all required node edges to enforce the given ordering.
-                (
-                    Node2d::Tonemapping,
-                    RemoveSrgbLabel,
-                    Node2d::Fxaa,
-                ),
+                (Node2d::Tonemapping, RemoveSrgbLabel, Node2d::Fxaa),
             );
     }
 
