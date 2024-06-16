@@ -49,7 +49,7 @@ impl TriggerFunction for ShakeTrigger {
             return;
         }
 
-        shake_data.0 = self.strength * 1.5 * fastrand::f32();
+        shake_data.0 = self.strength * fastrand::f32();
         shake_data.1 = TAU * fastrand::f32();
     }
 

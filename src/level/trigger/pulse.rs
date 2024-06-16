@@ -75,18 +75,18 @@ impl TriggerFunction for PulseTrigger {
             ColorMod::Hsv(hsv) => {
                 if self.copied_color_id == 0 {
                     self.color_mod
-                } else if let Some(entity) = global_color_channels.0.get(&self.copied_color_id) {
-                    if let Ok(calculated) = color_channel_query.get(*entity) {
-                        let mut color = Vec3A::from(if self.copied_color_id == self.target_id {
-                            calculated.pre_pulse_color
-                        } else {
-                            calculated.color
-                        });
-                        hsv.apply_rgb(&mut color);
-                        ColorMod::Color(color)
+                } else if let Some(calculated) = global_color_channels
+                    .0
+                    .get(&self.copied_color_id)
+                    .and_then(|entity| color_channel_query.get(*entity).ok())
+                {
+                    let mut color = Vec3A::from(if self.copied_color_id == self.target_id {
+                        calculated.pre_pulse_color
                     } else {
-                        self.color_mod
-                    }
+                        calculated.color
+                    });
+                    hsv.apply_rgb(&mut color);
+                    ColorMod::Color(color)
                 } else {
                     ColorMod::Color(Vec3A::ONE)
                 }

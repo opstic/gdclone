@@ -1,4 +1,4 @@
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 
 use bevy::asset::{AssetId, Handle};
 use bevy::ecs::query::{QueryData, QueryFilter};
@@ -494,7 +494,6 @@ pub(crate) fn update_object_color(
                             object_groups.archetype_entity,
                             object_color.object_color_kind,
                             object_color.channel_entity,
-                            object_color.hsv,
                         )) {
                             let Some(cached_calculated): &Option<ObjectColorCalculated> =
                                 cached_calculated
@@ -530,7 +529,6 @@ pub(crate) fn update_object_color(
                                     object_groups.archetype_entity,
                                     object_color.object_color_kind,
                                     object_color.channel_entity,
-                                    object_color.hsv,
                                 ),
                                 Some(ObjectColorCalculated {
                                     enabled: false,
@@ -576,15 +574,6 @@ pub(crate) fn update_object_color(
                             ColorMod::apply_color_mods(iter, &mut color);
                         }
 
-                        match object_color.object_color_kind {
-                            ObjectColorKind::None | ObjectColorKind::Black => (),
-                            _ => {
-                                if let Some(hsv) = object_color.hsv {
-                                    hsv.apply_rgba(&mut color);
-                                }
-                            }
-                        }
-
                         if calculated.blending != blending {
                             par_commands.command_scope(|mut commands| {
                                 commands.entity(entity).insert(if !blending {
@@ -603,7 +592,6 @@ pub(crate) fn update_object_color(
                                 object_groups.archetype_entity,
                                 object_color.object_color_kind,
                                 object_color.channel_entity,
-                                object_color.hsv,
                             ),
                             Some(*calculated),
                         );
@@ -669,7 +657,7 @@ impl ColorMod {
     }
 }
 
-#[derive(Component, Debug, Deserialize, Copy, Clone, Reflect, PartialEq)]
+#[derive(Component, Debug, Deserialize, Copy, Clone, Reflect)]
 pub(crate) struct HsvMod {
     pub(crate) h: f32,
     pub(crate) s: f32,
@@ -677,21 +665,6 @@ pub(crate) struct HsvMod {
     pub(crate) s_absolute: bool,
     pub(crate) v_absolute: bool,
 }
-
-impl Hash for HsvMod {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        (
-            self.h.to_bits(),
-            self.s.to_bits(),
-            self.v.to_bits(),
-            self.s_absolute,
-            self.v_absolute,
-        )
-            .hash(state)
-    }
-}
-
-impl Eq for HsvMod {}
 
 impl HsvMod {
     pub(crate) fn parse(hsv_string: &str) -> Result<HsvMod, anyhow::Error> {

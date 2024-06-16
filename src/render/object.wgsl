@@ -21,6 +21,8 @@ struct VertexInput {
     @location(3) i_color: vec4<f32>,
     @location(4) i_uv_offset_scale: vec4<f32>,
     @location(5) i_texture_index: u32,
+    @location(6) i_hsv: vec3<f32>,
+    @location(7) i_flags: u32,
     @builtin(vertex_index) index: u32,
 }
 
@@ -33,13 +35,31 @@ struct VertexOutput {
 #endif
 };
 
+// From https://github.com/lolengine/lolengine/blob/3c26/doc/legacy/front_camera_sprite.lolfx#L56
+fn rgb2hsv(rgb: vec3<f32>) -> vec3<f32> {
+    let K = vec4<f32>(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+    let p = mix(vec4<f32>(rgb.bg, K.wz), vec4<f32>(rgb.gb, K.xy), step(rgb.b, rgb.g));
+    let q = mix(vec4<f32>(p.xyw, rgb.r), vec4<f32>(rgb.r, p.yzx), step(p.x, rgb.r));
+
+    let d = q.x - min(q.w, q.y);
+    let e = 1.0e-10;
+    return vec3<f32>(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+}
+
+// From https://github.com/lolengine/lolengine/blob/3c26/doc/legacy/front_camera_sprite.lolfx#L67
+fn hsv2rgb(hsv: vec3<f32>) -> vec3<f32> {
+    let K = vec4<f32>(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    let p = abs(fract(hsv.xxx + K.xyz) * 6.0 - K.www);
+    return hsv.z * mix(K.xxx, clamp(p - K.xxx, vec3<f32>(0.0), vec3<f32>(1.0)), hsv.y);
+}
+
 @vertex
 fn vertex(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
 
     let vertex_position = vec2<f32>(
-        f32(in.index & 0x1u),
-        f32((in.index & 0x2u) >> 1u),
+        f32(in.index & 1),
+        f32((in.index & 2) >> 1),
     );
 
     out.clip_position = vec4<f32>(vertex_position, 0.0, 1.0)
@@ -51,12 +71,38 @@ fn vertex(in: VertexInput) -> VertexOutput {
 
     out.uv = vertex_position * in.i_uv_offset_scale.zw + in.i_uv_offset_scale.xy;
 
-#ifndef ADDITIVE_BLENDING
-    out.color = vec4<f32>(in.i_color.rgb * in.i_color.a, in.i_color.a);
-#else
-    var alpha = in.i_color.a * in.i_color.a;
-    out.color = vec4<f32>(in.i_color.rgb * alpha, 0.0);
-#endif
+    var rgb = in.i_color.rgb;
+
+    var hsv = rgb2hsv(in.i_color.rgb);
+    var h = hsv.x + in.i_hsv.x;
+    let normal_sv = vec2<f32>(
+        hsv.y * in.i_hsv.y,
+        hsv.z * in.i_hsv.z,
+    );
+    let absolute_sv = vec2<f32>(
+        hsv.y + in.i_hsv.y,
+        hsv.z + in.i_hsv.z,
+    );
+    let absolute_flags = vec2<f32>(
+        // Flag: hsv_s_absolute
+        f32((in.i_flags >> 2) & 1),
+        // Flag: hsv_v_absolute
+        f32((in.i_flags >> 3) & 1),
+    );
+
+    let sv = mix(normal_sv, absolute_sv, absolute_flags);
+
+    hsv = vec3<f32>(fract(h + 1.0), clamp(sv, vec2<f32>(0.0), vec2<f32>(1.0)));
+
+    let hsv_rgb = hsv2rgb(hsv);
+
+    // Flag: hsv_disabled
+    rgb = mix(hsv_rgb, rgb, vec3<f32>(f32((in.i_flags >> 1) & 1)));
+
+    let squared_alpha = in.i_color.a * in.i_color.a;
+    // Flag: blending
+    let blending = f32((in.i_flags >> 0) & 1);
+    out.color = vec4<f32>(rgb * mix(in.i_color.a, squared_alpha, blending), mix(in.i_color.a, 0.0, blending));
 
 #ifndef NO_TEXTURE_ARRAY
     out.texture_index = in.i_texture_index;

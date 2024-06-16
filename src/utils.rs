@@ -119,7 +119,7 @@ where
 
 pub(crate) type StartObjectStorage<'decompressed> =
     ArrayMap<&'decompressed str, &'decompressed str, 48>;
-pub(crate) type ObjectStorage<'decompressed> = ArrayMap<&'decompressed str, &'decompressed str, 28>;
+pub(crate) type ObjectStorage<'decompressed> = ArrayMap<&'decompressed str, &'decompressed str, 45>;
 
 #[inline]
 pub(crate) fn str_to_bool(string: &str) -> bool {
@@ -183,7 +183,8 @@ pub(crate) fn rgb_to_hsv(rgb: [f32; 3]) -> [f32; 3] {
 
 #[inline]
 pub(crate) fn hsv_to_rgb([h, s, v]: [f32; 3]) -> [f32; 3] {
-    let h = (h.fract() + if h < 0. { 1. } else { 0. }) * 6.;
+    debug_assert!(h >= 0.);
+    let h = (h + 1.).fract() * 6.;
     let h_fract = h.fract();
     let s = s.clamp(0., 1.);
     let v = v.clamp(0., 1.);
