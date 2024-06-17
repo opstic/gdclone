@@ -14,8 +14,8 @@ use bevy::ecs::system::{
 use bevy::log::warn;
 use bevy::math::{Affine2, Rect, Vec2, Vec2Swizzles, Vec4};
 use bevy::prelude::{
-    Commands, Component, Entity, FromWorld, Image, IntoSystemConfigs, Msaa, Query, Res, ResMut,
-    Resource, Shader, World,
+    Commands, Component, Entity, FromWorld, Has, Image, IntoSystemConfigs, Msaa, Query, Res,
+    ResMut, Resource, Shader, World,
 };
 use bevy::render::render_resource::binding_types::{sampler, texture_2d, uniform_buffer};
 use bevy::render::render_resource::BindGroupLayoutEntries;
@@ -48,6 +48,7 @@ use bevy::utils::{syncunsafecell::SyncUnsafeCell, FloatOrd};
 
 use crate::level::color::{HsvMod, ObjectColor, ObjectColorCalculated, ObjectColorKind};
 use crate::level::transform::GlobalTransform2d;
+use crate::level::trigger::Trigger;
 use crate::level::{object::Object, section::GlobalSections, LevelWorld};
 use crate::state::level::Options;
 
@@ -65,7 +66,7 @@ impl Plugin for ObjectRenderPlugin {
                 .init_resource::<ImageBindGroups>()
                 .init_resource::<SpecializedRenderPipelines<ObjectPipeline>>()
                 .init_resource::<ObjectMeta>()
-                .init_resource::<ExtractedLayers>()
+                .init_resource::<ExtractedObjects>()
                 .init_resource::<ExtractSystemStateCache>()
                 .add_render_command::<Transparent2d, DrawObject>()
                 .add_systems(ExtractSchedule, extract_objects)
@@ -301,6 +302,8 @@ impl SpecializedRenderPipeline for ObjectPipeline {
 
 #[derive(Copy, Clone)]
 pub struct ExtractedObject {
+    enabled: bool,
+    z_layer: i32,
     transform: GlobalTransform2d,
     color: Vec4,
     hsv: Option<HsvMod>,
@@ -317,10 +320,27 @@ pub struct ExtractedObject {
     entity: Entity,
 }
 
+impl Default for ExtractedObject {
+    fn default() -> Self {
+        ExtractedObject {
+            enabled: false,
+            z_layer: 0,
+            transform: GlobalTransform2d::default(),
+            color: Vec4::default(),
+            hsv: None,
+            blending: false,
+            rect: Rect::default(),
+            image_handle_id: AssetId::invalid(),
+            anchor: Vec2::default(),
+            rotated: false,
+            entity: Entity::PLACEHOLDER,
+        }
+    }
+}
+
 #[derive(Default, Resource)]
-pub(crate) struct ExtractedLayers {
-    layers: Vec<(i32, SyncUnsafeCell<Vec<ExtractedObject>>)>,
-    total_size: usize,
+pub(crate) struct ExtractedObjects {
+    objects: SyncUnsafeCell<Vec<ExtractedObject>>,
 }
 
 #[derive(Default, Resource)]
@@ -338,6 +358,7 @@ pub(crate) struct ExtractSystemStateCache {
                     &'static ObjectColor,
                     &'static ObjectColorCalculated,
                     &'static Handle<Image>,
+                    Has<Trigger>,
                 ),
             >,
         )>,
@@ -346,7 +367,7 @@ pub(crate) struct ExtractSystemStateCache {
 
 pub(crate) fn extract_objects(
     mut extract_system_state_cache: ResMut<ExtractSystemStateCache>,
-    mut extracted_layers: ResMut<ExtractedLayers>,
+    mut extracted_objects: ResMut<ExtractedObjects>,
     level_world: Extract<Option<Res<LevelWorld>>>,
     options: Extract<Option<Res<Options>>>,
 ) {
@@ -388,6 +409,7 @@ pub(crate) fn extract_objects(
                     &ObjectColor,
                     &ObjectColorCalculated,
                     &Handle<Image>,
+                    Has<Trigger>,
                 )>,
             )> = SystemState::new(world_mut);
 
@@ -402,72 +424,76 @@ pub(crate) fn extract_objects(
 
     let (global_sections, objects) = system_state.get(world);
 
-    for (_, extracted_layer) in &mut extracted_layers.layers {
-        extracted_layer.get_mut().clear();
-    }
-
+    let mut total = 0;
     for section in &global_sections.sections[global_sections.visible.clone()] {
-        for (entity, transform, object, object_color, object_color_calc, image_handle) in
-            objects.iter_many(section)
-        {
-            if !object_color_calc.enabled {
-                continue;
-            }
-
-            if options.hide_triggers {
-                match object.id {
-                    29 | 30 | 31 | 32 | 33 | 34 | 104 | 105 | 221 | 717 | 718 | 743 | 744 | 900
-                    | 915 | 1006 | 1268 | 1347 | 1520 | 1585 | 1595 | 1611 | 1612 | 1613 | 1616
-                    | 1811 | 1812 | 1814 | 1815 | 1817 | 1818 | 1819 | 22 | 24 | 23 | 25 | 26
-                    | 27 | 28 | 55 | 56 | 57 | 58 | 59 | 1912 | 1913 | 1914 | 1916 | 1917
-                    | 1931 | 1932 | 1934 | 1935 | 2015 | 2016 | 2062 | 2067 | 2068 | 2701
-                    | 2702 | 1586 | 1700 | 1755 | 1813 | 1829 | 1859 | 899 | 901 | 1007 | 1049
-                    | 1346 => {
-                        continue;
-                    }
-                    _ => (),
-                }
-            }
-
-            let z_layer = object.z_layer
-                - if object_color_calc.blending ^ (object.z_layer % 2 == 0) {
-                    1
-                } else {
-                    0
-                };
-
-            let extracted_layer = if let Some((_, extracted_layer)) = extracted_layers
-                .layers
-                .iter_mut()
-                .find(|(layer_index, _)| *layer_index == z_layer)
-            {
-                extracted_layer
-            } else {
-                let layer_index = extracted_layers.layers.len();
-                extracted_layers
-                    .layers
-                    .push((z_layer, SyncUnsafeCell::new(Vec::with_capacity(10000))));
-                &mut extracted_layers.layers[layer_index].1
-            };
-
-            let hsv = match object_color.object_color_kind {
-                ObjectColorKind::None | ObjectColorKind::Black => None,
-                _ => object_color.hsv,
-            };
-
-            extracted_layer.get_mut().push(ExtractedObject {
-                transform: *transform,
-                color: object_color_calc.color,
-                hsv,
-                blending: object_color_calc.blending,
-                rect: object.frame.rect,
-                image_handle_id: image_handle.id(),
-                anchor: object.frame.anchor + object.anchor,
-                rotated: object.frame.rotated,
-                entity,
-            });
-        }
+        total += section.len();
     }
+    extracted_objects
+        .objects
+        .get_mut()
+        .resize(total, ExtractedObject::default());
+
+    let task_pool = ComputeTaskPool::get();
+    task_pool.scope(|scope| {
+        let objects = &objects;
+        let extracted_objects = &extracted_objects;
+        let mut starting_index = 0;
+        let chunk_len = (global_sections.visible.len() / task_pool.thread_num()).max(1);
+        for section_chunk in
+            global_sections.sections[global_sections.visible.clone()].chunks(chunk_len)
+        {
+            scope.spawn(async move {
+                let extracted_objects = unsafe { &mut *extracted_objects.objects.get() };
+
+                for (
+                    index,
+                    (
+                        entity,
+                        transform,
+                        object,
+                        object_color,
+                        object_color_calc,
+                        image_handle,
+                        is_trigger,
+                    ),
+                ) in objects
+                    .iter_many(section_chunk.into_iter().flatten())
+                    .enumerate()
+                {
+                    let z_layer = object.z_layer
+                        - if object_color_calc.blending ^ (object.z_layer % 2 == 0) {
+                            1
+                        } else {
+                            0
+                        };
+
+                    let hsv = match object_color.object_color_kind {
+                        ObjectColorKind::None | ObjectColorKind::Black => None,
+                        _ => object_color.hsv,
+                    };
+
+                    extracted_objects[starting_index + index] = ExtractedObject {
+                        enabled: object_color_calc.enabled
+                            && !(options.hide_triggers && is_trigger),
+                        z_layer,
+                        transform: *transform,
+                        color: object_color_calc.color,
+                        hsv,
+                        blending: object_color_calc.blending,
+                        rect: object.frame.rect,
+                        image_handle_id: image_handle.id(),
+                        anchor: object.frame.anchor + object.anchor,
+                        rotated: object.frame.rotated,
+                        entity,
+                    };
+                }
+            });
+            starting_index += section_chunk
+                .iter()
+                .map(|section| section.len())
+                .sum::<usize>();
+        }
+    });
 }
 
 #[repr(C)]
@@ -555,36 +581,14 @@ pub struct ObjectBatch {
     pub(crate) ranges: Vec<(usize, Range<u32>)>,
 }
 
-pub(crate) fn queue_objects(mut extracted_layers: ResMut<ExtractedLayers>) {
-    let compute_task_pool = ComputeTaskPool::get();
-
-    let mut total_size = 0;
-
-    // Sort the layers
-    compute_task_pool.scope(|scope| {
-        for (layer_index, extracted_layer) in &extracted_layers.layers {
-            // let a = info_span!("queue_objects: layer sort task");
-            total_size += unsafe { &*extracted_layer.get() }.len();
-            if (layer_index % 2).abs() == 0 {
-                // Sorting additive blending sprites aren't needed
-                continue;
-            }
-            scope.spawn(async move {
-                // let _a = a.enter();
-                radsort::sort_by_cached_key(
-                    unsafe { &mut *extracted_layer.get() },
-                    |extracted_object| {
-                        (
-                            extracted_object.transform.z(),
-                            extracted_object.entity.index(),
-                        )
-                    },
-                )
-            });
-        }
-    });
-
-    extracted_layers.total_size = total_size;
+pub(crate) fn queue_objects(mut extracted_objects: ResMut<ExtractedObjects>) {
+    radsort::sort_by_cached_key(extracted_objects.objects.get_mut(), |extracted_object| {
+        (
+            extracted_object.z_layer,
+            extracted_object.transform.z(),
+            extracted_object.entity.index(),
+        )
+    })
 }
 
 #[derive(Resource, Default)]
@@ -602,7 +606,7 @@ pub(crate) fn prepare_objects(
     object_pipeline: Res<ObjectPipeline>,
     mut image_bind_groups: ResMut<ImageBindGroups>,
     gpu_images: Res<RenderAssets<Image>>,
-    mut extracted_layers: ResMut<ExtractedLayers>,
+    mut extracted_objects: ResMut<ExtractedObjects>,
     mut phases: Query<&mut RenderPhase<Transparent2d>>,
     fallbacks: Res<Fallbacks>,
     msaa: Res<Msaa>,
@@ -622,15 +626,21 @@ pub(crate) fn prepare_objects(
         &BindGroupEntries::single(view_binding),
     ));
 
+    let extracted_objects_len = extracted_objects.objects.get_mut().len();
+
     let instance_buffer_values = object_meta.instance_buffer.values_mut();
 
-    instance_buffer_values.resize(extracted_layers.total_size, ObjectInstance::default());
+    instance_buffer_values.resize(extracted_objects_len, ObjectInstance::default());
+
+    let compute_task_pool = ComputeTaskPool::get();
+
+    let chunk_size = (extracted_objects_len / compute_task_pool.thread_num()).max(1);
 
     let mut index = 0;
 
     let mut instance_mut_ref = &mut instance_buffer_values[..];
-    let layers_batches: SyncUnsafeCell<Vec<Vec<(usize, Range<u32>)>>> =
-        SyncUnsafeCell::new(Vec::with_capacity(extracted_layers.layers.len()));
+    let chunks_batches: SyncUnsafeCell<Vec<Vec<(usize, Range<u32>)>>> =
+        SyncUnsafeCell::new(Vec::with_capacity(chunk_size));
     let dummy_image = &object_pipeline.dummy_white_gpu_image;
     let mut images_index = AtomicUsize::new(0);
     let images = SyncUnsafeCell::new(
@@ -642,8 +652,6 @@ pub(crate) fn prepare_objects(
         ); 16],
     );
 
-    let compute_task_pool = ComputeTaskPool::get();
-
     compute_task_pool.scope(|scope| {
         let fallbacks = &fallbacks;
         let images_index = &images_index;
@@ -653,25 +661,15 @@ pub(crate) fn prepare_objects(
         // Spawn an entity with a `SpriteBatch` component for each possible batch.
         // Compatible items share the same entity.
 
-        radsort::sort_by_cached_key(&mut extracted_layers.layers, |(layer_index, _)| {
-            *layer_index
-        });
-
-        for (_, extracted_layer) in &mut extracted_layers.layers {
-            let extracted_layer = unsafe { &*extracted_layer.get() };
-
-            if extracted_layer.is_empty() {
-                continue;
-            }
-
-            let (this_chunk, other_chunk) = instance_mut_ref.split_at_mut(extracted_layer.len());
+        for object_chunk in extracted_objects.objects.get_mut().chunks(chunk_size) {
+            let (this_chunk, other_chunk) = instance_mut_ref.split_at_mut(object_chunk.len());
             instance_mut_ref = other_chunk;
 
-            let layer_batches_mut = unsafe { &mut *layers_batches.get() };
-            let layer_batches_index = layer_batches_mut.len();
-            layer_batches_mut.push(Vec::new());
+            let chunks_batches_mut = unsafe { &mut *chunks_batches.get() };
+            let chunks_batches_index = chunks_batches_mut.len();
+            chunks_batches_mut.push(Vec::new());
 
-            let layer_batches = &layers_batches;
+            let chunks_batches = &chunks_batches;
 
             // let a = info_span!("prepare_objects: layer task");
             scope.spawn(async move {
@@ -680,7 +678,13 @@ pub(crate) fn prepare_objects(
                 let mut batch_ranges = Vec::new();
                 let mut batch_range = index..index;
                 let images = unsafe { &mut *images.get() };
-                for (extracted_object, buffer_entry) in extracted_layer.iter().zip(this_chunk) {
+                for (extracted_object, buffer_entry) in object_chunk.iter().zip(this_chunk) {
+                    if !extracted_object.enabled {
+                        *buffer_entry = ObjectInstance::default();
+                        batch_range.end += 1;
+                        continue;
+                    }
+
                     let (image_group_index, texture_index, current_image_size) = match images
                         .iter()
                         .position(|(asset_id, _, _, _)| {
@@ -773,17 +777,17 @@ pub(crate) fn prepare_objects(
 
                 batch_ranges.push((previous_image_group_index, batch_range));
 
-                let layer_batch = &mut unsafe { &mut *layer_batches.get() }[layer_batches_index];
-                *layer_batch = batch_ranges;
+                let chunk_batch = &mut unsafe { &mut *chunks_batches.get() }[chunks_batches_index];
+                *chunk_batch = batch_ranges;
             });
 
-            index += extracted_layer.len() as u32;
+            index += object_chunk.len() as u32;
         }
     });
 
     let mut ranges: Vec<(usize, Range<u32>)> = Vec::with_capacity(50);
 
-    for mut batch in layers_batches.into_inner() {
+    for mut batch in chunks_batches.into_inner() {
         if ranges
             .last()
             .and_then(|last| {
@@ -814,7 +818,6 @@ pub(crate) fn prepare_objects(
             phase.add(Transparent2d {
                 draw_function: draw_object_function,
                 pipeline,
-                // Instead of passing an `Entity`, use this field to pass the index of this layer
                 entity: batch_id,
                 sort_key: FloatOrd(0.),
                 batch_range: 0..1,

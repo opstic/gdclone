@@ -1,3 +1,5 @@
+use std::hash::Hash;
+
 use bevy::asset::{AssetId, Handle};
 use bevy::ecs::query::{QueryData, QueryFilter};
 use bevy::hierarchy::{BuildChildren, BuildWorldChildren, Children, Parent};
@@ -11,10 +13,9 @@ use bevy::tasks::ComputeTaskPool;
 use bevy::utils::{default, hashbrown, HashMap as AHashMap};
 use indexmap::IndexMap;
 use serde::Deserialize;
-use std::hash::Hash;
 
-use crate::level::{de, section::GlobalSections};
 use crate::level::group::{GroupArchetypeCalculated, ObjectGroups};
+use crate::level::{de, section::GlobalSections};
 use crate::utils::{hsv_to_rgb, rgb_to_hsv, str_to_bool, U64Hash};
 
 #[derive(Default, Resource)]
