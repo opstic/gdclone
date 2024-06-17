@@ -11,7 +11,7 @@ use bevy::prelude::{
 use bevy::reflect::Reflect;
 use bevy::tasks::ComputeTaskPool;
 use bevy::utils::{default, hashbrown, HashMap as AHashMap};
-use dashmap::DashMap;
+use indexmap::IndexMap;
 use serde::Deserialize;
 
 use crate::level::group::{GroupArchetypeCalculated, ObjectGroups};
@@ -19,7 +19,7 @@ use crate::level::{de, section::GlobalSections};
 use crate::utils::{hsv_to_rgb, rgb_to_hsv, str_to_bool, U64Hash};
 
 #[derive(Default, Resource)]
-pub(crate) struct GlobalColorChannels(pub(crate) DashMap<u64, Entity, U64Hash>);
+pub(crate) struct GlobalColorChannels(pub(crate) IndexMap<u64, Entity, U64Hash>);
 
 #[derive(Component, Debug, Default)]
 pub(crate) struct GlobalColorChannel {
@@ -153,9 +153,8 @@ pub(crate) fn construct_color_channel_hierarchy(
     let mut channels_to_add: hashbrown::HashMap<u64, Vec<Entity>, U64Hash> =
         hashbrown::HashMap::with_hasher(U64Hash);
     let mut query = world.query::<&GlobalColorChannel>();
-    for entry_ref in global_color_channels.0.iter() {
-        let color_channel_entity = *entry_ref.value();
-        let Ok(color_channel) = query.get(world, color_channel_entity) else {
+    for (_, color_channel_entity) in &global_color_channels.0 {
+        let Ok(color_channel) = query.get(world, *color_channel_entity) else {
             continue;
         };
         match color_channel.kind {
@@ -166,13 +165,13 @@ pub(crate) fn construct_color_channel_hierarchy(
                     } else {
                         // Delegate it to later
                         let channel_to_add = channels_to_add.entry(copied_index).or_default();
-                        channel_to_add.push(color_channel_entity);
+                        channel_to_add.push(*color_channel_entity);
                         continue;
                     };
 
                 world
                     .entity_mut(copying_entity)
-                    .add_child(color_channel_entity);
+                    .add_child(*color_channel_entity);
             }
             GlobalColorChannelKind::Base { .. } => continue,
         }
