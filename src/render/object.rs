@@ -474,7 +474,8 @@ pub(crate) fn extract_objects(
 
                     extracted_objects[starting_index + index] = ExtractedObject {
                         enabled: object_color_calc.enabled
-                            && !(options.hide_triggers && is_trigger),
+                            && !(options.hide_triggers
+                                && (is_trigger || object.id == 1586 || object.id == 1700)),
                         z_layer,
                         transform: *transform,
                         color: object_color_calc.color,
