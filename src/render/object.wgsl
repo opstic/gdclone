@@ -71,10 +71,8 @@ fn vertex(in: VertexInput) -> VertexOutput {
 
     out.uv = vertex_position * in.i_uv_offset_scale.zw + in.i_uv_offset_scale.xy;
 
-    var rgb = in.i_color.rgb;
-
     var hsv = rgb2hsv(in.i_color.rgb);
-    var h = hsv.x + in.i_hsv.x;
+    let h = hsv.x + in.i_hsv.x;
     let normal_sv = vec2<f32>(
         hsv.y * in.i_hsv.y,
         hsv.z * in.i_hsv.z,
@@ -85,19 +83,16 @@ fn vertex(in: VertexInput) -> VertexOutput {
     );
     let absolute_flags = vec2<f32>(
         // Flag: hsv_s_absolute
-        f32((in.i_flags >> 2) & 1),
+        f32((in.i_flags >> 1) & 1),
         // Flag: hsv_v_absolute
-        f32((in.i_flags >> 3) & 1),
+        f32((in.i_flags >> 2) & 1),
     );
 
     let sv = mix(normal_sv, absolute_sv, absolute_flags);
 
     hsv = vec3<f32>(fract(h + 1.0), clamp(sv, vec2<f32>(0.0), vec2<f32>(1.0)));
 
-    let hsv_rgb = hsv2rgb(hsv);
-
-    // Flag: hsv_disabled
-    rgb = mix(hsv_rgb, rgb, vec3<f32>(f32((in.i_flags >> 1) & 1)));
+    let rgb = hsv2rgb(hsv);
 
     let squared_alpha = in.i_color.a * in.i_color.a;
     // Flag: blending

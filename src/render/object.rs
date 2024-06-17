@@ -520,7 +520,7 @@ impl ObjectInstance {
     ) -> Self {
         let (i_hsv, mut i_flags) = match hsv_mod {
             Some(hsv_mod) => hsv_mod.into(),
-            None => ([0.; 3], FLAGS_HSV_DISABLED),
+            None => ([0., 1., 1.], 0),
         };
 
         if blending {
@@ -543,9 +543,8 @@ impl ObjectInstance {
 }
 
 const FLAGS_BLENDING: u32 = 1 << 0;
-const FLAGS_HSV_DISABLED: u32 = 1 << 1;
-const FLAGS_HSV_S_ABSOLUTE: u32 = 1 << 2;
-const FLAGS_HSV_V_ABSOLUTE: u32 = 1 << 3;
+const FLAGS_HSV_S_ABSOLUTE: u32 = 1 << 1;
+const FLAGS_HSV_V_ABSOLUTE: u32 = 1 << 2;
 
 impl From<HsvMod> for ([f32; 3], u32) {
     fn from(hsv: HsvMod) -> Self {
