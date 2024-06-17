@@ -815,14 +815,17 @@ pub(crate) fn prepare_objects(
 
         let pipeline = pipelines.specialize(&pipeline_cache, &object_pipeline, view_key);
         for mut phase in &mut phases {
-            phase.add(Transparent2d {
-                draw_function: draw_object_function,
-                pipeline,
-                entity: batch_id,
-                sort_key: FloatOrd(0.),
-                batch_range: 0..1,
-                dynamic_offset: None,
-            });
+            phase.items.insert(
+                0,
+                Transparent2d {
+                    draw_function: draw_object_function,
+                    pipeline,
+                    entity: batch_id,
+                    sort_key: FloatOrd(0.),
+                    batch_range: 0..1,
+                    dynamic_offset: None,
+                },
+            );
         }
     }
 
