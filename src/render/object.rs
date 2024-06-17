@@ -444,10 +444,9 @@ pub(crate) fn extract_objects(
                 extracted_layer
             } else {
                 let layer_index = extracted_layers.layers.len();
-                extracted_layers.layers.push((
-                    z_layer,
-                    SyncUnsafeCell::new(Vec::with_capacity(10000)),
-                ));
+                extracted_layers
+                    .layers
+                    .push((z_layer, SyncUnsafeCell::new(Vec::with_capacity(10000))));
                 &mut extracted_layers.layers[layer_index].1
             };
 
@@ -654,7 +653,9 @@ pub(crate) fn prepare_objects(
         // Spawn an entity with a `SpriteBatch` component for each possible batch.
         // Compatible items share the same entity.
 
-        radsort::sort_by_cached_key(&mut extracted_layers.layers, |(layer_index, _)| *layer_index);
+        radsort::sort_by_cached_key(&mut extracted_layers.layers, |(layer_index, _)| {
+            *layer_index
+        });
 
         for (_, extracted_layer) in &mut extracted_layers.layers {
             let extracted_layer = unsafe { &*extracted_layer.get() };
