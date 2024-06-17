@@ -35,7 +35,6 @@ bevy_egui = "0.26"
 bevy_kira_audio = { version = "0.19", default-features = false, features = ["mp3"] }
 bitflags = "2.4"
 bytemuck = { version = "1.14", features = ["derive"] }
-dashmap = { version = "5.5", features = ["raw-api"] }
 directories = "5.0"
 dyn-clone = "1.0"
 egui = "0.26"

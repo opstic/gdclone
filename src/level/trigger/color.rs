@@ -1,9 +1,8 @@
-use std::any::Any;
-use std::ops::Range;
-
 use bevy::ecs::system::SystemState;
 use bevy::math::Vec4;
 use bevy::prelude::{Entity, Query, Res, World};
+use std::any::Any;
+use std::ops::Range;
 
 use crate::level::color::{
     ColorChannelCalculated, GlobalColorChannel, GlobalColorChannelKind, GlobalColorChannels, HsvMod,
@@ -49,17 +48,13 @@ impl TriggerFunction for ColorTrigger {
 
         let (global_color_channels, mut color_channel_query) = system_state.get_mut(world);
 
-        let target_entity = *global_color_channels
-            .0
-            .get(&self.target_channel)
-            .unwrap()
-            .value();
+        let target_entity = *global_color_channels.0.get(&self.target_channel).unwrap();
 
         let copied_color = if self.copied_channel != 0 {
             global_color_channels
                 .0
                 .get(&self.copied_channel)
-                .map(|map_ref| color_channel_query.get(*map_ref.value()).unwrap().1.color)
+                .map(|entity| color_channel_query.get(*entity).unwrap().1.color)
         } else {
             None
         };
