@@ -62,7 +62,6 @@ smallvec = "1.11"
 steamlocate = "2.0.0-beta.2"
 ureq = "2.9"
 winit = "0.29"
-zstd = "0.13"
 
 [build-dependencies]
 phf_codegen = "0.11"
