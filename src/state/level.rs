@@ -336,6 +336,7 @@ fn update_level_world(
         world.run_schedule(Update);
         world.resource_scope(|world, time: Mut<Time>| {
             const SYNC_PERIOD: f32 = 1.;
+            const SYNC_TOLERANCE: f64 = 0.25;
             if time.elapsed_seconds() - *last_sync > SYNC_PERIOD {
                 if let Ok(song_player) = song_players.get_single() {
                     if let Some(instance) = audio_instances.get_mut(&song_player.0) {
@@ -349,7 +350,11 @@ fn update_level_world(
 
                                 time += song_offset.0;
 
-                                instance.seek_to(time as f64);
+                                if !instance.state().position().is_some_and(|position| {
+                                    (position - time as f64).abs() < SYNC_TOLERANCE
+                                }) {
+                                    instance.seek_to(time as f64);
+                                }
                             });
                         });
                     }
