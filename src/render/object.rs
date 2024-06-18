@@ -636,11 +636,13 @@ pub(crate) fn prepare_objects(
 
     let chunk_size = (extracted_objects_len / compute_task_pool.thread_num()).max(1);
 
+    let chunk_count = extracted_objects_len.div_ceil(chunk_size);
+
     let mut index = 0;
 
     let mut instance_mut_ref = &mut instance_buffer_values[..];
     let chunks_batches: SyncUnsafeCell<Vec<Vec<(usize, Range<u32>)>>> =
-        SyncUnsafeCell::new(Vec::with_capacity(chunk_size));
+        SyncUnsafeCell::new(vec![Vec::new(); chunk_count]);
     let dummy_image = &object_pipeline.dummy_white_gpu_image;
     let mut images_index = AtomicUsize::new(0);
     let images = SyncUnsafeCell::new(
@@ -657,19 +659,19 @@ pub(crate) fn prepare_objects(
         let images_index = &images_index;
         let images = &images;
         let gpu_images = &gpu_images;
+        let chunks_batches = &chunks_batches;
         // Iterate through the phase items and detect when successive sprites that can be batched.
         // Spawn an entity with a `SpriteBatch` component for each possible batch.
         // Compatible items share the same entity.
 
-        for object_chunk in extracted_objects.objects.get_mut().chunks(chunk_size) {
+        for (chunk_index, object_chunk) in extracted_objects
+            .objects
+            .get_mut()
+            .chunks(chunk_size)
+            .enumerate()
+        {
             let (this_chunk, other_chunk) = instance_mut_ref.split_at_mut(object_chunk.len());
             instance_mut_ref = other_chunk;
-
-            let chunks_batches_mut = unsafe { &mut *chunks_batches.get() };
-            let chunks_batches_index = chunks_batches_mut.len();
-            chunks_batches_mut.push(Vec::new());
-
-            let chunks_batches = &chunks_batches;
 
             // let a = info_span!("prepare_objects: layer task");
             scope.spawn(async move {
@@ -777,7 +779,7 @@ pub(crate) fn prepare_objects(
 
                 batch_ranges.push((previous_image_group_index, batch_range));
 
-                let chunk_batch = &mut unsafe { &mut *chunks_batches.get() }[chunks_batches_index];
+                let chunk_batch = &mut unsafe { &mut *chunks_batches.get() }[chunk_index];
                 *chunk_batch = batch_ranges;
             });
 
