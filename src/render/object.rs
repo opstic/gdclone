@@ -424,26 +424,31 @@ pub(crate) fn extract_objects(
 
     let (global_sections, objects) = system_state.get(world);
 
-    let mut total = 0;
-    for section in &global_sections.sections[global_sections.visible.clone()] {
-        total += section.len();
-    }
+    let visible_sections = &global_sections.sections[global_sections.visible.clone()];
+
+    let total = visible_sections.iter().map(|section| section.len()).sum();
     extracted_objects
         .objects
         .get_mut()
         .resize(total, ExtractedObject::default());
 
     let task_pool = ComputeTaskPool::get();
+    let chunk_size = (global_sections.visible.len() / task_pool.thread_num()).max(1);
+
     task_pool.scope(|scope| {
         let objects = &objects;
         let extracted_objects = &extracted_objects;
         let mut starting_index = 0;
-        let chunk_len = (global_sections.visible.len() / task_pool.thread_num()).max(1);
-        for section_chunk in
-            global_sections.sections[global_sections.visible.clone()].chunks(chunk_len)
-        {
+        for section_chunk in visible_sections.chunks(chunk_size) {
+            let chunk_total = section_chunk
+                .iter()
+                .map(|section| section.len())
+                .sum::<usize>();
+
             scope.spawn(async move {
                 let extracted_objects = unsafe { &mut *extracted_objects.objects.get() };
+
+                let mut last_index = None;
 
                 for (
                     index,
@@ -457,9 +462,11 @@ pub(crate) fn extract_objects(
                         is_trigger,
                     ),
                 ) in objects
-                    .iter_many(section_chunk.into_iter().flatten())
+                    .iter_many(section_chunk.iter().flatten())
                     .enumerate()
                 {
+                    last_index = Some(index);
+
                     let z_layer = object.z_layer
                         - if object_color_calc.blending ^ (object.z_layer % 2 == 0) {
                             1
@@ -488,11 +495,19 @@ pub(crate) fn extract_objects(
                         entity,
                     };
                 }
+
+                // Some objects in sections aren't renderable, fill those gaps in
+                if let Some(index) = last_index {
+                    for index in (index + 1)..chunk_total {
+                        extracted_objects[starting_index + index] = ExtractedObject::default();
+                    }
+                } else {
+                    for index in 0..chunk_total {
+                        extracted_objects[starting_index + index] = ExtractedObject::default();
+                    }
+                }
             });
-            starting_index += section_chunk
-                .iter()
-                .map(|section| section.len())
-                .sum::<usize>();
+            starting_index += chunk_total;
         }
     });
 }
@@ -701,6 +716,8 @@ pub(crate) fn prepare_objects(
                             let Some(gpu_image) = gpu_images.get(extracted_object.image_handle_id)
                             else {
                                 // Texture isn't ready yet
+                                *buffer_entry = ObjectInstance::default();
+                                batch_range.end += 1;
                                 continue;
                             };
 
