@@ -237,7 +237,7 @@ pub(crate) fn update_collision(
         for section in sections {
             for (other_entity, other_hitbox) in others.iter_many(section) {
                 let (collided, collided_vector) = collider_hitbox.intersect(other_hitbox);
-                if !collided {
+                if collided {
                     active_collider.collided.push((
                         other_entity,
                         *other_hitbox,
