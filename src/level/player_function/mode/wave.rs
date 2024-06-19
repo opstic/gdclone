@@ -39,6 +39,10 @@ impl PlayerFunction for WaveMode {
             transform.scale = Vec2::splat(0.325 * 0.6);
         }
 
+        if pressed {
+            player.on_ground = false;
+        }
+
         let mut angle: f32 = if !player.mini { 45. } else { 22.5 } * if pressed { 1. } else { -1. };
         angle = angle.to_radians();
 
