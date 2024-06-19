@@ -8,6 +8,7 @@ use indexmap::IndexMap;
 use smallvec::SmallVec;
 
 use crate::level::color::Pulses;
+use crate::level::object::ObjectType;
 use crate::level::transform::Transform2d;
 use crate::level::trigger::Trigger;
 use crate::utils::U64Hash;
@@ -99,7 +100,7 @@ pub(crate) fn clear_group_delta(
 }
 
 pub(crate) fn apply_group_delta(
-    mut objects: Query<&mut Transform2d, (Without<Parent>, Without<Trigger>)>,
+    mut objects: Query<(&mut Transform2d, &ObjectType), (Without<Parent>, Without<Trigger>)>,
     groups: Query<(&GlobalGroup, &GlobalGroupDeltas), Changed<GlobalGroupDeltas>>,
 ) {
     for (group, group_deltas) in &groups {
@@ -107,15 +108,21 @@ pub(crate) fn apply_group_delta(
 
         let translation_delta = group_deltas.translation_delta.extend(0.);
 
-        let rotation = match group_deltas.rotation {
-            RotationKind::Angle(rotation) => rotation,
-            _ => 0.,
+        match group_deltas.rotation {
+            RotationKind::Angle(rotation) => {
+                while let Some((mut transform, object_type)) = iter.fetch_next() {
+                    transform.translation += translation_delta;
+                    if *object_type != ObjectType::Solid {
+                        transform.angle += rotation;
+                    }
+                }
+            }
+            _ => {
+                while let Some((mut transform, _)) = iter.fetch_next() {
+                    transform.translation += translation_delta;
+                }
+            }
         };
-
-        while let Some(mut transform) = iter.fetch_next() {
-            transform.translation += translation_delta;
-            transform.angle += rotation;
-        }
     }
 
     for (group, group_deltas) in &groups {
@@ -124,7 +131,7 @@ pub(crate) fn apply_group_delta(
             continue;
         };
 
-        let Ok(center_transform) = objects.get(center_entity) else {
+        let Ok((center_transform, _)) = objects.get(center_entity) else {
             continue;
         };
 
@@ -134,14 +141,10 @@ pub(crate) fn apply_group_delta(
 
         let mut iter = objects.iter_many_mut(&group.root_entities);
 
-        if !lock_rotation {
-            while let Some(mut transform) = iter.fetch_next() {
-                transform.translate_around_cos_sin(center_transform, cos_sin);
+        while let Some((mut transform, object_type)) = iter.fetch_next() {
+            transform.translate_around_cos_sin(center_transform, cos_sin);
+            if !(lock_rotation || *object_type == ObjectType::Solid) {
                 transform.angle += rotation
-            }
-        } else {
-            while let Some(mut transform) = iter.fetch_next() {
-                transform.translate_around_cos_sin(center_transform, cos_sin);
             }
         }
     }

@@ -3,11 +3,10 @@ use std::ops::Range;
 
 use bevy::ecs::system::SystemState;
 use bevy::math::{BVec2, Vec2};
-use bevy::prelude::{Entity, Query, Res, Without, World};
+use bevy::prelude::{Entity, Query, Res, World};
 
 use crate::level::easing::Easing;
 use crate::level::group::{GlobalGroupDeltas, GlobalGroups};
-use crate::level::object::Object;
 use crate::level::player::Player;
 use crate::level::transform::Transform2d;
 use crate::level::trigger::TriggerFunction;
@@ -24,7 +23,7 @@ pub(crate) struct MoveTrigger {
 type MoveTriggerSystemParam = (
     Res<'static, GlobalGroups>,
     Query<'static, 'static, &'static mut GlobalGroupDeltas>,
-    Query<'static, 'static, (&'static Player, &'static Transform2d), Without<Object>>,
+    Query<'static, 'static, (&'static Player, &'static Transform2d)>,
 );
 
 impl TriggerFunction for MoveTrigger {

@@ -12,6 +12,7 @@ use crate::level::collision::{GlobalHitbox, Hitbox};
 use crate::level::color::{GlobalColorChannels, HsvMod, ObjectColorCalculated};
 use crate::level::color::{ObjectColor, ObjectColorKind};
 use crate::level::de;
+use crate::level::player_function::insert_gameplay_object_data;
 use crate::level::section::{GlobalSections, Section};
 use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::insert_trigger_data;
@@ -26,8 +27,17 @@ struct ObjectDefaultData {
     color_kind: ObjectColorKind,
     swap_base_detail: bool,
     opacity: f32,
+    r#type: ObjectType,
     hitbox: Option<HitboxData>,
     children: &'static [ObjectChild],
+}
+
+#[derive(Copy, Clone, Default, Component, PartialEq)]
+pub(crate) enum ObjectType {
+    Solid,
+    Hazard,
+    #[default]
+    Other,
 }
 
 impl ObjectDefaultData {
@@ -40,6 +50,7 @@ impl ObjectDefaultData {
         color_kind: ObjectColorKind::None,
         swap_base_detail: false,
         opacity: 1.,
+        r#type: ObjectType::Other,
         hitbox: None,
         children: &[],
     };
@@ -47,18 +58,7 @@ impl ObjectDefaultData {
 
 impl Default for ObjectDefaultData {
     fn default() -> Self {
-        ObjectDefaultData {
-            texture: "emptyFrame.png",
-            default_z_layer: 0,
-            default_z_order: 0,
-            default_base_color_channel: u64::MAX,
-            default_detail_color_channel: u64::MAX,
-            color_kind: ObjectColorKind::None,
-            swap_base_detail: false,
-            opacity: 1.,
-            hitbox: None,
-            children: &[],
-        }
+        Self::DEFAULT
     }
 }
 
@@ -260,6 +260,7 @@ pub(crate) fn spawn_object(
         Section::from_section_index(section_index),
         transform,
         object_transform,
+        object_default_data.r#type,
     ));
 
     if let Some(hide) = object_data.get("135") {
@@ -277,7 +278,7 @@ pub(crate) fn spawn_object(
                 half_extents,
             } => {
                 entity.insert(Hitbox::Box {
-                    no_rotation: false,
+                    no_rotation: object_default_data.r#type == ObjectType::Solid,
                     offset: if offset != Vec2::ZERO {
                         Some(offset)
                     } else {
@@ -295,6 +296,8 @@ pub(crate) fn spawn_object(
         }
         entity.insert(GlobalHitbox::default());
     }
+
+    insert_gameplay_object_data(&mut entity, object_id, object_data)?;
 
     insert_trigger_data(&mut entity, object_id, object_data)?;
 

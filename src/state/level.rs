@@ -18,17 +18,19 @@ use bevy::prelude::{
 use bevy::time::{Time, Virtual};
 use bevy_egui::EguiContexts;
 use bevy_kira_audio::{AudioInstance, AudioTween, PlaybackState};
+use ordered_float::Pow;
 
+use crate::level::collision::GlobalHitbox;
 use crate::level::color::{ColorChannelCalculated, GlobalColorChannels, ObjectColorCalculated};
-use crate::level::object::Object;
+use crate::level::object::{Object, ObjectType};
 use crate::level::player::Player;
 use crate::level::section::GlobalSections;
-use crate::level::transform::Transform2d;
+use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::shake::ShakeData;
 use crate::level::trigger::GlobalTriggers;
 use crate::level::{LevelWorld, SongOffset};
 use crate::state::GameState;
-use crate::utils::section_index_from_x;
+use crate::utils::{lerp, section_index_from_x};
 
 pub(crate) struct LevelStatePlugin;
 
@@ -73,6 +75,7 @@ pub(crate) struct Options {
     pause_player: bool,
     camera_limit: f32,
     disable_shake: bool,
+    time_scale: f32,
 }
 
 impl Default for Options {
@@ -88,6 +91,7 @@ impl Default for Options {
             pause_player: false,
             camera_limit: 570.,
             disable_shake: false,
+            time_scale: 1.,
         }
     }
 }
@@ -165,6 +169,14 @@ fn render_option_gui(
         ui.checkbox(&mut options.hide_triggers, "Hide triggers (T)");
         ui.checkbox(&mut options.disable_shake, "Disable shake (K)");
         ui.checkbox(&mut options.pause_player, "Pause player (Esc)");
+        ui.horizontal(|ui| {
+            ui.label("Time scale");
+            let mut buffer = format!("{}", options.time_scale);
+            ui.text_edit_singleline(&mut buffer);
+            if let Ok(num) = buffer.parse() {
+                options.time_scale = num;
+            }
+        });
         ui.separator();
         ui.horizontal(|ui| {
             if ui.button("Exit to menu").clicked() {
@@ -309,6 +321,8 @@ fn update_level_world(
     mut gizmos: Gizmos,
     song_players: Query<&SongPlayer>,
     mut audio_instances: ResMut<Assets<AudioInstance>>,
+    key_input: Res<ButtonInput<KeyCode>>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
 ) {
     let LevelWorld::World(ref mut world) = *level_world else {
         panic!("World is supposed to be created");
@@ -318,9 +332,13 @@ fn update_level_world(
         if options.pause_player {
             time.pause();
         } else {
+            time.set_relative_speed(options.time_scale);
             time.unpause();
         }
     });
+
+    world.insert_resource(key_input.clone());
+    world.insert_resource(mouse_input.clone());
 
     world.run_schedule(First);
     world.run_schedule(PreUpdate);
@@ -377,11 +395,25 @@ fn update_level_world(
         }
     }
 
+    let lerp_factor =
+        world.resource_scope(|_, time: Mut<Time>| 1. - 0.9.pow(time.delta_seconds_f64() * 60.));
+
     let (_, player_transform) = players.single(world);
 
     if options.lock_camera_to_player {
         actual_camera_translation.0.x =
             (player_transform.translation.x + 75.).min(options.camera_limit);
+        let distance = actual_camera_translation.0.y - player_transform.translation.y;
+        let distance_abs = (actual_camera_translation.0.y - player_transform.translation.y).abs();
+        if distance_abs > 150. {
+            actual_camera_translation.0.y = player_transform.translation.y;
+        } else if distance_abs > 60. {
+            actual_camera_translation.0.y = lerp(
+                actual_camera_translation.0.y,
+                player_transform.translation.y + 90. * -distance.signum(),
+                lerp_factor as f32,
+            );
+        }
         if options.show_lines {
             gizmos.line_2d(
                 Vec2::new(
@@ -420,20 +452,32 @@ fn update_level_world(
 
     if options.display_hitboxes {
         world.resource_scope(|world, global_sections: Mut<GlobalSections>| {
-            let mut query = world.query::<(
-                &ObjectColorCalculated,
-                &crate::level::collision::GlobalHitbox,
-            )>();
+            let mut query = world.query::<(&ObjectColorCalculated, &GlobalHitbox, &ObjectType)>();
             for section in &global_sections.sections[global_sections.visible.clone()] {
-                for (object_calculated, hitbox) in query.iter_many(world, section) {
+                for (object_calculated, hitbox, object_type) in query.iter_many(world, section) {
                     if !object_calculated.enabled {
                         continue;
                     }
 
-                    gizmos.primitive_2d(*hitbox, Vec2::ZERO, 0., Color::BLUE);
+                    let color = match *object_type {
+                        ObjectType::Solid => Color::BLUE,
+                        ObjectType::Hazard => Color::RED,
+                        ObjectType::Other => Color::GREEN,
+                    };
+                    gizmos.primitive_2d(*hitbox, Vec2::ZERO, 0., color);
                 }
             }
-        })
+        });
+        let mut query = world.query::<(&Player, &Transform2d, &GlobalTransform2d, &GlobalHitbox)>();
+        for (player, transform, global_transform, global_hitbox) in query.iter(world) {
+            gizmos.primitive_2d(*global_hitbox, Vec2::ZERO, 0., Color::CYAN);
+            gizmos.primitive_2d(
+                GlobalHitbox::from((&player.inner_hitbox, transform, global_transform)),
+                Vec2::ZERO,
+                0.,
+                Color::CRIMSON,
+            );
+        }
     }
 
     world.resource_scope(|world, global_color_channels: Mut<GlobalColorChannels>| {

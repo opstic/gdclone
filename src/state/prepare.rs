@@ -138,8 +138,14 @@ fn prepare_setup(
     commands.insert_resource(LocalSongHandle(song_info, local_song));
 }
 
-fn update_controls(input: Res<ButtonInput<KeyCode>>, mut state: ResMut<NextState<GameState>>) {
+fn update_controls(
+    mut commands: Commands,
+    input: Res<ButtonInput<KeyCode>>,
+    mut state: ResMut<NextState<GameState>>,
+) {
     if input.just_pressed(KeyCode::Escape) {
+        commands.remove_resource::<LevelDownloadTask>();
+        commands.remove_resource::<AudioDownloadTask>();
         state.set(GameState::Menu);
     }
 }

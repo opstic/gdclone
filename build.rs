@@ -42,7 +42,8 @@ struct Child {
 
 #[derive(Deserialize)]
 struct Hitbox {
-    r#type: String,
+    r#type: Option<String>,
+    collision_type: Option<String>,
     x: Option<f32>,
     y: Option<f32>,
     width: Option<f32>,
@@ -170,8 +171,13 @@ fn write_object(object_data: ObjectData, output: &mut String) {
     }
 
     if let Some(hitbox) = &object_data.hitbox {
+        match &hitbox.r#type {
+            Some(r#type) => write_value_raw("r#type", &format!("ObjectType::{}", r#type), output),
+            None => write_value_raw("r#type", "ObjectType::Other", output),
+        }
         write_hitbox(hitbox, output);
     } else {
+        write_value_raw("r#type", "ObjectType::Other", output);
         output.write_str("hitbox: None,").unwrap();
     }
 
@@ -197,13 +203,15 @@ fn write_object(object_data: ObjectData, output: &mut String) {
 fn write_hitbox(hitbox: &Hitbox, output: &mut String) {
     output.write_str("hitbox: ").unwrap();
 
-    match &*hitbox.r#type {
+    let collision_type = hitbox.collision_type.clone().unwrap_or("Box".to_string());
+
+    match &*collision_type {
         "Box" | "Slope" => {
             output
-                .write_str(&format!("Some(HitboxData::{} {{ ", hitbox.r#type))
+                .write_str(&format!("Some(HitboxData::{} {{ ", collision_type))
                 .unwrap();
 
-            if hitbox.r#type == "Box" {
+            if collision_type == "Box" {
                 write_value_vec2("offset", hitbox.x.unwrap(), hitbox.y.unwrap(), output);
             }
 

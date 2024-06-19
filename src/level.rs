@@ -2,9 +2,10 @@ use std::marker::PhantomData;
 use std::time::Instant;
 
 use bevy::app::{App, PostUpdate, PreUpdate, Update};
+use bevy::asset::Handle;
 use bevy::core::FrameCountPlugin;
 use bevy::log::{info, warn};
-use bevy::math::{Vec3, Vec4};
+use bevy::math::{DVec2, Vec2, Vec3, Vec4};
 use bevy::prelude::{IntoSystemConfigs, Resource, World};
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::time::TimePlugin;
@@ -15,9 +16,21 @@ use serde::{Deserialize, Deserializer};
 
 use crate::asset::cocos2d_atlas::Cocos2dFrames;
 use crate::level::animation::update_animation;
-use crate::level::collision::{update_collision, Hitbox};
-use crate::level::color::{GlobalColorChannelKind, HsvMod, Pulses};
-use crate::level::player::{update_player_pos, Player};
+use crate::level::collision::{update_collision, ActiveCollider, GlobalHitbox, Hitbox};
+use crate::level::color::{
+    GlobalColorChannelKind, HsvMod, ObjectColor, ObjectColorCalculated, Pulses,
+};
+use crate::level::object::{Object, ObjectType};
+use crate::level::player::{
+    process_player_collisions, update_player_game_mode, update_player_pos, Ground, KillPlayer,
+    Player, PlayerFunctionSystemStateCache,
+};
+use crate::level::player_function::mode::ball::BallMode;
+use crate::level::player_function::mode::cube::CubeMode;
+use crate::level::player_function::mode::ship::ShipMode;
+use crate::level::player_function::mode::ufo::UfoMode;
+use crate::level::player_function::mode::wave::WaveMode;
+use crate::level::player_function::PlayerFunction;
 use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::level::trigger::{process_triggers, SpeedChange, TriggerActivator, TriggerData};
 use crate::level::{
@@ -42,6 +55,7 @@ mod easing;
 pub(crate) mod group;
 pub(crate) mod object;
 pub(crate) mod player;
+mod player_function;
 pub(crate) mod section;
 pub(crate) mod transform;
 pub(crate) mod trigger;
@@ -211,6 +225,10 @@ impl<'a> ParsedInnerLevel<'a> {
             Update,
             (
                 update_collision,
+                process_player_collisions.after(update_collision),
+                update_player_game_mode
+                    .before(update_player_pos)
+                    .after(process_player_collisions),
                 (update_player_pos, clear_pulses).before(process_triggers),
                 process_triggers.after(update_player_pos),
                 (
@@ -232,6 +250,8 @@ impl<'a> ParsedInnerLevel<'a> {
                 (update_transform, update_object_color).after(limit_sections),
             ),
         );
+
+        sub_app.add_event::<KillPlayer>();
 
         let mut world = sub_app.world;
 
@@ -427,26 +447,6 @@ impl<'a> ParsedInnerLevel<'a> {
         info!("Spawned {} objects", self.objects.len());
         info!("{} sections used", global_sections.sections.len());
 
-        let player = world
-            .spawn((
-                Player::default(),
-                Transform2d::default(),
-                GlobalTransform2d::default(),
-                Section::default(),
-                TriggerActivator::default(),
-            ))
-            .id();
-
-        global_sections.sections[0].insert(player);
-
-        world.insert_resource(global_sections);
-        world.insert_resource(global_color_channels);
-
-        info!("Found {} group archetypes", group_archetypes.len());
-        start = Instant::now();
-        group::spawn_groups(&mut world, global_groups, group_archetypes);
-        info!("Initializing groups took {:?}", start.elapsed());
-
         let default_speed = if let Some(speed) = self.start_object.get("kA4") {
             match speed.parse().unwrap() {
                 0 => (5.77 * 60., 0.9),
@@ -469,6 +469,99 @@ impl<'a> ParsedInnerLevel<'a> {
             },
             Hitbox::default(),
         ));
+
+        let frame_index = cocos2d_frames
+            .index
+            .get("lightsquare_01_05_color_001.png")
+            .unwrap();
+
+        let (frame, image_asset_id, _) = &cocos2d_frames.frames[*frame_index];
+
+        global_sections.sections[0].insert(
+            world
+                .spawn((
+                    Ground,
+                    Transform2d {
+                        translation: Vec3::new(0., -45., 0.),
+                        scale: Vec2::splat(90.),
+                        ..default()
+                    },
+                    GlobalTransform2d::default(),
+                    Section::default(),
+                    ObjectColorCalculated::default(),
+                    ObjectType::Solid,
+                    Hitbox::Box {
+                        no_rotation: true,
+                        offset: None,
+                        half_extents: Vec2::splat(0.5),
+                    },
+                    GlobalHitbox::default(),
+                ))
+                .id(),
+        );
+
+        let player = world
+            .spawn((
+                Player {
+                    velocity: DVec2::new(default_speed.0 as f64, 0.),
+                    speed: default_speed.1 as f64,
+                    mini: self
+                        .start_object
+                        .get(&"kA3")
+                        .map(|s| str_to_bool(s))
+                        .unwrap_or_default(),
+                    game_mode: self
+                        .start_object
+                        .get(&"kA2")
+                        .and_then(|s| {
+                            Some(match s.parse().ok()? {
+                                0 => Box::new(CubeMode::default()) as Box<dyn PlayerFunction>,
+                                1 => Box::new(ShipMode),
+                                2 => Box::new(BallMode),
+                                3 => Box::new(UfoMode),
+                                4 => Box::new(WaveMode),
+                                _ => Box::new(CubeMode::default()),
+                            })
+                        })
+                        .unwrap_or(Box::new(CubeMode::default())),
+                    ..default()
+                },
+                Transform2d {
+                    translation: Vec3::new(0., 15., 0.),
+                    ..default()
+                },
+                GlobalTransform2d::default(),
+                Section::default(),
+                TriggerActivator::default(),
+                Object {
+                    frame: *frame,
+                    z_layer: 6,
+                    ..default()
+                },
+                ObjectColor::default(),
+                ObjectColorCalculated::default(),
+                Handle::Weak(*image_asset_id),
+                Hitbox::Box {
+                    no_rotation: true,
+                    offset: None,
+                    half_extents: Vec2::splat(15.),
+                },
+                GlobalHitbox::default(),
+                ActiveCollider::default(),
+            ))
+            .id();
+
+        world.init_resource::<PlayerFunctionSystemStateCache>();
+
+        global_sections.sections[0].insert(player);
+
+        world.insert_resource(global_sections);
+        world.insert_resource(global_color_channels);
+
+        info!("Found {} group archetypes", group_archetypes.len());
+        start = Instant::now();
+        group::spawn_groups(&mut world, global_groups, group_archetypes);
+        info!("Initializing groups took {:?}", start.elapsed());
 
         start = Instant::now();
         trigger::construct_trigger_index(&mut world);

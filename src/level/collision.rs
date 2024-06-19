@@ -6,6 +6,8 @@ use bevy::prelude::{
     Without,
 };
 
+use crate::level::color::ObjectColorCalculated;
+use crate::level::object::ObjectType;
 use crate::level::section::{GlobalSections, Section};
 use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::utils::intersect_aabb;
@@ -159,6 +161,14 @@ impl From<(&Hitbox, &Transform2d, &GlobalTransform2d)> for GlobalHitbox {
 
 impl GlobalHitbox {
     #[inline]
+    pub(crate) fn aabb_center(&self) -> Vec2 {
+        Vec2::new(
+            (self.aabb.x + -self.aabb.z) / 2.,
+            (self.aabb.y + -self.aabb.w) / 2.,
+        )
+    }
+
+    #[inline]
     pub(crate) fn intersect(&self, other: &GlobalHitbox) -> (bool, Option<Vec2>) {
         if !intersect_aabb(self.aabb, other.aabb) {
             return (false, None);
@@ -216,13 +226,16 @@ impl<'w, 's, T: GizmoConfigGroup> GizmoPrimitive2d<GlobalHitbox> for Gizmos<'w, 
 
 #[derive(Component, Default)]
 pub(crate) struct ActiveCollider {
-    pub(crate) collided: Vec<(Entity, GlobalHitbox, Option<Vec2>, bool)>,
+    pub(crate) collided: Vec<(Entity, GlobalHitbox, Option<Vec2>, ObjectType)>,
 }
 
 pub(crate) fn update_collision(
     sections: Res<GlobalSections>,
     mut active_colliders: Query<(Entity, &mut ActiveCollider, &GlobalHitbox, &Section)>,
-    others: Query<(Entity, &GlobalHitbox), Without<ActiveCollider>>,
+    others: Query<
+        (Entity, &ObjectColorCalculated, &GlobalHitbox, &ObjectType),
+        Without<ActiveCollider>,
+    >,
 ) {
     let others = &others;
 
@@ -235,14 +248,19 @@ pub(crate) fn update_collision(
         let end = collider_section.current.saturating_add(1) as usize;
         let sections = &sections.sections[start..end];
         for section in sections {
-            for (other_entity, other_hitbox) in others.iter_many(section) {
+            for (other_entity, object_color_calc, other_hitbox, other_type) in
+                others.iter_many(section)
+            {
+                if !object_color_calc.enabled {
+                    continue;
+                }
                 let (collided, collided_vector) = collider_hitbox.intersect(other_hitbox);
                 if collided {
                     active_collider.collided.push((
                         other_entity,
                         *other_hitbox,
                         collided_vector,
-                        true,
+                        *other_type,
                     ));
                 }
             }
