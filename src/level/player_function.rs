@@ -2,11 +2,13 @@ use std::any::{Any, TypeId};
 
 use bevy::prelude::{Component, Entity, EntityWorldMut, World};
 
+use crate::level::collision::Hitbox;
 use crate::level::player::JUMP_HEIGHT;
 use crate::level::player_function::dash_orb::DashOrb;
 use crate::level::player_function::gravity_pad::GravityPad;
 use crate::level::player_function::mode::ball::BallMode;
 use crate::level::player_function::mode::cube::CubeMode;
+use crate::level::player_function::mode::robot::RobotMode;
 use crate::level::player_function::mode::ship::ShipMode;
 use crate::level::player_function::mode::ufo::UfoMode;
 use crate::level::player_function::mode::wave::WaveMode;
@@ -139,6 +141,12 @@ pub(crate) fn insert_gameplay_object_data(
                 },
             };
             entity_world_mut.insert(GameplayObject(Box::new(function)));
+
+            if let Some(mut hitbox) = entity_world_mut.get_mut::<Hitbox>() {
+                if let Hitbox::Box { no_rotation, .. } = &mut *hitbox {
+                    *no_rotation = true
+                }
+            }
         }
         10 | 11 | 99 | 101 => {
             let function = Portal {
@@ -178,33 +186,49 @@ pub(crate) fn insert_gameplay_object_data(
             };
             entity_world_mut.insert(GameplayObject(Box::new(function)));
         }
-        12 | 13 | 47 | 111 | 660 => {
+        12 | 13 | 47 | 111 | 660 | 745 => {
             let function = Portal {
                 func: match object_id {
                     12 => |player| {
                         player.game_mode = Box::new(CubeMode::default());
                         player.do_ceiling_collision = false;
+                        player.hitbox_scale = None;
+                        player.disable_snap = false;
                         true
                     },
                     13 => |player| {
                         player.game_mode = Box::new(ShipMode);
                         player.velocity.y /= 2.;
                         player.do_ceiling_collision = true;
+                        player.hitbox_scale = None;
+                        player.disable_snap = false;
                         true
                     },
                     47 => |player| {
                         player.game_mode = Box::new(BallMode);
                         player.do_ceiling_collision = true;
+                        player.hitbox_scale = None;
+                        player.disable_snap = false;
                         true
                     },
                     111 => |player| {
                         player.game_mode = Box::new(UfoMode);
                         player.do_ceiling_collision = true;
+                        player.hitbox_scale = None;
+                        player.disable_snap = false;
                         true
                     },
                     660 => |player| {
                         player.game_mode = Box::new(WaveMode);
                         player.do_ceiling_collision = true;
+                        player.hitbox_scale = Some(0.4875);
+                        player.disable_snap = true;
+                        true
+                    },
+                    745 => |player| {
+                        player.game_mode = Box::new(RobotMode::default());
+                        player.do_ceiling_collision = false;
+                        player.hitbox_scale = None;
                         true
                     },
                     _ => unreachable!(),
@@ -229,11 +253,23 @@ pub(crate) fn insert_gameplay_object_data(
             };
             entity_world_mut.insert(GameplayObject(Box::new(function)));
         }
-        1829 => {
+        1755 | 1829 | 1859 => {
             let function = Portal {
-                func: |player| {
-                    player.dash = None;
-                    true
+                func: match object_id {
+                    1755 => |player| {
+                        player.disable_snap = false;
+                        player.do_ceiling_collision = true;
+                        true
+                    },
+                    1829 => |player| {
+                        player.dash = None;
+                        true
+                    },
+                    1859 => |player| {
+                        player.do_ceiling_collision = true;
+                        false
+                    },
+                    _ => unreachable!(),
                 },
             };
             entity_world_mut.insert(GameplayObject(Box::new(function)));

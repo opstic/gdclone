@@ -1,6 +1,7 @@
 use std::f32::consts::{FRAC_1_PI, FRAC_2_PI};
+use std::ops::Mul;
 
-use bevy::math::{Vec2, Vec2Swizzles, Vec3, Vec4, Vec4Swizzles};
+use bevy::math::{Vec2, Vec2Swizzles, Vec3, Vec3Swizzles, Vec4, Vec4Swizzles};
 use bevy::prelude::{
     Color, Component, Entity, GizmoConfigGroup, GizmoPrimitive2d, Gizmos, Primitive2d, Query, Res,
     Without,
@@ -12,7 +13,7 @@ use crate::level::section::{GlobalSections, Section};
 use crate::level::transform::{GlobalTransform2d, Transform2d};
 use crate::utils::intersect_aabb;
 
-#[derive(Component)]
+#[derive(Copy, Clone, Component)]
 pub(crate) enum Hitbox {
     Box {
         no_rotation: bool,
@@ -25,6 +26,31 @@ pub(crate) enum Hitbox {
     Circle {
         radius: f32,
     },
+}
+
+impl Mul<f32> for Hitbox {
+    type Output = Hitbox;
+    fn mul(mut self, rhs: f32) -> Self::Output {
+        match &mut self {
+            Hitbox::Box {
+                offset,
+                half_extents,
+                ..
+            } => {
+                *half_extents *= rhs;
+                if let Some(offset) = offset.as_mut() {
+                    *offset *= rhs;
+                }
+            }
+            Hitbox::Slope { half_extents } => {
+                *half_extents *= rhs;
+            }
+            Hitbox::Circle { radius } => {
+                *radius *= rhs;
+            }
+        }
+        self
+    }
 }
 
 impl Default for Hitbox {
@@ -40,10 +66,10 @@ impl Default for Hitbox {
 #[derive(Component, Copy, Clone)]
 pub(crate) struct GlobalHitbox {
     pub(crate) aabb: Vec4,
-    specific: Option<GlobalHitboxKind>,
+    pub(crate) specific: Option<GlobalHitboxKind>,
 }
 
-#[derive(Copy, Clone)]
+#[derive(PartialEq, Copy, Clone)]
 pub(crate) enum GlobalHitboxKind {
     Obb { vertices: [Vec2; 4] },
     Triangle { vertices: [Vec2; 3] },
@@ -127,7 +153,7 @@ impl From<(&Hitbox, &Transform2d, &GlobalTransform2d)> for GlobalHitbox {
                     *vertex = affine.transform_point2(*vertex);
                 }
 
-                let mut transformed_half_extents = half_extents * transform.scale;
+                let mut transformed_half_extents = (half_extents * transform.scale).abs();
 
                 if (transform.angle * FRAC_1_PI).fract() != 0. {
                     transformed_half_extents = transformed_half_extents.yx()

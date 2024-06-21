@@ -1,5 +1,4 @@
 use std::any::Any;
-use std::f32::consts::FRAC_PI_2;
 
 use bevy::ecs::system::SystemState;
 use bevy::prelude::{Entity, Query, With, World};
@@ -44,9 +43,7 @@ impl PlayerFunction for DashOrb {
             return;
         };
 
-        let normalized_angle = -orb_transform.angle - FRAC_PI_2;
-
-        player.dash = Some(normalized_angle);
+        player.dash = Some(orb_transform.angle);
 
         if self.flip {
             player.flipped = !player.flipped;

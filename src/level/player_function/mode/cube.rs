@@ -43,8 +43,10 @@ impl PlayerFunction for CubeMode {
         let (mut player, mut transform) = player_query.get_mut(player_entity).unwrap();
 
         if !player.mini {
+            player.snap_distance = (5., 9.);
             transform.scale = Vec2::splat(1.);
         } else {
+            player.snap_distance = (-1., 3.);
             transform.scale = Vec2::splat(0.6);
         }
 

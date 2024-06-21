@@ -27,6 +27,7 @@ use crate::level::player::{
 };
 use crate::level::player_function::mode::ball::BallMode;
 use crate::level::player_function::mode::cube::CubeMode;
+use crate::level::player_function::mode::robot::RobotMode;
 use crate::level::player_function::mode::ship::ShipMode;
 use crate::level::player_function::mode::ufo::UfoMode;
 use crate::level::player_function::mode::wave::WaveMode;
@@ -520,6 +521,7 @@ impl<'a> ParsedInnerLevel<'a> {
                                 2 => Box::new(BallMode),
                                 3 => Box::new(UfoMode),
                                 4 => Box::new(WaveMode),
+                                5 => Box::new(RobotMode::default()),
                                 _ => Box::new(CubeMode::default()),
                             })
                         })

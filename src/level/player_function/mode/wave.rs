@@ -33,10 +33,14 @@ impl PlayerFunction for WaveMode {
 
         let (mut player, mut transform) = player_query.get_mut(player_entity).unwrap();
 
+        player.buffered_input = false;
+
         if !player.mini {
-            transform.scale = Vec2::splat(0.325);
+            player.snap_distance = (1., 6.);
+            transform.scale = Vec2::splat(2. / 3.);
         } else {
-            transform.scale = Vec2::splat(0.325 * 0.6);
+            player.snap_distance = (-3., 6.);
+            transform.scale = Vec2::splat((2. / 3.) * 0.6);
         }
 
         if pressed {

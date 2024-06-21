@@ -11,7 +11,7 @@ use bevy::input::ButtonInput;
 use bevy::math::{Vec2, Vec3, Vec3Swizzles, Vec4Swizzles};
 use bevy::prelude::{
     in_state, Camera, ClearColor, Color, Commands, Component, Entity, EventReader,
-    GizmoPrimitive2d, Gizmos, GlobalTransform, IntoSystemConfigs, KeyCode, MouseButton, Mut,
+    GizmoPrimitive2d, Gizmos, GlobalTransform, IntoSystemConfigs, KeyCode, Local, MouseButton, Mut,
     NextState, OnEnter, OnExit, OrthographicProjection, Query, Res, ResMut, Resource, Schedule,
     Transform, With, Without,
 };
@@ -20,7 +20,7 @@ use bevy_egui::EguiContexts;
 use bevy_kira_audio::{AudioInstance, AudioTween, PlaybackState};
 use ordered_float::Pow;
 
-use crate::level::collision::GlobalHitbox;
+use crate::level::collision::{GlobalHitbox, Hitbox};
 use crate::level::color::{ColorChannelCalculated, GlobalColorChannels, ObjectColorCalculated};
 use crate::level::object::{Object, ObjectType};
 use crate::level::player::Player;
@@ -154,6 +154,7 @@ fn render_option_gui(
     mut contexts: EguiContexts,
     mut state: ResMut<NextState<GameState>>,
     mut projections: Query<&mut OrthographicProjection, With<Camera>>,
+    mut input_buffer: Local<String>,
 ) {
     if !options.show_options {
         return;
@@ -171,10 +172,12 @@ fn render_option_gui(
         ui.checkbox(&mut options.pause_player, "Pause player (Esc)");
         ui.horizontal(|ui| {
             ui.label("Time scale");
-            let mut buffer = format!("{}", options.time_scale);
-            ui.text_edit_singleline(&mut buffer);
-            if let Ok(num) = buffer.parse() {
-                options.time_scale = num;
+            let response = ui.text_edit_singleline(&mut *input_buffer);
+            if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                if let Ok(num) = input_buffer.parse() {
+                    options.time_scale = num;
+                }
+                *input_buffer = format!("{}", options.time_scale);
             }
         });
         ui.separator();
@@ -287,23 +290,23 @@ fn update_controls(
 
     let (camera, transform) = cameras.single();
 
-    if mouse_button.pressed(MouseButton::Left) {
-        for mouse_motion_event in mouse_motion_events.read() {
-            let mut delta = camera
-                .ndc_to_world(
-                    transform,
-                    (mouse_motion_event.delta * 2. / camera.logical_viewport_size().unwrap())
-                        .extend(1.),
-                )
-                .unwrap()
-                .xy()
-                - transform.translation().xy();
-            delta /= 1.75;
-            for mut transform in transforms.iter_mut() {
-                if !options.lock_camera_to_player {
+    if !options.lock_camera_to_player {
+        if mouse_button.pressed(MouseButton::Left) {
+            for mouse_motion_event in mouse_motion_events.read() {
+                let mut delta = camera
+                    .ndc_to_world(
+                        transform,
+                        (mouse_motion_event.delta * 2. / camera.logical_viewport_size().unwrap())
+                            .extend(1.),
+                    )
+                    .unwrap()
+                    .xy()
+                    - transform.translation().xy();
+                delta /= 1.75;
+                for mut transform in transforms.iter_mut() {
                     transform.0.x -= delta.x;
+                    transform.0.y += delta.y;
                 }
-                transform.0.y += delta.y;
             }
         }
     }
@@ -468,15 +471,13 @@ fn update_level_world(
                 }
             }
         });
-        let mut query = world.query::<(&Player, &Transform2d, &GlobalTransform2d, &GlobalHitbox)>();
-        for (player, transform, global_transform, global_hitbox) in query.iter(world) {
-            gizmos.primitive_2d(*global_hitbox, Vec2::ZERO, 0., Color::CYAN);
-            gizmos.primitive_2d(
-                GlobalHitbox::from((&player.inner_hitbox, transform, global_transform)),
-                Vec2::ZERO,
-                0.,
-                Color::CRIMSON,
-            );
+        let mut query = world.query::<(&Player, &Transform2d, &GlobalTransform2d, &Hitbox)>();
+        for (player, transform, global_transform, hitbox) in query.iter(world) {
+            let (hitbox, scaled_hitbox, scaled_inner_hitbox) =
+                player.calculate_player_global_hitbox(transform, global_transform, hitbox);
+            gizmos.primitive_2d(hitbox, Vec2::ZERO, 0., Color::AQUAMARINE);
+            gizmos.primitive_2d(scaled_hitbox, Vec2::ZERO, 0., Color::CYAN);
+            gizmos.primitive_2d(scaled_inner_hitbox, Vec2::ZERO, 0., Color::CRIMSON);
         }
     }
 

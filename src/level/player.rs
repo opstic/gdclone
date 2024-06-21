@@ -1,4 +1,5 @@
 use std::any::{Any, TypeId};
+use std::f32::consts::FRAC_PI_2;
 
 use bevy::input::ButtonInput;
 use bevy::math::{DVec2, Vec2, Vec3Swizzles};
@@ -9,7 +10,7 @@ use bevy::prelude::{
 use bevy::time::Time;
 use bevy::utils::HashMap;
 
-use crate::level::collision::{ActiveCollider, GlobalHitbox, Hitbox};
+use crate::level::collision::{ActiveCollider, GlobalHitbox, GlobalHitboxKind, Hitbox};
 use crate::level::object::ObjectType;
 use crate::level::player_function::mode::cube::CubeMode;
 use crate::level::player_function::{GameplayObject, PlayerFunction};
@@ -33,6 +34,9 @@ pub(crate) struct Player {
     pub(crate) buffered_input: bool,
     pub(crate) dash: Option<f32>,
     pub(crate) do_ceiling_collision: bool,
+    pub(crate) hitbox_scale: Option<f32>,
+    pub(crate) snap_distance: (f32, f32),
+    pub(crate) disable_snap: bool,
 }
 
 impl Default for Player {
@@ -58,25 +62,39 @@ impl Default for Player {
             buffered_input: false,
             dash: None,
             do_ceiling_collision: false,
+            hitbox_scale: None,
+            snap_distance: (5., 9.),
+            disable_snap: false,
         }
     }
 }
 
 impl Player {
     pub(crate) fn falling(&self) -> bool {
-        if self.vertical_is_x {
-            self.velocity.x < 0.
-        } else {
-            self.velocity.y < 0.
-        }
+        self.velocity.y < 0.
     }
 
     pub(crate) fn rising(&self) -> bool {
-        if self.vertical_is_x {
-            self.velocity.x > 0.
-        } else {
-            self.velocity.y > 0.
-        }
+        self.velocity.y > 0.
+    }
+
+    pub(crate) fn get_scaled_hitboxes(&self, hitbox: &Hitbox) -> (Hitbox, Hitbox) {
+        let scale = self.hitbox_scale.unwrap_or(1.);
+        (*hitbox * scale, self.inner_hitbox * scale)
+    }
+
+    pub(crate) fn calculate_player_global_hitbox(
+        &self,
+        transform: &Transform2d,
+        global_transform: &GlobalTransform2d,
+        hitbox: &Hitbox,
+    ) -> (GlobalHitbox, GlobalHitbox, GlobalHitbox) {
+        let (scaled_hitbox, scaled_inner_hitbox) = self.get_scaled_hitboxes(hitbox);
+        (
+            GlobalHitbox::from((hitbox, transform, global_transform)),
+            GlobalHitbox::from((&scaled_hitbox, transform, global_transform)),
+            GlobalHitbox::from((&scaled_inner_hitbox, transform, global_transform)),
+        )
     }
 }
 
@@ -209,8 +227,9 @@ pub(crate) fn update_player_pos(
         if let Some(dash_direction) = player.dash {
             player.on_ground = false;
             player.velocity.y = 0.;
-            transform.translation.y +=
-                (transform.translation.x - player.last_translation.x) / dash_direction.tan();
+            transform.translation.y += (transform.translation.x - player.last_translation.x)
+                / (-dash_direction - FRAC_PI_2).tan();
+            transform.angle = dash_direction;
             continue;
         }
 
@@ -237,85 +256,92 @@ pub(crate) fn process_player_collisions(
         &mut Transform2d,
         &mut GlobalTransform2d,
         &Hitbox,
-        &mut GlobalHitbox,
         &ActiveCollider,
     )>,
 ) {
-    for (
-        entity,
-        mut player,
-        mut transform,
-        mut global_transform,
-        hitbox,
-        mut global_hitbox,
-        active_collider,
-    ) in &mut players
+    for (entity, mut player, mut transform, mut global_transform, hitbox, active_collider) in
+        &mut players
     {
         if active_collider.collided.is_empty() {
             continue;
         }
 
-        let mut global_inner_hitbox =
-            GlobalHitbox::from((&player.inner_hitbox, &*transform, &*global_transform));
+        let (mut global_hitbox, mut scaled_global_hitbox, mut global_inner_hitbox) =
+            player.calculate_player_global_hitbox(&transform, &global_transform, hitbox);
 
         let player_hitbox_height = -global_hitbox.aabb.w - global_hitbox.aabb.y;
 
         for (collided_entity, collided_hitbox, collided_vertex, object_type) in
             &active_collider.collided
         {
+            if !global_hitbox.intersect(collided_hitbox).0 {
+                continue;
+            }
+
             match *object_type {
                 ObjectType::Solid => (),
-                ObjectType::Hazard => {
+                ObjectType::Hazard if scaled_global_hitbox.intersect(collided_hitbox).0 => {
                     ev_kill.send(KillPlayer(entity, Some(*collided_entity)));
                     // info!("killing");
                     continue;
                 }
-                ObjectType::Other => continue,
+                _ => continue,
+            }
+
+            if !player.disable_snap {
+                let do_ceiling_snap = if !player.flipped {
+                    transform.translation.y <= collided_hitbox.aabb.y - player.snap_distance.1
+                } else {
+                    transform.translation.y >= -collided_hitbox.aabb.w + player.snap_distance.1
+                };
+                if player.do_ceiling_collision
+                    && player.rising()
+                    && do_ceiling_snap
+                    && !collided_hitbox
+                        .specific
+                        .map(|specific| matches!(specific, GlobalHitboxKind::Triangle { .. }))
+                        .unwrap_or_default()
+                {
+                    if !player.flipped {
+                        transform.translation.y =
+                            collided_hitbox.aabb.y - player_hitbox_height / 2.;
+                    } else {
+                        transform.translation.y =
+                            -collided_hitbox.aabb.w + player_hitbox_height / 2.;
+                    }
+                    player.velocity.y = 0.;
+
+                    *global_transform = GlobalTransform2d::from(*transform);
+                    (global_hitbox, scaled_global_hitbox, global_inner_hitbox) = player
+                        .calculate_player_global_hitbox(&transform, &global_transform, hitbox);
+                }
+
+                let do_snap = if !player.flipped {
+                    transform.translation.y >= -collided_hitbox.aabb.w + player.snap_distance.0
+                } else {
+                    transform.translation.y <= collided_hitbox.aabb.y - player.snap_distance.0
+                };
+                if player.falling() && do_snap {
+                    if !player.flipped {
+                        transform.translation.y =
+                            -collided_hitbox.aabb.w + player_hitbox_height / 2.;
+                    } else {
+                        transform.translation.y =
+                            collided_hitbox.aabb.y - player_hitbox_height / 2.;
+                    }
+                    player.velocity.y = 0.;
+                    player.on_ground = true;
+
+                    *global_transform = GlobalTransform2d::from(*transform);
+                    (global_hitbox, scaled_global_hitbox, global_inner_hitbox) = player
+                        .calculate_player_global_hitbox(&transform, &global_transform, hitbox);
+                }
             }
 
             if global_inner_hitbox.intersect(collided_hitbox).0 {
                 ev_kill.send(KillPlayer(entity, Some(*collided_entity)));
                 // info!("killing");
                 // continue;
-            }
-
-            let collided_center = collided_hitbox.aabb_center();
-            let half_more_than_center = if !player.flipped {
-                -global_hitbox.aabb.w >= collided_center.y
-            } else {
-                global_hitbox.aabb.y <= collided_center.y
-            };
-            let half_less_than_center = if !player.flipped {
-                -global_hitbox.aabb.w <= collided_center.y
-            } else {
-                global_hitbox.aabb.y >= collided_center.y
-            };
-            if player.falling() && half_more_than_center {
-                if !player.flipped {
-                    transform.translation.y = -collided_hitbox.aabb.w + player_hitbox_height / 2.;
-                } else {
-                    transform.translation.y = collided_hitbox.aabb.y - player_hitbox_height / 2.;
-                }
-                player.velocity.y = 0.;
-                player.on_ground = true;
-
-                *global_transform = GlobalTransform2d::from(*transform);
-                *global_hitbox = GlobalHitbox::from((hitbox, &*transform, &*global_transform));
-                global_inner_hitbox =
-                    GlobalHitbox::from((&player.inner_hitbox, &*transform, &*global_transform));
-            }
-            if player.do_ceiling_collision && player.rising() && half_less_than_center {
-                if !player.flipped {
-                    transform.translation.y = collided_hitbox.aabb.y - player_hitbox_height / 2.;
-                } else {
-                    transform.translation.y = -collided_hitbox.aabb.w + player_hitbox_height / 2.;
-                }
-                player.velocity.y = 0.;
-
-                *global_transform = GlobalTransform2d::from(*transform);
-                *global_hitbox = GlobalHitbox::from((hitbox, &*transform, &*global_transform));
-                global_inner_hitbox =
-                    GlobalHitbox::from((&player.inner_hitbox, &*transform, &*global_transform));
             }
         }
     }

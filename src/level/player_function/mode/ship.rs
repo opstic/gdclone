@@ -37,6 +37,8 @@ impl PlayerFunction for ShipMode {
 
         let (mut player, mut transform) = player_query.get_mut(player_entity).unwrap();
 
+        player.buffered_input = false;
+
         if !player.mini {
             transform.scale = Vec2::splat(1.);
         } else {
